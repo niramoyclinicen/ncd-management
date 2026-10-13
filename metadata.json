@@ -1,0 +1,11 @@
+{
+  "name": "For dev 13/10/206 NCD for - Clinic \u0026 Diagnostic Management System",
+  "description": "Professional Management System for Niramoy Clinic \u0026 Diagnostic (NCD)",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

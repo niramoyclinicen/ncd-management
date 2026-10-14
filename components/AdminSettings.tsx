@@ -796,6 +796,28 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
     }
   };
 
+  const handleJsonFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const rawData = JSON.parse(text);
+        const normalized = dbService.normalizeRecoveredData(rawData);
+        if (Object.keys(normalized).length < 1) {
+          alert("ফাইলটিতে সঠিক ডাটা পাওয়া যায়নি!");
+          return;
+        }
+        processRestore(normalized);
+      } catch (err: any) {
+        alert("JSON ফাইলটি পড়তে ব্যর্থ হয়েছে: " + (err.message || 'Error'));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const executeFullReset = () => {
     if (finalConfirmText !== 'RESET') {
       alert("ভুল টাইপ করেছেন! পুনরায় চেষ্টা করুন।");
@@ -805,11 +827,17 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key?.startsWith('ncd_')) keysToRemove.push(key);
+      if (key && (key.startsWith('ncd_') || key.startsWith('diag_') || key.startsWith('diagnostic_'))) {
+        if (key !== 'ncd_passwords' && key !== 'ncd_user_email') {
+          keysToRemove.push(key);
+        }
+      }
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
+    localStorage.removeItem('app_state');
+    localStorage.removeItem('offline_cache');
     
-    alert("সফলভাবে পুরো সিস্টেম রিসেট করা হয়েছে। পেজটি রিলোড হবে।");
+    alert("সফলভাবে সব ডাটা ডিলিট করে পুরো সিস্টেম রিসেট করা হয়েছে। এখন সফটওয়্যারটি সম্পূর্ণ ফ্রেশ ও নতুন।");
     window.location.reload();
   };
 

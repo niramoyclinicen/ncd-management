@@ -107,13 +107,13 @@ export interface LabReport {
 export interface Patient {
   pt_id: string; pt_name: string; ageY: string; ageM: string; ageD: string; gender: string; mobile: string;
   co_pref: string; co_name: string; dobY: string; dobM: string; dobD: string; address: string;
-  thana: string; district: string; date_modified: string;
+  thana: string; district: string; date_modified: string; relation?: string;
 }
 
 export const emptyPatient: Patient = {
   pt_id: '', pt_name: '', ageY: '', ageM: '', ageD: '', gender: '', mobile: '',
   co_pref: 'S/O', co_name: '', dobY: '', dobM: '', dobD: '', address: '',
-  thana: '', district: 'Sirajganj', date_modified: ''
+  thana: '', district: 'Sirajganj', date_modified: '', relation: 'Self'
 };
 
 export interface Doctor {

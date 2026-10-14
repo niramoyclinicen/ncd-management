@@ -353,7 +353,240 @@ const GenericManagerPage: React.FC<{
     );
 };
 
-// --- CERTIFICATE MODAL ENGINE ---
+// --- MASTER DISCHARGE TEMPLATES & RICH EDITOR TYPES ---
+interface DischargeMasterTemplate {
+    id: string;
+    title: string;
+    content: string;
+    isCustom?: boolean;
+}
+
+interface PatientSavedDischarge {
+    id: string;
+    admissionId: string;
+    patientName: string;
+    patientId: string;
+    dischargeDate: string;
+    htmlContent: string;
+    savedAt: string;
+    consultant: string;
+}
+
+const DEFAULT_DISCHARGE_TEMPLATES: DischargeMasterTemplate[] = [
+    {
+        id: 'lscs_csection',
+        title: 'সিজারিয়ান সেকশন (LSCS / C-Section) পোস্ট-অপারেটিভ ডিসচার্জ',
+        content: `
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:10px; font-size:15px; font-weight:bold;">১. রোগ নির্ণয় ও অপারেশনের বিবরণ (Diagnosis & Procedure)</h3>
+<p style="margin:4px 0;"><b>Clinical Diagnosis:</b> Full Term Pregnancy with Previous LSCS / Foetal Distress / Cephalopelvic Disproportion (CPD).</p>
+<p style="margin:4px 0;"><b>Procedure Done:</b> Lower Segment Caesarean Section (LSCS) with Pfannenstiel incision under Spinal Anaesthesia.</p>
+<p style="margin:4px 0;"><b>Baby Summary:</b> Single live born baby, cried immediately at birth. Birth Weight: <b>3.2 kg</b>. APGAR: 8/10 at 1 min, 10/10 at 5 min.</p>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">২. ছুটিকালীন ঔষধ সেবন বিধি (Discharge Medications)</h3>
+<table style="width:100%; border-collapse:collapse; margin:8px 0; font-size:12px; border:1px solid #cbd5e1;">
+  <thead>
+    <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">ঔষধের নাম (Medicine Name)</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">মাত্রা ও নিয়ম (Dosage)</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:center;">সেবনের সময়</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:center;">মেয়াদ (Days)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding:6px; border:1px solid #cbd5e1;"><b>Cap. Cefixime 200mg</b></td>
+      <td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে ক্যাপসুল দিনে ২ বার (১+০+১)</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">ভরা পেটে</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">৭ দিন</td>
+    </tr>
+    <tr>
+      <td style="padding:6px; border:1px solid #cbd5e1;"><b>Tab. Paracetamol 500mg</b></td>
+      <td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে ট্যাবলেট দিনে ৩ বার (১+১+১)</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">ব্যথা হলে খাবার পর</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">৫ দিন</td>
+    </tr>
+    <tr>
+      <td style="padding:6px; border:1px solid #cbd5e1;"><b>Cap. Esomeprazole 20mg</b></td>
+      <td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে ক্যাপসুল দিনে ২ বার (১+০+১)</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">খাবার ২০ মিনিট আগে</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">১৪ দিন</td>
+    </tr>
+    <tr>
+      <td style="padding:6px; border:1px solid #cbd5e1;"><b>Tab. Calcium + Vitamin D3</b></td>
+      <td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে ট্যাবলেট দিনে ১ বার (০+১+০)</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">দুপুরে খাবার পর</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">১ মাস</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">৩. বিশেষ যত্ন ও উপদেশ (Care & Advice)</h3>
+<ul style="margin:4px 0; padding-left:22px; line-height:1.6;">
+  <li>অপারেশনের সেলাইয়ের স্থান সম্পূর্ণ শুকনা ও পরিষ্কার রাখবেন। সেলাই না কাটা পর্যন্ত পানি লাগানো যাবে না।</li>
+  <li>নবজাতক শিশুকে নিয়মিত মায়ের শালদুধ এবং শুধুমাত্র বুকের দুধ পান করাবেন (প্রথম ৬ মাস শুধুমাত্র বুকের দুধ)।</li>
+  <li>ভারী জিনিসপত্র তোলা ও অতিরিক্ত পরিশ্রম থেকে বিরত থাকবেন। প্রচুর পানি, পুষ্টিকর মাছ-মাংস ও সবুজ শাকসবজি খাবেন।</li>
+</ul>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">৪. ফলো-আপ ও পরবর্তী সাক্ষাত (Follow-up)</h3>
+<p style="margin:4px 0;">আগামী <b>৭ থেকে ১০ দিন পর</b> সেলাই কাটা ও নবজাতকের চেকআপের জন্য হাসপাতালে উপস্থিত হবেন। তীব্র পেটব্যথা, অতিরিক্ত রক্তক্ষরণ, সেলাইয়ে পুঁজ বা জ্বর দেখা দিলে তাৎক্ষণিক জরুরি বিভাগে যোগাযোগ করবেন।</p>
+`
+    },
+    {
+        id: 'nvd_normal_delivery',
+        title: 'স্বাভাবিক প্রসব (Normal Vaginal Delivery - NVD) ডিসচার্জ টেমপ্লেট',
+        content: `
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:10px; font-size:15px; font-weight:bold;">১. প্রসব ও নবজাতকের তথ্য (Delivery Summary)</h3>
+<p style="margin:4px 0;"><b>Diagnosis:</b> Normal Vaginal Delivery (NVD) at Term.</p>
+<p style="margin:4px 0;"><b>Procedure:</b> Spontaneous delivery under aseptic precautions. Episiotomy repaired in layers. Placenta complete.</p>
+<p style="margin:4px 0;"><b>Baby Details:</b> Healthy newborn, cried immediately, active and pink. Birth Weight: <b>3.1 kg</b>.</p>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">২. ছুটিকালীন ঔষধ সেবন বিধি (Medications)</h3>
+<table style="width:100%; border-collapse:collapse; margin:8px 0; font-size:12px; border:1px solid #cbd5e1;">
+  <thead>
+    <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">ঔষধের নাম</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">মাত্রা ও নিয়ম</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:center;">সেবনের সময়</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:center;">মেয়াদ</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:6px; border:1px solid #cbd5e1;"><b>Cap. Amoxicillin 500mg</b></td><td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে দিনে ৩ বার (১+১+১)</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">খাবার পর</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">৫ দিন</td></tr>
+    <tr><td style="padding:6px; border:1px solid #cbd5e1;"><b>Tab. Paracetamol 500mg</b></td><td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে দিনে ৩ বার (১+১+১)</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">ব্যথা হলে</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">৩ দিন</td></tr>
+    <tr><td style="padding:6px; border:1px solid #cbd5e1;"><b>Tab. Iron + Folic Acid</b></td><td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে রাতে (০+০+১)</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">খাবার পর</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">১ মাস</td></tr>
+  </tbody>
+</table>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">৩. যত্ন ও ফলো-আপ (Care & Follow-up)</h3>
+<p style="margin:4px 0;">ব্যক্তিগত পরিচ্ছন্নতা বজায় রাখবেন। শিশুকে শুধুমাত্র বুকের দুধ দিন। ৭ দিন পর ফলো-আপে আসবেন।</p>
+`
+    },
+    {
+        id: 'appendectomy_surgery',
+        title: 'এপেন্ডিসেক্টমি / সাধারণ সার্জারি (Appendectomy / General Surgery) টেমপ্লেট',
+        content: `
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:10px; font-size:15px; font-weight:bold;">১. অপারেশনের বিবরণ (Operative Findings)</h3>
+<p style="margin:4px 0;"><b>Diagnosis:</b> Acute Appendicitis / Recurrent Appendicitis.</p>
+<p style="margin:4px 0;"><b>Operation:</b> Open / Laparoscopic Appendectomy under General / Spinal Anaesthesia. Inflamed appendix removed and sent for Histopathology.</p>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">২. ছুটিকালীন ঔষধপত্র (Discharge Medications)</h3>
+<table style="width:100%; border-collapse:collapse; margin:8px 0; font-size:12px; border:1px solid #cbd5e1;">
+  <thead>
+    <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">ঔষধের নাম</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">মাত্রা</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:center;">নিয়ম</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:center;">দিন</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:6px; border:1px solid #cbd5e1;"><b>Cap. Cefuroxime 500mg</b></td><td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে দিনে ২ বার (১+০+১)</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">খাবার পর</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">৭ দিন</td></tr>
+    <tr><td style="padding:6px; border:1px solid #cbd5e1;"><b>Tab. Metronidazole 400mg</b></td><td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে দিনে ৩ বার (১+১+১)</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">খাবার পর</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">৫ দিন</td></tr>
+    <tr><td style="padding:6px; border:1px solid #cbd5e1;"><b>Tab. Ketorolac 10mg</b></td><td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে দিনে ২ বার (১+০+১)</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">ভরা পেটে (ব্যথা হলে)</td><td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">৩ দিন</td></tr>
+  </tbody>
+</table>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">৩. পরামর্শ ও পরবর্তী সাক্ষাত</h3>
+<p style="margin:4px 0;">সেলাইয়ের স্থান শুকনা রাখবেন। ৭ দিন পর সেলাই কাটতে আসবেন এবং বায়োপসি রিপোর্ট সংগ্রহ করবেন।</p>
+`
+    },
+    {
+        id: 'conservative_medicine',
+        title: 'মেডিসিন ও কনজারভেটিভ চিকিৎসা (Conservative Medical Management) টেমপ্লেট',
+        content: `
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:10px; font-size:15px; font-weight:bold;">১. চিকিৎসার বিবরণ (Clinical Management Summary)</h3>
+<p style="margin:4px 0;"><b>Diagnosis:</b> Acute Gastroenteritis / Enteric Fever / Bronchial Asthma / UTI.</p>
+<p style="margin:4px 0;"><b>Hospital Course:</b> Treated conservatively with IV fluids, antibiotics, bronchodilators and supportive therapy. Patient improved clinically.</p>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">২. পরবর্তী ঔষধ সেবন বিধি (Discharge Prescription)</h3>
+<p style="margin:4px 0;">প্রেসক্রিপশন অনুযায়ী চিকিৎসকের নির্দেশিত ঔষধ সেবন করবেন। পর্যাপ্ত বিশ্রাম নিবেন।</p>
+`
+    }
+];
+
+// --- MS WORD STYLE TOOLBAR COMPONENT ---
+const MsWordToolbar: React.FC<{ onExec: (cmd: string, arg?: string) => void; onInsertTable?: () => void }> = ({ onExec, onInsertTable }) => {
+    const btnCls = "p-1.5 px-2 bg-slate-100 hover:bg-slate-200 active:bg-blue-100 border border-slate-300 rounded text-xs font-bold text-slate-700 shadow-sm transition-all cursor-pointer flex items-center justify-center";
+    return (
+        <div className="flex flex-wrap items-center gap-1.5 p-2 bg-gradient-to-r from-slate-100 to-slate-200 border-b border-slate-300 rounded-t-xl select-none">
+            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('undo'); }} className={btnCls} title="Undo">↺</button>
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('redo'); }} className={btnCls} title="Redo">↻</button>
+            </div>
+            
+            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+                <select onChange={e => onExec('fontName', e.target.value)} className="bg-white border border-slate-300 rounded text-xs px-2 h-7 font-medium text-slate-800 outline-none">
+                    <option value="">Font Family</option>
+                    <option value="Arial">Arial</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Cambria">Cambria</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Calibri">Calibri</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="SolaimanLipi">SolaimanLipi (বাংলা)</option>
+                </select>
+                <select onChange={e => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    if (val === 'h1' || val === 'h2' || val === 'h3' || val === 'p') {
+                        onExec('formatBlock', `<${val}>`);
+                    } else {
+                        onExec('fontSize', val);
+                    }
+                }} className="bg-white border border-slate-300 rounded text-xs px-2 h-7 font-medium text-slate-800 outline-none">
+                    <option value="">Font Size / Heading</option>
+                    <option value="h1">Heading 1 (বড় শিরোনাম)</option>
+                    <option value="h2">Heading 2 (মাঝারি শিরোনাম)</option>
+                    <option value="h3">Heading 3 (উপ-শিরোনাম)</option>
+                    <option value="p">Paragraph / Normal Text</option>
+                    <option value="4">Large Text</option>
+                    <option value="2">Small Text</option>
+                </select>
+            </div>
+
+            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('bold'); }} className={`${btnCls} font-black`} title="Bold">B</button>
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('italic'); }} className={`${btnCls} italic font-serif`} title="Italic">I</button>
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('underline'); }} className={`${btnCls} underline`} title="Underline">U</button>
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('strikeThrough'); }} className={`${btnCls} line-through`} title="Strike">S</button>
+            </div>
+
+            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('justifyLeft'); }} className={btnCls} title="Align Left">⫷ Left</button>
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('justifyCenter'); }} className={btnCls} title="Align Center">☰ Center</button>
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('justifyRight'); }} className={btnCls} title="Align Right">Right ⫸</button>
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('justifyFull'); }} className={btnCls} title="Justify">Justify</button>
+            </div>
+
+            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('insertUnorderedList'); }} className={btnCls} title="Bullet List">• Bullets</button>
+                <button type="button" onMouseDown={e => { e.preventDefault(); onExec('insertOrderedList'); }} className={btnCls} title="Numbered List">1. Numbers</button>
+            </div>
+
+            <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2">
+                <label className="flex items-center gap-1 text-[11px] font-bold text-slate-700 cursor-pointer">
+                    Color:
+                    <input type="color" onChange={e => onExec('foreColor', e.target.value)} className="w-6 h-6 p-0 border border-slate-300 rounded cursor-pointer" title="Text Color"/>
+                </label>
+                <label className="flex items-center gap-1 text-[11px] font-bold text-slate-700 cursor-pointer">
+                    Highlight:
+                    <input type="color" onChange={e => onExec('hiliteColor', e.target.value)} className="w-6 h-6 p-0 border border-slate-300 rounded cursor-pointer" title="Highlight Color"/>
+                </label>
+            </div>
+
+            {onInsertTable && (
+                <button type="button" onMouseDown={e => { e.preventDefault(); onInsertTable(); }} className="p-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1">
+                    📊 + ঔষধ টেবিল যোগ
+                </button>
+            )}
+
+            <button type="button" onMouseDown={e => { e.preventDefault(); onExec('insertHorizontalRule'); }} className={btnCls} title="Horizontal Divider Line">― Line</button>
+            <button type="button" onMouseDown={e => { e.preventDefault(); onExec('removeFormat'); }} className={`${btnCls} text-rose-600`} title="Clear Formatting">Clear</button>
+        </div>
+    );
+};
+
+// --- CERTIFICATE MODAL ENGINE WITH MS WORD EDITOR ---
 const CertificateModal: React.FC<{
     type: 'discharge' | 'birth' | 'death' | 'referral';
     admissions: AdmissionRecord[];
@@ -381,27 +614,62 @@ const CertificateModal: React.FC<{
         issuedBy: ''
     });
 
+    const certEditorRef = useRef<HTMLDivElement>(null);
+
     const selectedAdmission = (Array.isArray(admissions) ? admissions : []).find(a => a && a.admission_id === selectedAdmissionId);
     const selectedPatient = selectedAdmission ? patients.find(p => p.pt_id === selectedAdmission.patient_id) : null;
 
     useEffect(() => {
-        if(selectedAdmission) {
+        if (selectedAdmission) {
             const timer = setTimeout(() => {
-                // Pre-fill defaults based on type
-                if(type === 'birth') {
-                    setCertData((prev: any) => ({...prev, details: { ...prev.details, sex: selectedPatient?.gender === 'Female' ? 'Female' : 'Male', weight: '3.0kg', deliveryType: 'Normal' }}));
-                } else if(type === 'death') {
-                    setCertData((prev: any) => ({...prev, details: { ...prev.details, cause: 'Cardiac Arrest', certBy: selectedAdmission.doctor_name }}));
-                } else if(type === 'referral') {
-                    setCertData((prev: any) => ({...prev, details: { ...prev.details, refTo: 'Sirajgonj Sadar Hospital', reason: 'Advanced Management' }}));
+                if (type === 'birth') {
+                    setCertData((prev: any) => ({
+                        ...prev,
+                        details: { ...prev.details, sex: selectedPatient?.gender === 'Female' ? 'Female' : 'Male', weight: '3.0kg', deliveryType: 'Normal' },
+                        note: prev.note || `<p>This is to certify that a <b>${selectedPatient?.gender === 'Female' ? 'Female' : 'Male'}</b> baby was safely delivered on <b>${prev.date}</b> at <b>${prev.time}</b> under clinical supervision. The infant cried immediately at birth. Both mother and neonate were managed as per hospital obstetric protocol.</p>`
+                    }));
+                } else if (type === 'death') {
+                    setCertData((prev: any) => ({
+                        ...prev,
+                        details: { ...prev.details, cause: 'Cardio-respiratory Failure', certBy: selectedAdmission.doctor_name },
+                        note: prev.note || `<p>This is to certify that the above mentioned patient expired on <b>${prev.date}</b> at <b>${prev.time}</b> while under active clinical treatment. Cause of death is clinically attributed to Cardio-respiratory Failure.</p>`
+                    }));
+                } else if (type === 'referral') {
+                    setCertData((prev: any) => ({
+                        ...prev,
+                        details: { ...prev.details, refTo: 'Sirajgonj Sadar Hospital', reason: 'Higher Level Care & ICU Management' },
+                        note: prev.note || `<p>The patient is being referred to <b>Sirajgonj Sadar Hospital</b> for advanced management and specialist evaluation. Initial emergency resuscitation and supportive care have been administered.</p>`
+                    }));
+                } else if (type === 'discharge') {
+                    setCertData((prev: any) => ({
+                        ...prev,
+                        details: { ...prev.details, dischargeStatus: 'Recovered / Stable' },
+                        note: prev.note || `<p>The patient was admitted on <b>${selectedAdmission.admission_date}</b> with <b>${selectedAdmission.indication || 'Clinical symptoms'}</b> and managed under Dr. <b>${selectedAdmission.doctor_name || 'Consultant'}</b>. The patient has recovered satisfactorily and is medically fit for discharge today.</p>`
+                    }));
                 }
             }, 0);
             return () => clearTimeout(timer);
         }
     }, [selectedAdmissionId, type, selectedPatient, selectedAdmission]);
 
+    // Update innerHTML when certData.note changes
+    useEffect(() => {
+        if (certEditorRef.current && certEditorRef.current.innerHTML !== certData.note) {
+            certEditorRef.current.innerHTML = certData.note || '';
+        }
+    }, [certData.note]);
+
+    const handleExec = (cmd: string, arg?: string) => {
+        document.execCommand(cmd, false, arg);
+        if (certEditorRef.current) {
+            setCertData((prev: any) => ({ ...prev, note: certEditorRef.current?.innerHTML || '' }));
+            certEditorRef.current.focus();
+        }
+    };
+
     const handleSave = () => {
-        if(!selectedAdmissionId) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন");
+        if (!selectedAdmissionId) return alert("প্রথমে পেশেন্ট সিলেক্ট করুন");
+        const currentHtml = certEditorRef.current ? certEditorRef.current.innerHTML : certData.note;
         const newCert: ClinicCertificate = {
             id: `CERT-${new Date().getTime()}`,
             type,
@@ -410,7 +678,7 @@ const CertificateModal: React.FC<{
             date: certData.date,
             time: certData.time,
             details: certData.details,
-            note: certData.note,
+            note: currentHtml,
             issuedBy: certData.issuedBy,
             createdDate: new Date().toISOString()
         };
@@ -421,7 +689,7 @@ const CertificateModal: React.FC<{
     };
 
     const deleteCert = (id: string) => {
-        if(confirm("মুছে ফেলতে চান?")) {
+        if (confirm("মুছে ফেলতে চান?")) {
             const updated = savedCerts.filter(c => c.id !== id);
             setSavedCerts(updated);
             localStorage.setItem(`ncd_certs_${type}`, JSON.stringify(updated));
@@ -429,8 +697,10 @@ const CertificateModal: React.FC<{
     };
 
     const handlePrint = (cert: any = null) => {
+        const currentHtml = certEditorRef.current ? certEditorRef.current.innerHTML : certData.note;
         const data = cert || {
             ...certData,
+            note: currentHtml,
             patientName: selectedPatient?.pt_name,
             ptAge: selectedPatient?.ageY,
             ptSex: selectedPatient?.gender,
@@ -442,7 +712,7 @@ const CertificateModal: React.FC<{
             mobile: selectedPatient?.mobile
         };
 
-        if(!data.patientName) return alert("প্রিন্ট করার মতো কোনো ডাটা নেই।");
+        if (!data.patientName) return alert("প্রিন্ট করার মতো কোনো ডাটা নেই।");
 
         const win = window.open('', '_blank');
         if (!win) return;
@@ -450,173 +720,170 @@ const CertificateModal: React.FC<{
         const title = type === 'birth' ? 'BIRTH CERTIFICATE' : type === 'death' ? 'DEATH CERTIFICATE' : type === 'discharge' ? 'DISCHARGE CERTIFICATE' : 'REFERRAL SLIP';
 
         const html = `
+            <!DOCTYPE html>
             <html>
                 <head>
+                    <meta charset="utf-8"/>
                     <title>${title} - ${data.patientName}</title>
-                    <script src="https://cdn.tailwindcss.com"></script>
                     <style>
-                        @page { size: A4; margin: 0; }
-                        body { background: white; padding: 20mm; font-family: 'Times New Roman', serif; }
-                        .pad-container { border: 2px solid #000; padding: 15mm; min-height: 260mm; position: relative; }
-                        .header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 5mm; margin-bottom: 8mm; }
-                        .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 80pt; color: rgba(0,0,0,0.03); font-weight: bold; pointer-events: none; white-space: nowrap; }
+                        @page { size: A4; margin: 15mm; }
+                        body { font-family: 'Times New Roman', serif; margin: 0; padding: 10px; color: #111; }
+                        .pad-border { border: 3px double #1e3a8a; padding: 25px; min-height: 250mm; position: relative; box-sizing: border-box; }
+                        .watermark { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%) rotate(-35deg); font-size: 70pt; color: rgba(30, 58, 138, 0.04); font-weight: 900; pointer-events: none; white-space: nowrap; }
+                        .header { text-align: center; border-bottom: 2px solid #1e3a8a; padding-bottom: 12px; margin-bottom: 20px; }
+                        .h1 { font-size: 26px; font-weight: 900; text-transform: uppercase; color: #1e3a8a; margin: 0; }
+                        .sub { font-size: 13px; font-weight: bold; margin-top: 4px; color: #334155; }
+                        .reg { font-size: 11px; text-transform: uppercase; font-weight: bold; color: #64748b; margin-top: 3px; }
+                        .badge { display: inline-block; border: 2px solid #1e3a8a; background: #f8fafc; padding: 6px 30px; font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-top: 15px; }
+                        .pt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 14px; margin: 20px 0; border: 1px solid #cbd5e1; background: #f8fafc; padding: 12px 16px; border-radius: 6px; }
+                        .pt-grid b { color: #1e3a8a; }
+                        .content-body { font-size: 15px; line-height: 1.8; margin-top: 20px; }
+                        .content-body table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+                        .content-body th, .content-body td { border: 1px solid #94a3b8; padding: 6px 10px; font-size: 13px; }
+                        .signatures { position: absolute; bottom: 25px; left: 25px; right: 25px; display: flex; justify-content: space-between; }
+                        .sig-line { width: 180px; border-top: 1px solid #000; text-align: center; font-size: 12px; font-weight: bold; padding-top: 4px; }
                     </style>
                 </head>
                 <body>
-                    <div class="pad-container">
-                        <div class="watermark">NCD CLINIC</div>
+                    <div class="pad-border">
+                        <div class="watermark">NIRAMOY CLINIC</div>
                         <div class="header">
-                            <h1 class="text-4xl font-black uppercase text-blue-900">Niramoy Clinic & Diagnostic</h1>
-                            <p class="text-sm font-bold">Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
-                            <p class="text-[10px] uppercase font-bold text-slate-500 mt-1">Govt. Reg No: ${CLINIC_REGISTRATION}</p>
+                            <div class="h1">Niramoy Clinic & Diagnostic</div>
+                            <div class="sub">Hospital Road, Enayetpur, Sirajgonj | Hotline: 01730 923007</div>
+                            <div class="reg">Govt. License / Reg. No: ${CLINIC_REGISTRATION}</div>
+                            <div class="badge">${title}</div>
                         </div>
 
-                        <div class="text-center mb-10">
-                            <h2 class="inline-block border-2 border-black px-10 py-2 text-xl font-black uppercase tracking-widest bg-gray-50">${title}</h2>
+                        <div class="pt-grid">
+                            <div><b>Patient Name:</b> ${data.patientName}</div>
+                            <div><b>Patient ID:</b> ${data.ptId || data.patient_id || 'N/A'}</div>
+                            <div><b>Age / Gender:</b> ${data.ptAge || '...'}Y / ${data.ptSex || '...'}</div>
+                            <div><b>Admission ID:</b> ${data.admId || data.admissionId || 'N/A'}</div>
+                            <div><b>Admission Date:</b> ${data.admDate || '...'}</div>
+                            <div><b>Doctor / MO:</b> ${data.consultant || 'Authorized Medical Officer'}</div>
+                            <div><b>Contact Mobile:</b> ${data.mobile || 'N/A'}</div>
+                            <div><b>Certificate Date:</b> ${data.date} (${data.time || ''})</div>
                         </div>
 
-                        <div class="space-y-6 text-lg">
-                            <div class="grid grid-cols-2 gap-y-4">
-                                <div><b>Patient Name:</b> ${data.patientName}</div>
-                                <div><b>Patient ID:</b> ${data.ptId || data.patient_id || 'N/A'}</div>
-                                <div><b>Age/Sex:</b> ${data.ptAge || '...'}Y / ${data.ptSex || '...'}</div>
-                                <div><b>Admission ID:</b> ${data.admId || data.admissionId}</div>
-                                <div><b>Admission Date:</b> ${data.admDate || '...'}</div>
-                                <div><b>Mobile:</b> ${data.mobile || '...'}</div>
-                            </div>
-                            
-                            <div class="border-t-2 border-black pt-6">
-                                ${type === 'birth' ? `
-                                    <p>This is to certify that a <b>${data.details.sex}</b> baby was born to the above patient on <b>${data.date}</b> at <b>${data.time}</b>.</p>
-                                    <p class="mt-4"><b>Baby Weight:</b> ${data.details.weight}</p>
-                                    <p><b>Delivery Mode:</b> ${data.details.deliveryType}</p>
-                                ` : type === 'death' ? `
-                                    <p>This is to certify that the above mentioned patient expired on <b>${data.date}</b> at <b>${data.time}</b> while under clinical management.</p>
-                                    <p class="mt-4"><b>Cause of Death:</b> ${data.details.cause}</p>
-                                    <p><b>Certified By:</b> ${data.details.certBy}</p>
-                                ` : type === 'referral' ? `
-                                    <p>The patient is being referred to <b>${data.details.refTo}</b> for further management.</p>
-                                    <p class="mt-4"><b>Reason for Referral:</b> ${data.details.reason}</p>
-                                ` : ''}
-                            </div>
-
-                            ${data.note ? `
-                                <div class="mt-8">
-                                    <h4 class="font-bold underline uppercase text-sm mb-2">Clinical Notes:</h4>
-                                    <p class="italic text-base whitespace-pre-wrap">${data.note}</p>
-                                </div>
-                            ` : ''}
+                        <div class="content-body">
+                            ${data.note || ''}
                         </div>
 
-                        <div class="absolute bottom-20 left-15 right-15 flex justify-between px-10 w-full" style="left:0">
-                            <div class="text-center">
-                                <div class="w-40 border-t border-black mb-1"></div>
-                                <p class="text-xs font-bold">Nursing Officer</p>
-                            </div>
-                            <div class="text-center">
-                                <div class="w-60 border-t border-black mb-1"></div>
-                                <p class="text-xs font-bold">Authorized Medical Officer</p>
-                            </div>
+                        <div class="signatures">
+                            <div class="sig-line">Nursing Officer</div>
+                            <div class="sig-line">Medical Officer / Consultant</div>
                         </div>
                     </div>
-                    <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 700); };</script>
+                    <script>
+                        window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 600); };
+                    </script>
                 </body>
             </html>
         `;
-        win.document.write(html); win.document.close();
+        win.document.write(html);
+        win.document.close();
     };
 
-    const inputClass = "w-full p-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-800 font-bold text-sm focus:ring-1 focus:ring-blue-500 outline-none";
-    const labelClass = "text-[10px] font-black text-gray-500 uppercase ml-2 mb-1 block";
+    const inputClass = "w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none";
+    const labelClass = "text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block";
 
     return (
-        <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden">
-                <div className="p-6 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-blue-600 p-2 rounded-xl shadow-lg"><FileTextIcon className="w-6 h-6 text-white" /></div>
+        <div className="fixed inset-0 bg-black/80 z-[300] flex items-center justify-center p-4 backdrop-blur-md">
+            <div className="bg-slate-900 rounded-[2rem] w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-700 overflow-hidden">
+                <div className="p-5 bg-slate-950 border-b border-slate-800 flex justify-between items-center shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-900/40"><FileTextIcon className="w-5 h-5 text-white" /></div>
                         <div>
-                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">{type.replace('_', ' ')} Records System</h3>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">NCD Management Console</p>
+                            <h3 className="text-lg font-black text-white uppercase tracking-tight">{type.replace('_', ' ')} System (MS Word Mode)</h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">NCD Hospital Management System</p>
                         </div>
                     </div>
-                    <div className="flex bg-gray-100 p-1 rounded-2xl border border-gray-200">
-                        <button onClick={() => setActiveTab('generate')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'generate' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-blue-600'}`}>New Entry</button>
-                        <button onClick={() => setActiveTab('saved')} className={`px-6 py-2 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'saved' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-500 hover:text-emerald-600'}`}>Saved Records ({savedCerts.length})</button>
-                        <button onClick={onClose} className="ml-4 p-2 bg-rose-100 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all">&times;</button>
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+                            <button onClick={() => setActiveTab('generate')} className={`px-4 py-1.5 text-xs font-black uppercase rounded-lg transition-all ${activeTab === 'generate' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>New Certificate</button>
+                            <button onClick={() => setActiveTab('saved')} className={`px-4 py-1.5 text-xs font-black uppercase rounded-lg transition-all ${activeTab === 'saved' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Saved Records ({savedCerts.length})</button>
+                        </div>
+                        <button onClick={onClose} className="p-2 bg-rose-500/20 text-rose-300 rounded-xl hover:bg-rose-600 hover:text-white transition-all text-xl font-bold ml-2">&times;</button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-white">
+                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-950">
                     {activeTab === 'generate' ? (
-                        <div className="space-y-8 animate-fade-in">
-                            <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200 space-y-6 shadow-inner">
-                                <div>
-                                    <label className={labelClass}>Select Target Admission</label>
-                                    <select value={selectedAdmissionId} onChange={e=>setSelectedAdmissionId(e.target.value)} className={inputClass}>
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 grid grid-cols-1 md:grid-cols-4 gap-4 shadow-inner">
+                                <div className="col-span-2">
+                                    <label className={labelClass}>Select Target Patient / Admission *</label>
+                                    <select value={selectedAdmissionId} onChange={e => setSelectedAdmissionId(e.target.value)} className={inputClass}>
                                         <option value="">-- Select Patient --</option>
                                         {(Array.isArray(admissions) ? admissions : []).map(a => a && <option key={a.admission_id} value={a.admission_id}>{a.patient_name} ({a.admission_id})</option>)}
                                     </select>
                                 </div>
-                                {selectedAdmissionId && (
-                                    <div className="grid grid-cols-2 gap-4 animate-scale-in">
-                                        <div><label className={labelClass}>Event Date</label><input type="date" value={certData.date} onChange={e=>setCertData({...certData, date: e.target.value})} className={inputClass} /></div>
-                                        <div><label className={labelClass}>Event Time</label><input type="time" value={certData.time} onChange={e=>setCertData({...certData, time: e.target.value})} className={inputClass} /></div>
-                                        
-                                        {type === 'birth' && (
-                                            <>
-                                                <div><label className={labelClass}>Baby Sex</label><select value={certData.details.sex} onChange={e=>setCertData({...certData, details: {...certData.details, sex: e.target.value}})} className={inputClass}><option>Male</option><option>Female</option></select></div>
-                                                <div><label className={labelClass}>Baby Weight</label><input value={certData.details.weight} onChange={e=>setCertData({...certData, details: {...certData.details, weight: e.target.value}})} className={inputClass} placeholder="e.g. 3.2kg" /></div>
-                                                <div className="col-span-2"><label className={labelClass}>Delivery Mode</label><select value={certData.details.deliveryType} onChange={e=>setCertData({...certData, details: {...certData.details, deliveryType: e.target.value}})} className={inputClass}><option>Normal</option><option>LUCS / C-Section</option><option>Forceps</option></select></div>
-                                            </>
-                                        )}
+                                <div><label className={labelClass}>Event Date</label><input type="date" value={certData.date} onChange={e => setCertData({ ...certData, date: e.target.value })} className={inputClass} /></div>
+                                <div><label className={labelClass}>Event Time</label><input type="time" value={certData.time} onChange={e => setCertData({ ...certData, time: e.target.value })} className={inputClass} /></div>
 
-                                        {type === 'death' && (
-                                            <>
-                                                <div className="col-span-2"><label className={labelClass}>Cause of Death</label><input value={certData.details.cause} onChange={e=>setCertData({...certData, details: {...certData.details, cause: e.target.value}})} className={inputClass} placeholder="e.g. Multi-organ failure" /></div>
-                                                <div className="col-span-2"><label className={labelClass}>Certified By</label><input value={certData.details.certBy} onChange={e=>setCertData({...certData, details: {...certData.details, certBy: e.target.value}})} className={inputClass} /></div>
-                                            </>
-                                        )}
+                                {type === 'birth' && (
+                                    <>
+                                        <div><label className={labelClass}>Baby Gender</label><select value={certData.details.sex || 'Male'} onChange={e => setCertData({ ...certData, details: { ...certData.details, sex: e.target.value } })} className={inputClass}><option>Male</option><option>Female</option></select></div>
+                                        <div><label className={labelClass}>Baby Weight</label><input value={certData.details.weight || ''} onChange={e => setCertData({ ...certData, details: { ...certData.details, weight: e.target.value } })} className={inputClass} placeholder="e.g. 3.2kg" /></div>
+                                        <div className="col-span-2"><label className={labelClass}>Delivery Mode</label><select value={certData.details.deliveryType || 'Normal'} onChange={e => setCertData({ ...certData, details: { ...certData.details, deliveryType: e.target.value } })} className={inputClass}><option>Normal Delivery (NVD)</option><option>LUCS / C-Section</option><option>Forceps / Assisted</option></select></div>
+                                    </>
+                                )}
 
-                                        <div className="col-span-2">
-                                            <label className={labelClass}>Additional Notes / Remarks</label>
-                                            <textarea value={certData.note} onChange={e=>setCertData({...certData, note: e.target.value})} className={`${inputClass} h-32 resize-none`} placeholder="Type any specific details or medical notes here..." />
-                                        </div>
-                                    </div>
+                                {type === 'death' && (
+                                    <>
+                                        <div className="col-span-2"><label className={labelClass}>Cause of Death</label><input value={certData.details.cause || ''} onChange={e => setCertData({ ...certData, details: { ...certData.details, cause: e.target.value } })} className={inputClass} placeholder="e.g. Cardio-respiratory failure" /></div>
+                                        <div className="col-span-2"><label className={labelClass}>Certified By (Doctor)</label><input value={certData.details.certBy || ''} onChange={e => setCertData({ ...certData, details: { ...certData.details, certBy: e.target.value } })} className={inputClass} /></div>
+                                    </>
                                 )}
                             </div>
+
+                            {/* MS Word Rich Editor for Notes */}
+                            <div className="bg-white rounded-2xl border border-slate-300 shadow-xl overflow-hidden text-slate-800">
+                                <div className="p-3 bg-slate-100 border-b border-slate-300 flex justify-between items-center">
+                                    <span className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                                        📝 Certificate Body Text (MS Word Style Editable Canvas)
+                                    </span>
+                                </div>
+                                <MsWordToolbar onExec={handleExec} />
+                                <div
+                                    ref={certEditorRef}
+                                    contentEditable
+                                    onInput={() => setCertData((prev: any) => ({ ...prev, note: certEditorRef.current?.innerHTML || '' }))}
+                                    className="p-8 min-h-[260px] outline-none text-slate-900 bg-white font-serif leading-relaxed text-base"
+                                    style={{ minHeight: '260px' }}
+                                />
+                            </div>
+
                             {selectedAdmissionId && (
                                 <div className="flex gap-4">
-                                    <button onClick={handleSave} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-4 rounded-2xl text-white font-black uppercase text-xs shadow-xl transition-all flex items-center justify-center gap-2"><SaveIcon size={18}/> Save to Records</button>
-                                    <button onClick={() => handlePrint()} className="flex-1 bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl text-white font-black uppercase text-xs shadow-xl transition-all flex items-center justify-center gap-2"><PrinterIcon size={18}/> Save & Print Now</button>
+                                    <button onClick={handleSave} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3.5 rounded-xl text-white font-black uppercase text-xs shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"><SaveIcon size={18} /> Save Certificate to Records</button>
+                                    <button onClick={() => handlePrint()} className="flex-1 bg-blue-600 hover:bg-blue-500 py-3.5 rounded-xl text-white font-black uppercase text-xs shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"><PrinterIcon size={18} /> Print Certificate Slip (A4)</button>
                                 </div>
                             )}
                         </div>
                     ) : (
                         <div className="space-y-4 animate-fade-in">
                             {(Array.isArray(savedCerts) ? savedCerts : []).map(cert => cert && (
-                                <div key={cert.id} className="bg-white p-6 rounded-3xl border border-gray-200 flex justify-between items-center group hover:border-blue-500/50 transition-all shadow-sm">
-                                    <div className="flex items-center gap-6">
-                                        <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center font-black text-gray-400 text-xs shadow-inner uppercase">
-                                            {cert.date?.split('-')[2] || ''}
-                                            <br/>
-                                            {cert.date?.split('-')[1] ? monthOptions[parseInt(cert.date.split('-')[1]) - 1]?.name?.substring(0, 3) : ''}
+                                <div key={cert.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex justify-between items-center group hover:border-blue-500/50 transition-all shadow-md">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center font-black text-cyan-400 text-xs uppercase shadow-inner border border-slate-700">
+                                            {cert.date?.split('-')[2] || ''} {cert.date?.split('-')[1] ? monthOptions[parseInt(cert.date.split('-')[1]) - 1]?.name?.substring(0, 3) : ''}
                                         </div>
                                         <div>
-                                            <h4 className="font-black text-gray-800 uppercase text-lg leading-none">{cert.patientName}</h4>
-                                            <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">ID: {cert.admissionId} | Issued: {new Date(cert.createdDate).toLocaleDateString()}</p>
+                                            <h4 className="font-black text-white uppercase text-base leading-none">{cert.patientName}</h4>
+                                            <p className="text-[11px] text-slate-400 font-bold uppercase mt-1">ID: {cert.admissionId} | Issued: {new Date(cert.createdDate).toLocaleDateString()}</p>
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => handlePrint(cert)} className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"><PrinterIcon size={18}/></button>
-                                        <button onClick={() => deleteCert(cert.id)} className="p-3 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><TrashIcon size={18}/></button>
+                                        <button onClick={() => handlePrint(cert)} className="p-2.5 bg-blue-600/20 text-blue-300 hover:bg-blue-600 hover:text-white rounded-xl transition-all"><PrinterIcon size={16} /></button>
+                                        <button onClick={() => deleteCert(cert.id)} className="p-2.5 bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white rounded-xl transition-all"><TrashIcon size={16} /></button>
                                     </div>
                                 </div>
                             ))}
                             {(Array.isArray(savedCerts) ? savedCerts : []).length === 0 && (
-                                <div className="py-32 text-center opacity-10 flex flex-col items-center">
-                                    <FileTextIcon size={120} />
-                                    <p className="text-4xl font-black uppercase tracking-[0.3em] mt-6">No Records</p>
+                                <div className="py-24 text-center opacity-30 flex flex-col items-center">
+                                    <FileTextIcon size={80} className="text-slate-500" />
+                                    <p className="text-2xl font-black uppercase tracking-widest mt-4 text-slate-400">No Saved Certificates</p>
                                 </div>
                             )}
                         </div>
@@ -627,121 +894,504 @@ const CertificateModal: React.FC<{
     );
 };
 
+// --- DISCHARGE RX MASTER & MS WORD-STYLE TEMPLATE EDITOR MODAL ---
 const DischargeRxMasterModal: React.FC<{
     admissions: AdmissionRecord[];
     patients: Patient[];
     doctors: Doctor[];
     onClose: () => void;
 }> = ({ admissions, patients, doctors, onClose }) => {
-    const [now] = useState(() => Date.now());
+    const [selectedAdmissionId, setSelectedAdmissionId] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
-    
-    const filtered = useMemo(() => {
-        const safeAdmissions = Array.isArray(admissions) ? admissions : [];
-        return safeAdmissions.filter(a => a && (
-            (a.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-            (a.admission_id || '').toLowerCase().includes(searchTerm.toLowerCase())
-        ));
-    }, [admissions, searchTerm]);
+    const [activeView, setActiveView] = useState<'editor' | 'saved_letters'>('editor');
 
-    const handlePrintFullSummary = (adm: AdmissionRecord) => {
-        if (!adm) return;
+    // Templates State
+    const [templates, setTemplates] = useState<DischargeMasterTemplate[]>(() => {
+        try {
+            const saved = localStorage.getItem('ncd_master_discharge_templates');
+            return saved ? JSON.parse(saved) : DEFAULT_DISCHARGE_TEMPLATES;
+        } catch {
+            return DEFAULT_DISCHARGE_TEMPLATES;
+        }
+    });
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string>('lscs_csection');
+    const [savedDischarges, setSavedDischarges] = useState<PatientSavedDischarge[]>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('ncd_patient_saved_discharges') || '[]');
+        } catch {
+            return [];
+        }
+    });
+
+    const [documentHtml, setDocumentHtml] = useState<string>('');
+    const docEditorRef = useRef<HTMLDivElement>(null);
+
+    const selectedAdmission = (Array.isArray(admissions) ? admissions : []).find(a => a && a.admission_id === selectedAdmissionId);
+    const selectedPatient = selectedAdmission ? (Array.isArray(patients) ? patients : []).find(p => p && p.pt_id === selectedAdmission.patient_id) : null;
+
+    // Load template or generate dynamic orders content
+    const loadTemplateContent = (templateId: string, adm: AdmissionRecord | null = selectedAdmission || null) => {
+        setSelectedTemplateId(templateId);
+        if (templateId === 'auto_live_orders' && adm) {
+            // Dynamically compile clinical orders, doctor rounds, nurse chart
+            const liveHtml = `
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:10px; font-size:15px; font-weight:bold;">১. রোগ নির্ণয় ও চিকিৎসার সারাংশ (Clinical Diagnosis & Course)</h3>
+<p style="margin:4px 0;"><b>Clinical Indication:</b> ${adm.indication || 'Indoor Medical Care'}</p>
+<p style="margin:4px 0;"><b>Treating Consultant:</b> Dr. ${adm.doctor_name || 'Resident Medical Officer'}</p>
+<p style="margin:4px 0;"><b>Bed / Ward:</b> ${adm.bed_no || 'Hospital Bed'} | <b>Contract:</b> ${adm.contract_type || 'Non-Contact'}</p>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">২. ছুটিকালীন চিকিৎসা ও ঔষধ সেবন বিধি (Clinical Orders Prescribed)</h3>
+<table style="width:100%; border-collapse:collapse; margin:8px 0; font-size:12px; border:1px solid #cbd5e1;">
+  <thead>
+    <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">তারিখ ও সময়</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">ক্যাটাগরি</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">ঔষধের বিবরণ (Medications & Dosage)</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${(Array.isArray(adm.clinical_orders) && adm.clinical_orders.length > 0)
+        ? adm.clinical_orders.map(o => o && `
+            <tr>
+              <td style="padding:6px; border:1px solid #cbd5e1;">${o.date || ''} ${o.time || ''}</td>
+              <td style="padding:6px; border:1px solid #cbd5e1;">${o.category || 'Conservative'}</td>
+              <td style="padding:6px; border:1px solid #cbd5e1;">
+                ${(Array.isArray(o.medications) ? o.medications : []).map(m => m && `<b>• ${m.type || 'Tab'} ${m.name || ''}</b> - মাত্রা: ${m.dosage || '1+0+1'} (Frequency: ${m.frequency || 8}h)`).join('<br/>') || 'No specific medications'}
+                ${o.note ? `<br/><i style="color:#64748b;">Note: ${o.note}</i>` : ''}
+              </td>
+            </tr>
+          `).join('')
+        : '<tr><td colspan="3" style="padding:8px; text-align:center; color:#94a3b8;">কোনো ক্লিনিক্যাল অর্ডার এন্ট্রি পাওয়া যায়নি।</td></tr>'
+    }
+  </tbody>
+</table>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">৩. ডাক্তারের রাউন্ড নোট (Doctor Round Notes)</h3>
+<ul style="margin:4px 0; padding-left:20px;">
+  ${(Array.isArray(adm.doctor_rounds) && adm.doctor_rounds.length > 0)
+      ? adm.doctor_rounds.map(r => r && `<li><b>${r.date || ''} ${r.time || ''} (Dr. ${r.by || adm.doctor_name}):</b> ${r.note || 'Patient examined and stable.'}</li>`).join('')
+      : '<li>Patient examined routinely during hospital stay. Recovery satisfactory.</li>'
+  }
+</ul>
+
+<h3 style="color:#1e3a8a; border-bottom:2px solid #1e3a8a; padding-bottom:4px; margin-top:14px; font-size:15px; font-weight:bold;">৪. ফলো-আপ ও পরবর্তী পরামর্শ (Follow-up Advice)</h3>
+<p style="margin:4px 0;">প্রেসক্রিপশন অনুযায়ী সকল ঔষধ নিয়মিত সেবন করবেন। আগামী ৭ দিন পর বহিঃবিভাগে ফলো-আপের জন্য আসবেন। জরুরি প্রয়োজনে ২৪ ঘণ্টা হাসপাতাল হটলাইনে যোগাযোগ করুন।</p>
+            `;
+            setDocumentHtml(liveHtml);
+            if (docEditorRef.current) docEditorRef.current.innerHTML = liveHtml;
+            return;
+        }
+
+        const target = templates.find(t => t.id === templateId) || DEFAULT_DISCHARGE_TEMPLATES[0];
+        setDocumentHtml(target.content);
+        if (docEditorRef.current) docEditorRef.current.innerHTML = target.content;
+    };
+
+    // When selected admission changes, load current template or auto live orders
+    useEffect(() => {
+        if (selectedAdmission) {
+            loadTemplateContent(selectedTemplateId, selectedAdmission);
+        } else if (admissions.length > 0 && !selectedAdmissionId) {
+            setSelectedAdmissionId(admissions[0].admission_id);
+            loadTemplateContent(selectedTemplateId, admissions[0]);
+        }
+    }, [selectedAdmissionId]);
+
+    const handleExec = (cmd: string, arg?: string) => {
+        document.execCommand(cmd, false, arg);
+        if (docEditorRef.current) {
+            setDocumentHtml(docEditorRef.current.innerHTML);
+            docEditorRef.current.focus();
+        }
+    };
+
+    const handleInsertMedicineTable = () => {
+        const tableHtml = `
+<table style="width:100%; border-collapse:collapse; margin:10px 0; font-size:12px; border:1px solid #cbd5e1;">
+  <thead>
+    <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">ঔষধের নাম (Medicine)</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:left;">মাত্রা ও সময় (Dosage)</th>
+      <th style="padding:6px; border:1px solid #cbd5e1; text-align:center;">মেয়াদ (Days)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding:6px; border:1px solid #cbd5e1;">Tab. ____________________</td>
+      <td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে দিনে ৩ বার (খাবার পর)</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">৫ দিন</td>
+    </tr>
+    <tr>
+      <td style="padding:6px; border:1px solid #cbd5e1;">Cap. ____________________</td>
+      <td style="padding:6px; border:1px solid #cbd5e1;">১ টি করে দিনে ২ বার (খাবার আগে)</td>
+      <td style="padding:6px; border:1px solid #cbd5e1; text-align:center;">৭ দিন</td>
+    </tr>
+  </tbody>
+</table>
+        `;
+        document.execCommand('insertHTML', false, tableHtml);
+        if (docEditorRef.current) setDocumentHtml(docEditorRef.current.innerHTML);
+    };
+
+    const handleSaveNewMasterTemplate = () => {
+        const title = prompt("নতুন মাস্টার টেমপ্লেটের নাম লিখুন (যেমন: অর্থোপেডিক পোস্ট-অপারেটিভ ডিসচার্জ):");
+        if (!title || !title.trim()) return;
+        const currentContent = docEditorRef.current ? docEditorRef.current.innerHTML : documentHtml;
+        const newTemplate: DischargeMasterTemplate = {
+            id: `custom_${Date.now()}`,
+            title: title.trim(),
+            content: currentContent,
+            isCustom: true
+        };
+        const updated = [...templates, newTemplate];
+        setTemplates(updated);
+        localStorage.setItem('ncd_master_discharge_templates', JSON.stringify(updated));
+        setSelectedTemplateId(newTemplate.id);
+        alert(`"${newTemplate.title}" মাস্টার টেমপ্লেট লাইব্রেরিতে সফলভাবে সেভ করা হয়েছে!`);
+    };
+
+    const handleDeleteTemplate = (id: string) => {
+        if (!confirm("আপনি কি নিশ্চিত যে এই কাস্টম টেমপ্লেটটি মুছে ফেলতে চান?")) return;
+        const updated = templates.filter(t => t.id !== id);
+        setTemplates(updated);
+        localStorage.setItem('ncd_master_discharge_templates', JSON.stringify(updated));
+        setSelectedTemplateId(updated[0]?.id || 'lscs_csection');
+        loadTemplateContent(updated[0]?.id || 'lscs_csection');
+    };
+
+    const handleSaveDischargeForPatient = () => {
+        if (!selectedAdmission) return alert("রোগী সিলেক্ট করা নেই।");
+        const currentContent = docEditorRef.current ? docEditorRef.current.innerHTML : documentHtml;
+        const record: PatientSavedDischarge = {
+            id: `DISCH-${Date.now()}`,
+            admissionId: selectedAdmission.admission_id,
+            patientName: selectedAdmission.patient_name || selectedPatient?.pt_name || '',
+            patientId: selectedAdmission.patient_id,
+            dischargeDate: selectedAdmission.discharge_date || new Date().toISOString().split('T')[0],
+            htmlContent: currentContent,
+            savedAt: new Date().toISOString(),
+            consultant: selectedAdmission.doctor_name || ''
+        };
+        const updated = [record, ...savedDischarges];
+        setSavedDischarges(updated);
+        localStorage.setItem('ncd_patient_saved_discharges', JSON.stringify(updated));
+        alert("রোগীর ডিসচার্জ মাস্টার লেটার সফলভাবে সেভ করা হয়েছে!");
+    };
+
+    const handlePrintDischargeDocument = (customHtml: string | null = null, customAdm: any = null) => {
+        const adm = customAdm || selectedAdmission;
+        const pat = selectedPatient;
+        const bodyContent = customHtml || (docEditorRef.current ? docEditorRef.current.innerHTML : documentHtml);
+
+        if (!adm && !pat) return alert("প্রিন্ট করার কোনো রোগী পাওয়া যায়নি।");
+
         const win = window.open('', '_blank');
         if (!win) return;
-        const styles = `
-            <style>
-                @page { size: A4; margin: 15mm; }
-                body { font-family: sans-serif; padding: 0; color: #000; }
-                .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
-                .pt-info { border: 1px solid #000; padding: 10px; margin-bottom: 20px; font-size: 13px; border-radius: 5px; }
-                .section-title { background: #eee; padding: 5px 10px; font-weight: bold; margin-top: 20px; border-left: 5px solid #1e40af; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
-                th, td { border: 1px solid #999; padding: 6px; text-align: left; }
-                th { background: #f0f0f0; }
-            </style>
-        `;
+
         const html = `
-            <html><head>${styles}</head><body>
-                <div class="header"><h1>Niramoy Clinic & Diagnostic</h1><p>Patient Treatment Summary / Discharge Master</p></div>
-                <div class="pt-info">
-                    <b>Patient:</b> ${adm.patient_name || ''} | <b>ID:</b> ${adm.admission_id || ''} | <b>Bed:</b> ${adm.bed_no || 'N/A'}<br>
-                    <b>Doctor:</b> ${adm.doctor_name || ''} | <b>Adm. Date:</b> ${adm.admission_date || ''}<br>
-                    <b>Status:</b> ${adm.discharge_date ? `Discharged on ${adm.discharge_date}` : 'Admitted'}
-                </div>
-                <div class="section-title">Clinical Orders (Prescribed)</div>
-                <table>
-                    <thead><tr><th>Time</th><th>Category</th><th>Details</th></tr></thead>
-                    <tbody>${(Array.isArray(adm.clinical_orders) ? adm.clinical_orders : []).map(o=> o && `<tr><td>${o.date || ''} ${o.time || ''}</td><td>${o.category || ''}</td><td>${(Array.isArray(o.medications) ? o.medications : []).map(m=> m && `• ${m.type || ''} ${m.name || ''} (${m.dosage || ''})`).join('<br>')}</td></tr>`).join('')}</tbody>
-                </table>
-                <div class="section-title">Doctor Round Notes</div>
-                <table>
-                    <thead><tr><th>Time</th><th>Note</th><th>Doctor</th></tr></thead>
-                    <tbody>${(Array.isArray(adm.doctor_rounds) ? adm.doctor_rounds : []).map(l=> l && `<tr><td>${l.time || ''}</td><td>${l.note || ''}</td><td>${l.by || ''}</td></tr>`).join('')}</tbody>
-                </table>
-                <div class="section-title">Nurse Medication Chart</div>
-                <table>
-                    <thead><tr><th>Time</th><th>Activity/Medication</th><th>Nurse</th></tr></thead>
-                    <tbody>${(Array.isArray(adm.nurse_chart) ? adm.nurse_chart : []).map(l=> l && `<tr><td>${l.time || ''}</td><td>${l.note || ''}</td><td>${l.by || ''}</td></tr>`).join('')}</tbody>
-                </table>
-            </body></html>
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <meta charset="utf-8"/>
+                    <title>DISCHARGE CERTIFICATE & RX MASTER - ${adm?.patient_name || pat?.pt_name}</title>
+                    <style>
+                        @page { size: A4; margin: 12mm 15mm; }
+                        body { font-family: 'Times New Roman', serif; margin: 0; padding: 0; color: #111827; }
+                        .a4-container { padding: 15px; position: relative; }
+                        .watermark { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-35deg); font-size: 70pt; color: rgba(30, 58, 138, 0.035); font-weight: 900; pointer-events: none; white-space: nowrap; }
+                        .header { text-align: center; border-bottom: 2.5px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 15px; }
+                        .h1 { font-size: 26px; font-weight: 900; text-transform: uppercase; color: #1e3a8a; margin: 0; }
+                        .sub { font-size: 13px; font-weight: bold; margin-top: 3px; color: #334155; }
+                        .reg { font-size: 11px; text-transform: uppercase; font-weight: bold; color: #64748b; margin-top: 2px; }
+                        .badge { display: inline-block; border: 2px solid #1e3a8a; background: #f8fafc; padding: 5px 24px; font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 10px; color: #1e3a8a; }
+                        .pt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; margin: 15px 0; border: 1.5px solid #cbd5e1; background: #f8fafc; padding: 10px 14px; border-radius: 6px; }
+                        .pt-grid b { color: #1e3a8a; }
+                        .body-content { font-size: 14px; line-height: 1.6; margin-top: 15px; }
+                        .body-content table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+                        .body-content th, .body-content td { border: 1px solid #94a3b8; padding: 6px 8px; font-size: 12px; }
+                        .signatures { margin-top: 40px; display: flex; justify-content: space-between; page-break-inside: avoid; }
+                        .sig-line { width: 170px; border-top: 1.5px solid #000; text-align: center; font-size: 12px; font-weight: bold; padding-top: 4px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="a4-container">
+                        <div class="watermark">NIRAMOY CLINIC</div>
+                        <div class="header">
+                            <div class="h1">Niramoy Clinic & Diagnostic</div>
+                            <div class="sub">Hospital Road, Enayetpur, Sirajgonj | Mobile: 01730 923007</div>
+                            <div class="reg">Govt. Reg. No: ${CLINIC_REGISTRATION}</div>
+                            <div class="badge">PATIENT DISCHARGE & TREATMENT MASTER</div>
+                        </div>
+
+                        <div class="pt-grid">
+                            <div><b>Patient Name:</b> ${adm?.patient_name || pat?.pt_name || 'N/A'}</div>
+                            <div><b>Patient ID / Reg:</b> ${adm?.patient_id || pat?.pt_id || 'N/A'}</div>
+                            <div><b>Age / Gender:</b> ${pat?.ageY || '...'}Y / ${pat?.gender || '...'}</div>
+                            <div><b>Admission ID:</b> ${adm?.admission_id || 'N/A'}</div>
+                            <div><b>Bed / Cabin:</b> ${adm?.bed_no || 'Hospital Bed'}</div>
+                            <div><b>Treating Consultant:</b> Dr. ${adm?.doctor_name || 'Medical Officer'}</div>
+                            <div><b>Admission Date:</b> ${adm?.admission_date || 'N/A'}</div>
+                            <div><b>Discharge Date:</b> ${adm?.discharge_date || new Date().toISOString().split('T')[0]}</div>
+                        </div>
+
+                        <div class="body-content">
+                            ${bodyContent}
+                        </div>
+
+                        <div class="signatures">
+                            <div class="sig-line">Nursing Officer</div>
+                            <div class="sig-line">Duty Medical Officer</div>
+                            <div class="sig-line">Consultant / Surgeon</div>
+                        </div>
+                    </div>
+                    <script>
+                        window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 600); };
+                    </script>
+                </body>
+            </html>
         `;
-        win.document.write(html); win.document.close();
-        setTimeout(() => { win.print(); win.close(); }, 700);
+        win.document.write(html);
+        win.document.close();
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 z-[300] flex items-center justify-center p-4 backdrop-blur-md">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden">
-                <div className="p-6 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-emerald-600 p-2 rounded-xl shadow-lg"><ClipboardIcon className="w-6 h-6 text-white" /></div>
+        <div className="fixed inset-0 bg-black/85 z-[300] flex items-center justify-center p-2 sm:p-4 backdrop-blur-md">
+            <div className="bg-slate-900 rounded-[2rem] w-full max-w-6xl max-h-[96vh] flex flex-col shadow-2xl border border-slate-700 overflow-hidden">
+                {/* Header & Mode Tabs */}
+                <div className="p-4 sm:p-5 bg-slate-950 border-b border-slate-800 flex flex-wrap justify-between items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-gradient-to-br from-emerald-600 to-teal-800 p-2.5 rounded-xl shadow-lg shadow-emerald-900/40">
+                            <ClipboardIcon className="w-5 h-5 text-white" />
+                        </div>
                         <div>
-                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">Discharge & Rx Master</h3>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Inpatient Records Management</p>
+                            <h3 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
+                                Discharge & Rx Master <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">MS Word Mode</span>
+                            </h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Master Discharge Template & Rich Medical Documentation</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-rose-100 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm">&times;</button>
-                </div>
-                
-                <div className="p-6 bg-gray-50 border-b border-gray-200">
-                    <div className="relative">
-                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input 
-                            type="text" 
-                            placeholder="Search by Patient Name or Admission ID..." 
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-white border border-gray-300 rounded-2xl pl-12 pr-4 py-3 text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm font-bold"
-                        />
+
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+                            <button onClick={() => setActiveView('editor')} className={`px-4 py-1.5 text-xs font-black uppercase rounded-lg transition-all ${activeView === 'editor' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Document Editor</button>
+                            <button onClick={() => setActiveView('saved_letters')} className={`px-4 py-1.5 text-xs font-black uppercase rounded-lg transition-all ${activeView === 'saved_letters' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Saved Discharges ({savedDischarges.length})</button>
+                        </div>
+                        <button onClick={onClose} className="p-2 bg-rose-500/20 text-rose-300 rounded-xl hover:bg-rose-600 hover:text-white transition-all text-xl font-bold ml-2 cursor-pointer">&times;</button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-gray-50/50">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {filtered.map(adm => (
-                            <div key={adm.admission_id} className="bg-white p-6 rounded-3xl border border-gray-200 hover:border-emerald-500/50 transition-all flex justify-between items-center group shadow-sm">
-                                <div className="flex items-center gap-6">
-                                    <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center font-black text-emerald-600 text-sm shadow-inner uppercase border border-gray-200">
-                                        {adm.admission_id ? (adm.admission_id.split('-').pop() || '') : ''}
-                                    </div>
-                                    <div>
-                                        <h4 className="font-black text-gray-800 uppercase text-lg leading-tight group-hover:text-emerald-600 transition-colors">{adm.patient_name}</h4>
-                                        <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-widest">Adm: {adm.admission_date} | Bed: {adm.bed_no || 'N/A'}</p>
+                {activeView === 'editor' ? (
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar bg-slate-950 space-y-4">
+                        {/* Top Controls: Patient & Template Selector */}
+                        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 grid grid-cols-1 md:grid-cols-12 gap-3 shadow-inner">
+                            <div className="md:col-span-5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">১. টার্গেট রোগী সিলেক্ট করুন (Select Patient)</label>
+                                <select 
+                                    value={selectedAdmissionId} 
+                                    onChange={e => {
+                                        const admId = e.target.value;
+                                        setSelectedAdmissionId(admId);
+                                        const targetAdm = admissions.find(a => a && a.admission_id === admId);
+                                        if (targetAdm) loadTemplateContent(selectedTemplateId, targetAdm);
+                                    }} 
+                                    className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 font-bold text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                >
+                                    <option value="">-- রোগী নির্বাচন করুন --</option>
+                                    {(Array.isArray(admissions) ? admissions : []).map(a => a && (
+                                        <option key={a.admission_id} value={a.admission_id}>
+                                            {a.patient_name} (ID: {a.admission_id}) - Bed: {a.bed_no || 'N/A'} {a.discharge_date ? `[Discharged: ${a.discharge_date}]` : '[Admitted]'}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="md:col-span-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">২. মাস্টার টেমপ্লেট নির্বাচন করুন (Load Template)</label>
+                                <select 
+                                    value={selectedTemplateId} 
+                                    onChange={e => loadTemplateContent(e.target.value)} 
+                                    className="w-full p-2.5 bg-slate-950 border border-emerald-500/40 rounded-xl text-emerald-300 font-bold text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                >
+                                    <optgroup label="✨ রিয়েলটাইম ডাটাবেজ লিংক">
+                                        <option value="auto_live_orders">🔄 লাইভ ক্লিনিক্যাল অর্ডার ও রাউন্ড নোট সামারি (Auto-Live)</option>
+                                    </optgroup>
+                                    <optgroup label="📋 স্ট্যান্ডার্ড ক্লিনিক্যাল টেমপ্লেটস">
+                                        {templates.map(t => (
+                                            <option key={t.id} value={t.id}>{t.title} {t.isCustom ? '⭐ (Custom)' : ''}</option>
+                                        ))}
+                                    </optgroup>
+                                </select>
+                            </div>
+
+                            <div className="md:col-span-3 flex items-end gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={handleSaveNewMasterTemplate} 
+                                    className="w-full p-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow cursor-pointer"
+                                    title="বর্তমান ডকুমেন্টের লেখা নতুন মাস্টার টেমপ্লেট হিসেবে লাইব্রেরিতে সংরক্ষণ করুন"
+                                >
+                                    ⭐ মাস্টার টেমপ্লেট সেভ
+                                </button>
+                                {templates.find(t => t.id === selectedTemplateId)?.isCustom && (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => handleDeleteTemplate(selectedTemplateId)} 
+                                        className="p-2.5 bg-rose-500/20 text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-500/30 rounded-xl transition-all cursor-pointer"
+                                        title="এই কাস্টম টেমপ্লেটটি মুছে ফেলুন"
+                                    >
+                                        <Trash2 size={16}/>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* MS Word Canvas Container */}
+                        <div className="bg-slate-900/90 rounded-2xl border border-slate-700 shadow-2xl p-4 sm:p-6 flex flex-col items-center">
+                            {/* Toolbar */}
+                            <div className="w-full max-w-[850px] mb-4">
+                                <MsWordToolbar onExec={handleExec} onInsertTable={handleInsertMedicineTable} />
+                            </div>
+
+                            {/* White A4 Paper Sheet (MS Word Appearance) */}
+                            <div className="w-full max-w-[850px] bg-white text-slate-900 rounded shadow-2xl border border-slate-300 p-8 sm:p-12 min-h-[900px] relative font-serif select-text">
+                                {/* Letterhead */}
+                                <div className="text-center border-b-2 border-blue-900 pb-4 mb-6">
+                                    <h1 className="text-2xl sm:text-3xl font-black text-blue-900 uppercase tracking-tight m-0">Niramoy Clinic & Diagnostic</h1>
+                                    <p className="text-xs sm:text-sm font-bold text-slate-700 mt-1">Hospital Road, Enayetpur, Sirajgonj | Mobile: 01730 923007</p>
+                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Govt. Reg. No: {CLINIC_REGISTRATION}</p>
+                                    <div className="inline-block mt-3 px-6 py-1 border-2 border-blue-900 bg-slate-50 text-blue-950 font-black text-sm uppercase tracking-widest">
+                                        DISCHARGE CERTIFICATE & TREATMENT MASTER
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => handlePrintFullSummary(adm)} className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase shadow-sm hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2"><PrinterIcon size={14}/> Full Record</button>
+
+                                {/* Patient Info Grid */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 bg-slate-50 border border-slate-300 rounded-lg text-xs mb-6">
+                                    <div><span className="text-slate-500 font-bold block uppercase text-[10px]">Patient Name</span> <b className="text-slate-900 text-sm">{selectedAdmission?.patient_name || selectedPatient?.pt_name || 'Select Patient'}</b></div>
+                                    <div><span className="text-slate-500 font-bold block uppercase text-[10px]">Patient ID</span> <b className="text-slate-900">{selectedAdmission?.patient_id || selectedPatient?.pt_id || 'N/A'}</b></div>
+                                    <div><span className="text-slate-500 font-bold block uppercase text-[10px]">Age / Sex</span> <b className="text-slate-900">{selectedPatient?.ageY || '...'}Y / {selectedPatient?.gender || '...'}</b></div>
+                                    <div><span className="text-slate-500 font-bold block uppercase text-[10px]">Bed / Cabin</span> <b className="text-slate-900">{selectedAdmission?.bed_no || 'Hospital Bed'}</b></div>
+                                    <div><span className="text-slate-500 font-bold block uppercase text-[10px]">Admission ID</span> <b className="text-slate-900 font-mono">{selectedAdmission?.admission_id || 'N/A'}</b></div>
+                                    <div><span className="text-slate-500 font-bold block uppercase text-[10px]">Admission Date</span> <b className="text-slate-900">{selectedAdmission?.admission_date || 'N/A'}</b></div>
+                                    <div><span className="text-slate-500 font-bold block uppercase text-[10px]">Discharge Date</span> <b className="text-slate-900">{selectedAdmission?.discharge_date || new Date().toISOString().split('T')[0]}</b></div>
+                                    <div><span className="text-slate-500 font-bold block uppercase text-[10px]">Consultant</span> <b className="text-slate-900">{selectedAdmission?.doctor_name || 'Dr. Medical Officer'}</b></div>
+                                </div>
+
+                                {/* ContentEditable Body (Word-like editor area) */}
+                                <div 
+                                    ref={docEditorRef}
+                                    contentEditable
+                                    onInput={() => setDocumentHtml(docEditorRef.current?.innerHTML || '')}
+                                    className="min-h-[450px] outline-none text-slate-900 leading-relaxed text-[13.5px]"
+                                    style={{ minHeight: '450px' }}
+                                />
+
+                                {/* Signature Block */}
+                                <div className="mt-16 pt-8 border-t border-slate-300 flex justify-between items-center text-xs text-slate-700">
+                                    <div className="text-center">
+                                        <div className="w-36 border-t border-slate-900 mb-1"></div>
+                                        <span className="font-bold">Nursing Officer</span>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="w-40 border-t border-slate-900 mb-1"></div>
+                                        <span className="font-bold">Resident Medical Officer</span>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="w-44 border-t border-slate-900 mb-1"></div>
+                                        <span className="font-bold">Consultant / Surgeon</span>
+                                    </div>
                                 </div>
                             </div>
-                        ))}
-                        {filtered.length === 0 && (
-                            <div className="col-span-full py-40 text-center opacity-10 flex flex-col items-center">
-                                <Activity size={120} />
-                                <p className="text-4xl font-black uppercase tracking-[0.3em] mt-6">No Records Found</p>
+
+                            {/* Action Buttons */}
+                            <div className="w-full max-w-[850px] mt-6 flex flex-wrap gap-4">
+                                <button 
+                                    type="button" 
+                                    onClick={handleSaveDischargeForPatient}
+                                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black uppercase text-xs tracking-wider rounded-xl shadow-xl shadow-emerald-950/40 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <SaveIcon size={18} /> রোগীর ফাইলে ডিসচার্জ লেটার সেভ করুন
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => handlePrintDischargeDocument()}
+                                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black uppercase text-xs tracking-wider rounded-xl shadow-xl shadow-blue-950/40 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <PrinterIcon size={18} /> প্রিন্ট করুন (A4 Document Print)
+                                </button>
                             </div>
-                        )}
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    /* Saved Patient Discharges Tab */
+                    <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-950 space-y-4">
+                        <div className="flex justify-between items-center mb-2">
+                            <h4 className="text-sm font-black text-slate-300 uppercase tracking-wider">সংরক্ষিত ডিসচার্জ লেটারসমূহ ({savedDischarges.length})</h4>
+                            <div className="relative w-64">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search by patient name..." 
+                                    value={searchTerm} 
+                                    onChange={e => setSearchTerm(e.target.value)} 
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 font-bold"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {savedDischarges.filter(d => (d.patientName || '').toLowerCase().includes(searchTerm.toLowerCase()) || (d.admissionId || '').toLowerCase().includes(searchTerm.toLowerCase())).map(rec => (
+                                <div key={rec.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/50 transition-all shadow-lg flex justify-between items-center">
+                                    <div>
+                                        <h5 className="font-black text-white uppercase text-base">{rec.patientName}</h5>
+                                        <p className="text-xs text-slate-400 font-medium mt-1">Adm ID: <span className="font-mono text-emerald-400">{rec.admissionId}</span> | Disch: {rec.dischargeDate}</p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">Saved on: {new Date(rec.savedAt).toLocaleString()}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => {
+                                                const targetAdm = admissions.find(a => a && a.admission_id === rec.admissionId);
+                                                if (targetAdm) setSelectedAdmissionId(targetAdm.admission_id);
+                                                setDocumentHtml(rec.htmlContent);
+                                                if (docEditorRef.current) docEditorRef.current.innerHTML = rec.htmlContent;
+                                                setActiveView('editor');
+                                            }} 
+                                            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-xl text-xs font-bold border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
+                                            title="এডিট করার জন্য এডিটরে ওপেন করুন"
+                                        >
+                                            <EditIcon size={14} /> Edit
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                const targetAdm = admissions.find(a => a && a.admission_id === rec.admissionId);
+                                                handlePrintDischargeDocument(rec.htmlContent, targetAdm || { patient_name: rec.patientName, admission_id: rec.admissionId, discharge_date: rec.dischargeDate, doctor_name: rec.consultant });
+                                            }} 
+                                            className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer flex items-center gap-1"
+                                        >
+                                            <PrinterIcon size={14} /> Print
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                if (!confirm("মুছে ফেলতে চান?")) return;
+                                                const updated = savedDischarges.filter(s => s.id !== rec.id);
+                                                setSavedDischarges(updated);
+                                                localStorage.setItem('ncd_patient_saved_discharges', JSON.stringify(updated));
+                                            }} 
+                                            className="p-2 bg-rose-500/20 text-rose-300 hover:bg-rose-600 hover:text-white rounded-xl transition-all cursor-pointer"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {savedDischarges.length === 0 && (
+                                <div className="col-span-full py-24 text-center opacity-30 flex flex-col items-center">
+                                    <ClipboardIcon size={80} className="text-slate-500" />
+                                    <p className="text-2xl font-black uppercase tracking-widest mt-4 text-slate-400">No Saved Discharge Letters</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -2331,6 +2981,37 @@ const AdmissionAndTreatmentPage: React.FC<{
     );
 };
 
+// --- STANDARD CLINIC HOSPITAL SERVICE CHARGES & RATES ---
+interface StandardRateItem {
+    id: string;
+    name: string;
+    category: string;
+    defaultRate: number;
+    isClinicFund: boolean;
+    note: string;
+}
+
+const STANDARD_HOSPITAL_RATES: StandardRateItem[] = [
+    { id: 'adm_fee', name: 'Admission Fee', category: 'এডমিশন ও বেড', defaultRate: 500, isClinicFund: true, note: 'হাসপাতাল ভর্তি ফি' },
+    { id: 'bed_rent', name: 'General Bed Rent (Per Day)', category: 'এডমিশন ও বেড', defaultRate: 400, isClinicFund: true, note: 'জেনারেল বেড ভাড়া' },
+    { id: 'cabin_rent', name: 'Cabin Rent (Per Day)', category: 'এডমিশন ও বেড', defaultRate: 1200, isClinicFund: true, note: 'কেবিন ভাড়া' },
+    { id: 'ot_charge', name: 'OT Charge / Operation Theatre', category: 'অপারেশন ও ওটি', defaultRate: 3500, isClinicFund: true, note: 'ওটি সার্ভিস ও ইন্সট্রুমেন্ট চার্জ' },
+    { id: 'surgeon_fee', name: 'Surgeon Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 6000, isClinicFund: false, note: 'চিফ সার্জন সম্মাননা' },
+    { id: 'anesthesia_fee', name: 'Anaesthetist Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 2500, isClinicFund: false, note: 'এনেসথেসিয়া স্পেশালিস্ট ফি' },
+    { id: 'asst_surgeon_fee', name: 'Assistant Surgeon Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 1500, isClinicFund: false, note: 'সহকারী সার্জন ফি' },
+    { id: 'doctor_visit', name: 'Doctor Visit / Round Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 500, isClinicFund: false, note: 'কনসালট্যান্ট রাউন্ড ভিজিট' },
+    { id: 'paediatrician_fee', name: 'Paediatrician / Neonatal Care', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 1000, isClinicFund: false, note: 'শিশু বিশেষজ্ঞ ফি' },
+    { id: 'nursing_charge', name: 'Nursing & Patient Care Charge', category: 'নার্সিং ও সার্ভিস', defaultRate: 500, isClinicFund: true, note: 'নার্সিং ও সার্বক্ষণিক কেয়ার' },
+    { id: 'oxygen_charge', name: 'Oxygen Charge', category: 'নার্সিং ও সার্ভিস', defaultRate: 300, isClinicFund: true, note: 'মেডিকেল অক্সিজেন সার্ভিস' },
+    { id: 'nebulization_charge', name: 'Nebulization Charge', category: 'নার্সিং ও সার্ভিস', defaultRate: 100, isClinicFund: true, note: 'নেবুলাইজেশন চার্জ' },
+    { id: 'dressing_charge', name: 'Dressing Charge (Minor/Major)', category: 'নার্সিং ও সার্ভিস', defaultRate: 300, isClinicFund: true, note: 'ড্রেসিং চার্জ' },
+    { id: 'cannula_charge', name: 'IV Cannula & Infusion Set Charge', category: 'নার্সিং ও সার্ভিস', defaultRate: 200, isClinicFund: true, note: 'ক্যানুলা ও স্যালাইন পুশ' },
+    { id: 'catheter_charge', name: 'Catheterization Charge', category: 'নার্সিং ও সার্ভিস', defaultRate: 300, isClinicFund: true, note: 'ক্যাথেটার চার্জ' },
+    { id: 'nvd_charge', name: 'Normal Vaginal Delivery (NVD) Charge', category: 'প্রসব ও প্রসিডিউর', defaultRate: 4000, isClinicFund: true, note: 'লেবার রুম ও ডেলিভারি চার্জ' },
+    { id: 'dc_charge', name: 'D&C / MVA Procedure Charge', category: 'প্রসব ও প্রসিডিউর', defaultRate: 3000, isClinicFund: true, note: 'ডিএন্ডসি চার্জ' },
+    { id: 'discharge_fee', name: 'Discharge Slip & File Charge', category: 'অন্যান্য', defaultRate: 200, isClinicFund: true, note: 'ডিসচার্জ ফাইল ও প্রসেসিং' }
+];
+
 // 2. Indoor Invoice
 const IndoorInvoicePage: React.FC<{ 
     admissions: AdmissionRecord[];
@@ -2351,6 +3032,12 @@ const IndoorInvoicePage: React.FC<{
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [applyPC, setApplyPC] = useState(false); 
     const [invoiceSubTab, setInvoiceSubTab] = useState<'both' | 'form' | 'journal'>('both');
+    const [showRateChart, setShowRateChart] = useState(false);
+    const [rateSearchTerm, setRateSearchTerm] = useState('');
+    const [rateCategoryFilter, setRateCategoryFilter] = useState('All');
+    const [rateSortBy, setRateSortBy] = useState<'name' | 'rateAsc' | 'rateDesc'>('name');
+    const [targetRowIdForRate, setTargetRowIdForRate] = useState<number | null>(null);
+    const [copiedRateText, setCopiedRateText] = useState<string | null>(null);
     const [subCategories, setSubCategories] = useState<{id: string, name: string, mainCategory?: string}[]>(() => {
         try {
             return JSON.parse(localStorage.getItem('ncd_clinic_subcategories') || '[]');
@@ -2835,6 +3522,71 @@ const IndoorInvoicePage: React.FC<{
         const totals = calculateTotals(updatedItems, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
         setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
     };
+
+    const handleInsertRateIntoRow = (rateItem: StandardRateItem, targetId: number | null) => {
+        const items = Array.isArray(formData.items) ? formData.items : [];
+        if (targetId && items.some(it => it && it.id === targetId)) {
+            const updated = items.map(it => {
+                if (it && it.id === targetId) {
+                    const qty = it.quantity || 1;
+                    const charge = rateItem.defaultRate;
+                    const lineTotal = charge * qty;
+                    const payable = lineTotal - (it.discount || 0);
+                    return {
+                        ...it,
+                        service_type: rateItem.name,
+                        service_charge: charge,
+                        line_total: lineTotal,
+                        payable_amount: payable,
+                        isClinicFund: rateItem.isClinicFund,
+                        note: it.note ? `${it.note} (${rateItem.note})` : rateItem.note
+                    };
+                }
+                return it;
+            });
+            const totals = calculateTotals(updated, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
+            setFormData(prev => ({ ...prev, items: updated, ...totals }));
+        } else {
+            const newItem: ServiceItem = {
+                id: Date.now(),
+                service_type: rateItem.name,
+                service_provider: rateItem.isClinicFund ? 'Hospital' : 'Doctor / Specialist',
+                service_charge: rateItem.defaultRate,
+                quantity: 1,
+                line_total: rateItem.defaultRate,
+                discount: 0,
+                payable_amount: rateItem.defaultRate,
+                note: rateItem.note,
+                isClinicFund: rateItem.isClinicFund
+            };
+            const updated = [...items, newItem];
+            const totals = calculateTotals(updated, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
+            setFormData(prev => ({ ...prev, items: updated, ...totals }));
+        }
+        setShowRateChart(false);
+    };
+
+    const handleCopyRate = (rateItem: StandardRateItem) => {
+        const text = `${rateItem.name} (৳${rateItem.defaultRate})`;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+        }
+        setCopiedRateText(rateItem.id);
+        setTimeout(() => setCopiedRateText(null), 2000);
+    };
+
+    const filteredAndSortedRates = useMemo(() => {
+        return STANDARD_HOSPITAL_RATES.filter(r => {
+            const matchesCat = rateCategoryFilter === 'All' || r.category === rateCategoryFilter;
+            const q = rateSearchTerm.toLowerCase();
+            const matchesSearch = !q || r.name.toLowerCase().includes(q) || r.category.toLowerCase().includes(q) || r.note.toLowerCase().includes(q);
+            return matchesCat && matchesSearch;
+        }).sort((a, b) => {
+            if (rateSortBy === 'rateAsc') return a.defaultRate - b.defaultRate;
+            if (rateSortBy === 'rateDesc') return b.defaultRate - a.defaultRate;
+            return a.name.localeCompare(b.name);
+        });
+    }, [rateSearchTerm, rateCategoryFilter, rateSortBy]);
 
     const handleSaveInvoice = (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -3974,8 +4726,18 @@ const IndoorInvoicePage: React.FC<{
                                     <span className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400"><Activity size={20} /></span>
                                     Services & Charges
                                 </h4>
-                                <div className="flex gap-3">
-                                    <div className="w-72">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => {
+                                            setTargetRowIdForRate(null);
+                                            setShowRateChart(true);
+                                        }} 
+                                        className="bg-gradient-to-r from-teal-600 to-emerald-700 hover:from-teal-500 hover:to-emerald-600 text-white px-3.5 py-2 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-1.5 shadow-lg shadow-teal-950/40 border border-teal-400/40 cursor-pointer"
+                                    >
+                                        📋 রেট চার্ট টেবিল (Rate Sheet)
+                                    </button>
+                                    <div className="w-64">
                                         <SearchableSelect 
                                             label=""
                                             theme="dark"
@@ -4007,10 +4769,10 @@ const IndoorInvoicePage: React.FC<{
                                                     setFormData(prev => ({ ...prev, items: updatedItems, ...totals }));
                                                 }
                                             }}
-                                            inputHeightClass="h-11 bg-slate-950 border-slate-800"
+                                            inputHeightClass="h-10 bg-slate-950 border-slate-800"
                                         />
                                     </div>
-                                    <button type="button" onClick={handleAddServiceItem} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-blue-900/40 border border-blue-400/30">
+                                    <button type="button" onClick={handleAddServiceItem} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-1.5 shadow-lg shadow-blue-900/40 border border-blue-400/30 cursor-pointer">
                                         <Plus size={14}/> Add Service
                                     </button>
                                 </div>
@@ -4019,7 +4781,7 @@ const IndoorInvoicePage: React.FC<{
                                 <table className="w-full text-sm text-left text-slate-300">
                                     <thead className="bg-slate-950 text-slate-500 border-b border-slate-800">
                                         <tr>
-                                            <th className="p-4 font-black uppercase tracking-widest text-[10px]">Type</th>
+                                            <th className="p-4 font-black uppercase tracking-widest text-[10px]">Type / Item</th>
                                             <th className="p-4 font-black uppercase tracking-widest text-[10px]">Provider</th>
                                             <th className="p-4 font-black uppercase tracking-widest text-[10px] text-right">Charge</th>
                                             <th className="p-4 font-black uppercase tracking-widest text-[10px] text-right">Qty</th>
@@ -4034,7 +4796,31 @@ const IndoorInvoicePage: React.FC<{
                                         {(formData.items || []).map(item => (
                                             <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
                                                 <td className="p-2">
-                                                    <input list={`service_type_${item.id}`} value={item.service_type} onChange={e=>handleServiceChange(item.id,'service_type',e.target.value)} className="w-full bg-slate-950 border border-slate-800 text-slate-200 p-2 rounded-lg h-9 text-xs focus:ring-2 focus:ring-blue-500 outline-none" />
+                                                    <div className="flex items-center gap-1">
+                                                        <input 
+                                                            list={`service_type_${item.id}`} 
+                                                            value={item.service_type} 
+                                                            onChange={e=>handleServiceChange(item.id,'service_type',e.target.value)} 
+                                                            onFocus={() => setTargetRowIdForRate(item.id)}
+                                                            onClick={() => {
+                                                                setTargetRowIdForRate(item.id);
+                                                                setShowRateChart(true);
+                                                            }}
+                                                            placeholder="Select or type service..."
+                                                            className="w-full bg-slate-950 border border-slate-800 text-slate-200 p-2 rounded-lg h-9 text-xs focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer" 
+                                                        />
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => {
+                                                                setTargetRowIdForRate(item.id);
+                                                                setShowRateChart(true);
+                                                            }}
+                                                            title="ক্লিক করে রেট চার্ট থেকে আইটেম ও ফি বেছে নিন"
+                                                            className="px-2 py-1.5 bg-teal-500/20 hover:bg-teal-500 text-teal-300 hover:text-white rounded-lg border border-teal-500/40 text-xs font-bold transition-all shrink-0 cursor-pointer"
+                                                        >
+                                                            📋
+                                                        </button>
+                                                    </div>
                                                     <datalist id={`service_type_${item.id}`}>{(Array.isArray(serviceTypesList) ? serviceTypesList : []).map(t=><option key={t} value={t} className="bg-slate-900"/>)}</datalist>
                                                 </td>
                                                 <td className="p-2">
@@ -4065,12 +4851,12 @@ const IndoorInvoicePage: React.FC<{
                                                             const totals = calculateTotals(updated, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
                                                             setFormData(prev => ({ ...prev, items: updated, ...totals }));
                                                         }}
-                                                        className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500"
+                                                        className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                     />
                                                 </td>
                                                 <td className="p-2"><input type="text" value={item.note || ''} onChange={e=>handleServiceChange(item.id,'note',e.target.value)} className="w-full bg-slate-950 border border-slate-800 text-slate-200 p-2 rounded-lg h-9 text-xs focus:ring-2 focus:ring-blue-500 outline-none"/></td>
                                                 <td className="p-2 text-center">
-                                                    <button type="button" onClick={()=>handleRemoveServiceItem(item.id)} className="text-rose-500 hover:bg-rose-500/10 transition-all p-2 rounded-lg"><Trash2 size={18}/></button>
+                                                    <button type="button" onClick={()=>handleRemoveServiceItem(item.id)} className="text-rose-500 hover:bg-rose-500/10 transition-all p-2 rounded-lg cursor-pointer"><Trash2 size={18}/></button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -4078,6 +4864,153 @@ const IndoorInvoicePage: React.FC<{
                                 </table>
                             </div>
                         </div>
+
+                        {/* Standard Rates Helper Modal / Popup */}
+                        {showRateChart && (
+                            <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-3 backdrop-blur-sm animate-fade-in">
+                                <div className="bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-teal-500/40 overflow-hidden">
+                                    {/* Modal Header */}
+                                    <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center shrink-0">
+                                        <div className="flex items-center gap-3">
+                                            <div className="bg-teal-600 p-2 rounded-xl text-white shadow-lg shadow-teal-900/50">
+                                                <ClipboardIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-base font-black text-white uppercase tracking-tight flex items-center gap-2">
+                                                    স্ট্যান্ডার্ড ক্লিনিক চার্জ ও সার্ভিস রেট টেবিল
+                                                    <span className="text-[10px] bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded border border-teal-500/30">
+                                                        {targetRowIdForRate ? '🎯 নির্দিষ্ট রো-তে বসানো হবে' : '➕ নতুন রো হিসেবে যোগ হবে'}
+                                                    </span>
+                                                </h3>
+                                                <p className="text-[11px] text-slate-400 font-medium">ক্লিক করে সরাসরি ইনভয়েসে ইনসার্ট করুন অথবা কপি করুন</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setShowRateChart(false)} 
+                                            className="p-2 bg-rose-500/20 text-rose-300 rounded-xl hover:bg-rose-600 hover:text-white transition-all text-xl font-bold cursor-pointer"
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
+
+                                    {/* Search & Category Tabs */}
+                                    <div className="p-4 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                                        <div className="relative flex-1 min-w-[240px]">
+                                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                            <input 
+                                                type="text" 
+                                                placeholder="সার্চ করুন (যেমন: admission, surgeon, bed, ot, oxygen, dressing)..." 
+                                                value={rateSearchTerm}
+                                                onChange={e => setRateSearchTerm(e.target.value)}
+                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white outline-none focus:border-teal-500 font-bold"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase">সর্টিং:</span>
+                                            <select 
+                                                value={rateSortBy} 
+                                                onChange={e => setRateSortBy(e.target.value as any)}
+                                                className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none font-bold"
+                                            >
+                                                <option value="name">নাম অনুযায়ী (A-Z)</option>
+                                                <option value="rateAsc">চার্জ (কম থেকে বেশি)</option>
+                                                <option value="rateDesc">চার্জ (বেশি থেকে কম)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Category Filter Pills */}
+                                    <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800 flex flex-wrap gap-1.5 shrink-0">
+                                        {['All', 'এডমিশন ও বেড', 'অপারেশন ও ওটি', 'সার্জন ও স্পেশালিস্ট', 'নার্সিং ও সার্ভিস', 'প্রসব ও প্রসিডিউর', 'অন্যান্য'].map(cat => (
+                                            <button 
+                                                key={cat} 
+                                                type="button" 
+                                                onClick={() => setRateCategoryFilter(cat)}
+                                                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${rateCategoryFilter === cat ? 'bg-teal-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                                            >
+                                                {cat === 'All' ? 'সব আইটেম' : cat}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Rates List Table */}
+                                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-950">
+                                        <div className="overflow-x-auto rounded-xl border border-slate-800">
+                                            <table className="w-full text-xs text-left text-slate-200 border-collapse">
+                                                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-black border-b border-slate-800 sticky top-0">
+                                                    <tr>
+                                                        <th className="p-3">আইটেম / সার্ভিসের নাম</th>
+                                                        <th className="p-3">ক্যাটাগরি</th>
+                                                        <th className="p-3 text-right">স্ট্যান্ডার্ড ফি</th>
+                                                        <th className="p-3 text-center">ফান্ড ধরন</th>
+                                                        <th className="p-3">বিবরণ / নোট</th>
+                                                        <th className="p-3 text-center">একশন</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-800">
+                                                    {filteredAndSortedRates.map(r => (
+                                                        <tr key={r.id} className="hover:bg-slate-900/60 transition-colors">
+                                                            <td className="p-3 font-bold text-white flex items-center gap-1.5">
+                                                                <span className="text-teal-400">❖</span> {r.name}
+                                                            </td>
+                                                            <td className="p-3 text-slate-400 text-[11px]">{r.category}</td>
+                                                            <td className="p-3 text-right font-black text-emerald-400 text-sm">৳{r.defaultRate.toLocaleString()}</td>
+                                                            <td className="p-3 text-center">
+                                                                {r.isClinicFund ? (
+                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">হাসপাতাল ফান্ড</span>
+                                                                ) : (
+                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">ডাক্তার / খরচ</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-3 text-slate-400 text-[11px]">{r.note}</td>
+                                                            <td className="p-3 text-center">
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <button 
+                                                                        type="button" 
+                                                                        onClick={() => handleCopyRate(r)}
+                                                                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
+                                                                        title="ক্লিপবোর্ডে কপি করুন"
+                                                                    >
+                                                                        {copiedRateText === r.id ? '✓ কপিড' : '📋 কপি'}
+                                                                    </button>
+                                                                    <button 
+                                                                        type="button" 
+                                                                        onClick={() => handleInsertRateIntoRow(r, targetRowIdForRate)}
+                                                                        className="px-3 py-1 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-lg text-[10px] font-black shadow transition-all cursor-pointer flex items-center gap-1"
+                                                                    >
+                                                                        {targetRowIdForRate ? '📝 এই ঘরে বসান' : '➕ যোগ করুন'}
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {filteredAndSortedRates.length === 0 && (
+                                                        <tr>
+                                                            <td colSpan={6} className="py-12 text-center text-slate-500">
+                                                                কোনো আইটেম পাওয়া যায়নি।
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="p-3 bg-slate-950 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400 shrink-0">
+                                        <span>মোট আইটেম: <b>{filteredAndSortedRates.length}</b> টি</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setShowRateChart(false)}
+                                            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                        >
+                                            বন্ধ করুন
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-emerald-950/20 p-8 rounded-2xl border border-emerald-500/20 shadow-[-10px_10px_30px_-5px_rgba(16,185,129,0.1)]">
                             <div className="space-y-6">
                                 <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-700/50 shadow-inner">
@@ -4242,44 +5175,44 @@ const IndoorInvoicePage: React.FC<{
             )}
                 
             {(invoiceSubTab === 'both' || invoiceSubTab === 'journal') && (
-                <div id="master-journal-section" className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xl scroll-mt-6">
+                <div id="master-journal-section" className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl shadow-black/50 scroll-mt-6">
                     {duplicateCount > 0 && (
-                        <div className="mb-4 bg-purple-500/10 border border-purple-500/30 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                        <div className="mb-4 bg-purple-950/40 border border-purple-500/40 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-inner">
                             <div className="flex items-center gap-2.5">
-                                <AlertCircle className="w-5 h-5 text-purple-600 shrink-0" />
+                                <AlertCircle className="w-5 h-5 text-purple-400 shrink-0" />
                                 <div>
-                                    <div className="text-xs font-black text-purple-900">ডুপ্লিকেট ইনভয়েস চিহ্নিত হয়েছে ({duplicateCount} টি অতিরিক্ত কপি)</div>
-                                    <div className="text-[11px] text-purple-700 font-medium">অতীতের সিঙ্গেল টেবিল (ncd_state) এ থাকা ট্রিপল বা ডুপ্লিকেট ইনভয়েসগুলো থেকে অতিরিক্ত কপি মুছে একটি সঠিক কপি রাখা হবে।</div>
+                                    <div className="text-xs font-black text-purple-300">ডুপ্লিকেট ইনভয়েস চিহ্নিত হয়েছে ({duplicateCount} টি অতিরিক্ত কপি)</div>
+                                    <div className="text-[11px] text-purple-300/80 font-medium">অতীতের সিঙ্গেল টেবিল (ncd_state) এ থাকা ট্রিপল বা ডুপ্লিকেট ইনভয়েসগুলো থেকে অতিরিক্ত কপি মুছে একটি সঠিক কপি রাখা হবে।</div>
                                 </div>
                             </div>
                             <button
                                 type="button"
                                 onClick={handleDeduplicateInvoices}
                                 disabled={loading}
-                                className="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow transition-all shrink-0 cursor-pointer"
+                                className="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-lg shadow-purple-900/40 transition-all shrink-0 cursor-pointer"
                             >
                                 🧹 ডুপ্লিকেট মুছে ১টি রাখুন (Clean Duplicates)
                             </button>
                         </div>
                     )}
                     {hasDeletedInvoices && (
-                        <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                        <div className="mb-4 bg-amber-950/40 border border-amber-500/40 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-inner">
                             <div className="flex items-center gap-2.5">
-                                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
                                 <div>
-                                    <div className="text-xs font-black text-amber-900">ডিলিট/বাতিল হওয়া ইনভয়েস রয়েছে</div>
-                                    <div className="text-[11px] text-amber-700 font-medium">ভুলবশত ডিলিট হয়ে থাকা ইনভয়েসগুলো এক ক্লিকে পুনরায় সচল (Active) করতে পারবেন।</div>
+                                    <div className="text-xs font-black text-amber-300">ডিলিট/বাতিল হওয়া ইনভয়েস রয়েছে</div>
+                                    <div className="text-[11px] text-amber-300/80 font-medium">ভুলবশত ডিলিট হয়ে থাকা ইনভয়েসগুলো এক ক্লিকে পুনরায় সচল (Active) করতে পারবেন।</div>
                                 </div>
                             </div>
                             <button
                                 onClick={handleRestoreAllDeletedInvoices}
-                                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow transition-all shrink-0 cursor-pointer"
+                                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-lg shadow-emerald-900/40 transition-all shrink-0 cursor-pointer"
                             >
                                 🔄 সব ইনভয়েস সচল করুন (Restore All)
                             </button>
                         </div>
                     )}
-                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-5 border-b border-slate-800 pb-4">
                         <div className="flex items-center gap-3">
                             <button
                                 type="button"
@@ -4289,10 +5222,10 @@ const IndoorInvoicePage: React.FC<{
                                     }
                                     document.getElementById('master-journal-section')?.scrollIntoView({ behavior: 'smooth' });
                                 }}
-                                className="text-gray-800 hover:text-blue-600 font-black uppercase text-sm tracking-wider whitespace-nowrap flex items-center gap-2 transition-colors cursor-pointer"
+                                className="text-white hover:text-blue-400 font-black uppercase text-sm tracking-wider whitespace-nowrap flex items-center gap-2 transition-colors cursor-pointer"
                             >
-                                <DatabaseIcon size={18} className="text-blue-600" /> Master Journal: Saved Indoor Invoices
-                                <span className="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                                <DatabaseIcon size={18} className="text-blue-400" /> Master Journal: Saved Indoor Invoices
+                                <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs px-2.5 py-0.5 rounded-full font-bold">
                                     {indoorInvoices.length}
                                 </span>
                             </button>
@@ -4305,7 +5238,7 @@ const IndoorInvoicePage: React.FC<{
                                             document.getElementById('indoor-invoice-form-section')?.scrollIntoView({ behavior: 'smooth' });
                                         }, 50);
                                     }}
-                                    className="text-xs text-blue-600 hover:text-blue-800 font-bold underline flex items-center gap-1 cursor-pointer ml-2"
+                                    className="text-xs text-blue-400 hover:text-blue-300 font-bold underline flex items-center gap-1 cursor-pointer ml-2"
                                 >
                                     ➕ নতুন ইনভয়েস ফর্মে যান
                                 </button>
@@ -4313,130 +5246,128 @@ const IndoorInvoicePage: React.FC<{
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <div className="relative w-48">
-                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                                 <input 
                                     type="text" 
                                     placeholder="Search Patient or ID..." 
                                     value={tableSearchTerm}
                                     onChange={e => setTableSearchTerm(e.target.value)}
-                                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-1.5 text-[10px] text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"
                                 />
                             </div>
                             <input 
                                 type="date" 
                                 value={tableDateFilter}
                                 onChange={e => setTableDateFilter(e.target.value)}
-                                className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-[10px] text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"
                             />
                             <input 
                                 type="month" 
                                 value={tableMonthFilter}
                                 onChange={e => setTableMonthFilter(e.target.value)}
-                                className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-[10px] text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"
                             />
                         </div>
                     </div>
 
-                    <div className="bg-[#fdfcfb] rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left text-gray-700 border-collapse">
-                                <thead className="bg-[#f8f9fa] text-gray-800 sticky top-0 z-10 border-b border-gray-200">
+                            <table className="w-full text-sm text-left text-slate-300 border-collapse">
+                                <thead className="bg-slate-950 text-slate-400 sticky top-0 z-10 border-b border-slate-800">
                                     <tr>
-                                        <th className="p-3 text-center w-12 font-black uppercase text-[10px]">SL</th>
-                                        <th className="p-3 w-24 font-black uppercase text-[10px]">ID</th>
-                                        <th className="p-3 w-32 font-black uppercase text-[10px]">Admission / Date</th>
-                                        <th className="p-3 font-black uppercase text-[10px]">Patient Details</th>
-                                        <th className="p-3 text-right w-32 font-black uppercase text-[10px]">Total</th>
-                                        <th className="p-3 text-right w-32 font-black uppercase text-[10px]">Paid</th>
-                                        <th className="p-3 text-right w-32 font-black uppercase text-[10px]">Due</th>
-                                        <th className="p-3 text-right w-32 font-black uppercase text-[10px] text-blue-700">Clinic Net Balance</th>
-                                        <th className="p-3 text-center w-24 font-black uppercase text-[10px]">Status</th>
-                                        <th className="p-3 text-center w-48 font-black uppercase text-[10px]">Action</th>
+                                        <th className="p-3.5 text-center w-12 font-black uppercase text-[10px] tracking-wider">SL</th>
+                                        <th className="p-3.5 w-24 font-black uppercase text-[10px] tracking-wider">ID</th>
+                                        <th className="p-3.5 w-32 font-black uppercase text-[10px] tracking-wider">Admission / Date</th>
+                                        <th className="p-3.5 font-black uppercase text-[10px] tracking-wider">Patient Details</th>
+                                        <th className="p-3.5 text-right w-28 font-black uppercase text-[10px] tracking-wider">Total</th>
+                                        <th className="p-3.5 text-right w-28 font-black uppercase text-[10px] tracking-wider">Paid</th>
+                                        <th className="p-3.5 text-right w-28 font-black uppercase text-[10px] tracking-wider">Due</th>
+                                        <th className="p-3.5 text-right w-32 font-black uppercase text-[10px] tracking-wider text-cyan-400">Clinic Net</th>
+                                        <th className="p-3.5 text-center w-24 font-black uppercase text-[10px] tracking-wider">Status</th>
+                                        <th className="p-3.5 text-center w-48 font-black uppercase text-[10px] tracking-wider">Action</th>
                                     </tr>
-                                    <tr className="bg-blue-50/50 text-[10px] border-t border-gray-200">
-                                        <th colSpan={4} className="p-2 text-right text-gray-500 font-black uppercase tracking-widest">Filtered Totals:</th>
-                                        <th className="p-2 text-right text-blue-800 font-black">{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                        <th className="p-2 text-right text-emerald-700 font-black">{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                        <th className="p-2 text-right text-red-700 font-black">{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                        <th className="p-2 text-right text-blue-900 font-black">{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                    <tr className="bg-slate-950/90 text-[10px] border-t border-slate-800 text-slate-300">
+                                        <th colSpan={4} className="p-3 text-right text-slate-400 font-black uppercase tracking-widest">Filtered Totals:</th>
+                                        <th className="p-3 text-right text-blue-400 font-black font-mono">{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-3 text-right text-emerald-400 font-black font-mono">{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-3 text-right text-rose-400 font-black font-mono">{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="p-3 text-right text-cyan-400 font-black font-mono">{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
                                         <th colSpan={2}></th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-100 bg-[#fdfcfb]">
+                                <tbody className="divide-y divide-slate-800/80 bg-slate-900">
                                     {filteredInvoices.map((inv, index) => (
-                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer odd:bg-white even:bg-slate-50/50 hover:bg-blue-100/50 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-100/70 border-l-4 border-blue-600' : ''} ${inv.status === 'Returned' ? 'bg-red-50' : inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-40 grayscale line-through' : ''}`}>
-                                            <td className="p-3 text-center text-gray-400 font-mono text-[10px]">{index + 1}</td>
-                                            <td className="p-3 font-black text-xs text-blue-600">{inv.daily_id}</td>
-                                            <td className="p-3 text-xs">
-                                                <div className="font-bold text-gray-800" title="ভর্তি তারিখ (হিসাবে যুক্ত হওয়ার তারিখ)">Adm: {inv.admission_date || inv.invoice_date}</div>
+                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer odd:bg-slate-900 even:bg-slate-850/40 hover:bg-blue-950/40 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30 border-l-4 border-blue-500' : ''} ${inv.status === 'Returned' ? 'bg-rose-950/30' : inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-40 grayscale line-through' : ''}`}>
+                                            <td className="p-3.5 text-center text-slate-500 font-mono text-xs">{index + 1}</td>
+                                            <td className="p-3.5 font-black text-xs text-blue-400 font-mono">{inv.daily_id}</td>
+                                            <td className="p-3.5 text-xs">
+                                                <div className="font-bold text-slate-200" title="ভর্তি তারিখ">Adm: {inv.admission_date || inv.invoice_date}</div>
                                                 {inv.invoice_date && inv.invoice_date !== inv.admission_date && (
-                                                    <div className="text-[10px] text-gray-500">Inv: {inv.invoice_date}</div>
+                                                    <div className="text-[10px] text-slate-400">Inv: {inv.invoice_date}</div>
                                                 )}
                                                 {inv.discharge_date && (
-                                                    <div className="text-[10px] text-emerald-600 font-semibold">Disch: {inv.discharge_date}</div>
+                                                    <div className="text-[10px] text-emerald-400 font-semibold">Disch: {inv.discharge_date}</div>
                                                 )}
                                             </td>
-                                        <td className="p-3">
-                                            <div className="font-black uppercase text-gray-900 leading-tight">{inv.patient_name}</div>
-                                            <div className="text-[9px] text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                                <span className="bg-gray-200 px-1 rounded">ID: {inv.patient_id}</span>
-                                                <span className="bg-blue-50 text-blue-600 px-1 rounded">Indication: {inv.indication}</span>
+                                            <td className="p-3.5">
+                                                <div className="font-black uppercase text-white tracking-wide text-sm">{inv.patient_name}</div>
+                                                <div className="text-[10px] text-slate-400 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                                                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 font-mono">ID: {inv.patient_id}</span>
+                                                    <span className="bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded">Indication: {inv.indication}</span>
+                                                    {(() => {
+                                                        const safePatients = Array.isArray(patients) ? patients : [];
+                                                        const p = safePatients.find(pt => pt && pt.pt_id === inv.patient_id);
+                                                        return p ? (
+                                                            <>
+                                                                <span className="text-slate-400">Age: {p.ageY}Y</span>
+                                                                <span className="text-slate-400">Addr: {p.address}</span>
+                                                                <span className="text-slate-400">Mob: {p.mobile}</span>
+                                                            </>
+                                                        ) : null;
+                                                    })()}
+                                                </div>
+                                            </td>
+                                            <td className="p-3.5 text-right font-bold font-mono text-slate-200">{Number(inv.total_bill || 0).toFixed(2)}</td>
+                                            <td className="p-3.5 text-right text-emerald-400 font-black font-mono">{Number(inv.paid_amount || 0).toFixed(2)}</td>
+                                            <td className="p-3.5 text-right text-rose-400 font-black font-mono">{Number(inv.due_bill || 0).toFixed(2)}</td>
+                                            <td className="p-3.5 text-right text-cyan-400 font-bold font-mono">
                                                 {(() => {
-                                                    const safePatients = Array.isArray(patients) ? patients : [];
-                                                    const p = safePatients.find(pt => pt && pt.pt_id === inv.patient_id);
-                                                    return p ? (
-                                                        <>
-                                                            <span>Age: {p.ageY}Y {p.ageM}M {p.ageD}D</span>
-                                                            <span>Addr: {p.address}</span>
-                                                            <span>Mob: {p.mobile}</span>
-                                                        </>
-                                                    ) : null;
+                                                    if (inv.status === 'Cancelled' || inv.status === 'Deleted') return '0.00';
+                                                    const net = calculateInvoiceClinicNet(inv);
+                                                    return net.toFixed(2);
                                                 })()}
-                                            </div>
-                                        </td>
-                                        <td className="p-3 text-right font-bold font-mono">{Number(inv.total_bill || 0).toFixed(2)}</td>
-                                        <td className="p-3 text-right text-emerald-600 font-black font-mono">{Number(inv.paid_amount || 0).toFixed(2)}</td>
-                                        <td className="p-3 text-right text-rose-600 font-black font-mono">{Number(inv.due_bill || 0).toFixed(2)}</td>
-                                        <td className="p-3 text-right text-sky-600 font-bold font-mono">
-                                            {(() => {
-                                                if (inv.status === 'Cancelled' || inv.status === 'Deleted') return '0.00';
-                                                const net = calculateInvoiceClinicNet(inv);
-                                                return net.toFixed(2);
-                                            })()}
-                                        </td>
-                                        <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
-                                        <td className="p-3 text-center space-x-2" onClick={e=>e.stopPropagation()}>
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleLoadInvoice(inv); }} 
-                                                className="inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 hover:text-amber-800 px-2.5 py-1 rounded-md text-xs font-bold border border-amber-300/60 shadow-sm transition-all"
-                                                title="ইনভয়েসটি এডিট করতে উপরে ফর্মে লোড করুন"
-                                            >
-                                                <EditIcon size={12} className="text-amber-600" /> Edit
-                                            </button>
-                                            <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-sky-600 hover:text-sky-800 text-xs font-bold underline">Print</button>
-                                            {(inv.status === 'Cancelled' || inv.status === 'Deleted') ? (
+                                            </td>
+                                            <td className="p-3.5 text-center"><span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
+                                            <td className="p-3.5 text-center space-x-2 whitespace-nowrap" onClick={e=>e.stopPropagation()}>
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleRestoreInvoice(inv); }} 
-                                                    className="inline-flex items-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 hover:text-emerald-800 px-2 py-0.5 rounded text-xs font-bold border border-emerald-300 transition-all cursor-pointer"
-                                                    title="এই ইনভয়েসটি পুনরায় সচল (Active) করুন"
+                                                    onClick={(e) => { e.stopPropagation(); handleLoadInvoice(inv); }} 
+                                                    className="inline-flex items-center gap-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-3 py-1.5 rounded-lg text-xs font-black border border-amber-500/40 shadow transition-all cursor-pointer"
+                                                    title="ইনভয়েসটি এডিট করতে উপরে ফর্মে লোড করুন"
                                                 >
-                                                    🔄 Restore
+                                                    <EditIcon size={12} className="text-amber-400" /> Edit
                                                 </button>
-                                            ) : (
-                                                inv.status !== 'Returned' && (
-                                                    <>
-                                                        <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-amber-600 hover:text-amber-800 text-xs font-bold underline">Return</button>
-                                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteInvoice(inv); }} className="text-rose-600 hover:text-rose-800 text-xs font-bold underline">Delete</button>
-                                                        <button onClick={(e) => { e.stopPropagation(); handleCancelInvoice(inv); }} className="text-slate-400 hover:text-slate-600 text-xs font-bold underline">Cancel</button>
-                                                    </>
-                                                )
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        {filteredInvoices.length === 0 && <div className="p-20 text-center text-gray-400 font-black uppercase opacity-20">No Records Found</div>}
+                                                <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-cyan-400 hover:text-cyan-300 text-xs font-black uppercase tracking-wider underline px-2 py-1">Print</button>
+                                                {(inv.status === 'Cancelled' || inv.status === 'Deleted') ? (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleRestoreInvoice(inv); }} 
+                                                        className="inline-flex items-center gap-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-2.5 py-1 rounded-lg text-xs font-black border border-emerald-500/40 transition-all cursor-pointer"
+                                                    >
+                                                        🔄 Restore
+                                                    </button>
+                                                ) : (
+                                                    inv.status !== 'Returned' && (
+                                                        <>
+                                                            <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-amber-400 hover:text-amber-300 text-xs font-black uppercase tracking-wider underline px-1">Return</button>
+                                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteInvoice(inv); }} className="text-rose-400 hover:text-rose-300 text-xs font-black uppercase tracking-wider underline px-1">Del</button>
+                                                        </>
+                                                    )
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {filteredInvoices.length === 0 && <div className="p-20 text-center text-slate-500 font-black uppercase tracking-widest opacity-40 text-lg">No Records Found</div>}
                         </div>
                     </div>
                 </div>
@@ -4894,7 +5825,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
         if (localStorage.getItem('ncd_pending_edit_invoice_id')) {
             return 'invoice';
         }
-        return 'admission';
+        return 'patient_info';
     });
     const [clinicDueCollections, setClinicDueCollections] = useState<ClinicDueCollection[]>([]);
     const [successMessage, setSuccessMessage] = useState('');
@@ -4930,8 +5861,8 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                             </div>
                         </div>
                         <div className="flex bg-slate-900/50 rounded-xl p-1.5 border border-slate-800 overflow-x-auto w-full scrollbar-hide gap-1">
-                            <button onClick={() => setActiveTab('admission')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'admission' ? 'bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg shadow-emerald-900/40 border border-emerald-400/30' : 'text-slate-500 hover:text-emerald-400 hover:bg-slate-800/50'}`}>Admission & Treatment</button>
                             <button onClick={() => setActiveTab('patient_info')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'patient_info' ? 'bg-gradient-to-br from-cyan-500 to-blue-700 text-white shadow-lg shadow-cyan-900/40 border border-cyan-400/30' : 'text-slate-500 hover:text-cyan-400 hover:bg-slate-800/50'}`}>Patient Info</button>
+                            <button onClick={() => setActiveTab('admission')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'admission' ? 'bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg shadow-emerald-900/40 border border-emerald-400/30' : 'text-slate-500 hover:text-emerald-400 hover:bg-slate-800/50'}`}>Admission & Treatment</button>
                             <button onClick={() => setActiveTab('bed_status')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'bed_status' ? 'bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg shadow-teal-900/40 border border-teal-400/30' : 'text-slate-500 hover:text-teal-400 hover:bg-slate-800/50'}`}>Bed Status</button>
                             <button onClick={() => setActiveTab('invoice')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'invoice' ? 'bg-gradient-to-br from-blue-500 to-indigo-700 text-white shadow-lg shadow-blue-900/40 border border-blue-400/30' : 'text-slate-500 hover:text-blue-400 hover:bg-slate-800/50'}`}>Indoor Invoice</button>
                             <button onClick={() => setActiveTab('due_collection')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'due_collection' ? 'bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg shadow-amber-900/40 border border-amber-400/30' : 'text-slate-500 hover:text-amber-400 hover:bg-slate-800/50'}`}>Due Collection</button>

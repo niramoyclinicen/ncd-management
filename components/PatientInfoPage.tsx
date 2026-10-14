@@ -406,12 +406,14 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
       setSuccessMessage('Patient deleted successfully.');
   };
 
-  const inputBaseClasses = "block w-full border border-slate-700 rounded-md shadow-sm text-sm sm:text-base lg:text-lg font-semibold bg-slate-800 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-400 outline-none transition-shadow";
-  const labelBaseClasses = "block text-xs sm:text-sm font-bold text-slate-200 mb-1.5";
-  const actionButtonClasses = "px-3 sm:px-5 py-2 sm:py-2.5 text-sm font-semibold rounded-md flex justify-center items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all active:scale-95";
+  const [showNameDropdown, setShowNameDropdown] = useState(false);
+
+  const inputBaseClasses = "py-1.5 px-3 mt-1 block w-full border border-sky-700/60 rounded-md shadow-sm text-sm font-semibold bg-slate-900 text-white placeholder-slate-400 focus:bg-slate-950 focus:ring-2 focus:ring-blue-400 focus:border-blue-400";
+  const labelBaseClasses = "block text-sm font-bold text-sky-200";
+  const actionButtonClasses = "px-4 py-2 text-sm font-bold rounded-md flex justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-sky-950 transition-colors min-w-[100px]";
 
   return (
-    <div className={`bg-slate-950 text-slate-200 rounded-xl px-3 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
+    <div className={`bg-slate-900 text-slate-100 rounded-xl px-4 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
         {/* Notifications */}
         {successMessage && (
             <div className="fixed bottom-5 right-5 z-[999999] bg-green-600/95 backdrop-blur-sm border border-green-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up">
@@ -451,18 +453,18 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
               </div>
           )}
           
-          <div className={`flex-1 order-1 xl:order-2 bg-slate-900 rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-600/50 mt-1' : 'border border-slate-800 shadow-xl'}`}>
+          <div className={`flex-1 order-1 xl:order-2 bg-sky-950/70 rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-700 mt-4' : 'border border-sky-700/80 shadow-xl'}`}>
             
             {/* Embedded Mode Header Banner */}
             {isEmbedded && (
-                <div className="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-800/80">
+                <div className="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-sky-700/80">
                     <div className="flex items-center gap-2.5">
                         <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
                         <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">নতুন রোগী নিবন্ধন (New Patient)</h3>
                     </div>
-                    <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-blue-500/40">
+                    <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-sky-700/60">
                         <span className="text-[11px] font-semibold text-slate-400 uppercase">Patient ID:</span>
-                        <span className="font-mono text-xs sm:text-sm font-bold text-blue-400">{formData.pt_id || 'Generating...'}</span>
+                        <span className="font-mono text-xs sm:text-sm font-bold text-sky-300">{formData.pt_id || 'Generating...'}</span>
                     </div>
                 </div>
             )}
@@ -477,19 +479,15 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
             
             {/* Header Area */}
             {!isEmbedded && (
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-800/80">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-sky-700/80">
                     <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Patient Information</h2>
                     
                     {/* Quick Stats */}
                     <div className="flex items-center gap-4 text-xs font-medium">
-                        <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
-                            <span className="text-slate-500 mr-2">Total Patients:</span>
-                            <span className="text-blue-400">{(Array.isArray(patients) ? patients : []).length.toLocaleString()}</span>
-                        </div>
                         {searchTerm && (
-                            <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
-                                <span className="text-slate-500 mr-2">Search Result:</span>
-                                <span className="text-emerald-400">{filteredPatients.length.toLocaleString()}</span>
+                            <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-sky-700/60">
+                                <span className="text-slate-400 mr-2">Search Result:</span>
+                                <span className="text-emerald-400 font-bold">{filteredPatients.length.toLocaleString()}</span>
                             </div>
                         )}
                     </div>
@@ -517,7 +515,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                                     }
                                 }
                             }} 
-                            className={`${inputBaseClasses} py-2.5 px-4 bg-blue-950/50 border-blue-500/50 placeholder-blue-300 text-blue-100`} 
+                            className={`${inputBaseClasses} py-2 px-3 bg-blue-950/50 border-blue-500/50 placeholder-blue-300 text-blue-100`} 
                         />
                     </div>
                     <div>
@@ -527,7 +525,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                             placeholder="Search Name / ID / Mobile / Area" 
                             value={searchTerm} 
                             onChange={(e) => setSearchTerm(e.target.value)} 
-                            className={`${inputBaseClasses} py-2.5 px-4 bg-slate-950/50`} 
+                            className={`${inputBaseClasses} py-2 px-3 bg-slate-950/50`} 
                         />
                     </div>
                 </div>
@@ -535,10 +533,10 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
 
             {/* Action Bar */}
             {!isEmbedded && (
-                <div className="flex flex-wrap items-center gap-3 mb-6 bg-slate-950/30 p-3 rounded-xl border border-slate-800/50">
+                <div className="flex flex-wrap items-center gap-3 mb-6 bg-slate-950/40 p-3 rounded-xl border border-sky-700/40">
                     <div className="flex items-center gap-2">
                         <span className="font-semibold text-slate-400 text-sm hidden sm:inline">Pt. ID:</span>
-                        <input type="text" disabled value={formData.pt_id} className="w-36 sm:w-44 border border-slate-800 rounded-md shadow-sm text-sm font-bold px-3 py-2 bg-slate-950/80 text-blue-400 cursor-not-allowed select-all" />
+                        <input type="text" disabled value={formData.pt_id} className="w-36 sm:w-44 border border-sky-700/60 rounded-md shadow-sm text-sm font-bold px-3 py-1.5 bg-slate-950 text-sky-300 cursor-not-allowed select-all" />
                     </div>
                     
                     <div className="flex-1 flex gap-2 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar min-w-[280px]">
@@ -565,7 +563,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                                         }
                                     }
                                 }} 
-                                className={`${inputBaseClasses} py-2 px-3 bg-blue-950/50 border-blue-500/50 placeholder-blue-300 text-blue-100 focus:ring-blue-400`} 
+                                className={`${inputBaseClasses} py-1.5 px-3 bg-blue-950/50 border-blue-500/50 placeholder-blue-300 text-blue-100 focus:ring-blue-400`} 
                                 title="Click here and scan barcode"
                             />
                         </div>
@@ -574,24 +572,83 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                             placeholder="Search Name / ID / Mobile / Area" 
                             value={searchTerm} 
                             onChange={(e) => setSearchTerm(e.target.value)} 
-                            className={`${inputBaseClasses} py-2 px-3 w-64`} 
+                            className={`${inputBaseClasses} py-1.5 px-3 w-64`} 
                         />
                     </div>
                 </div>
             )}
             
             <form id="patient-form" onSubmit={handleSavePatient}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                    <div className="space-y-5">
-                        <div>
-                            <label className={labelBaseClasses}>Patient Name *</label>
-                            <input type="text" name="pt_name" value={formData.pt_name} onChange={handleInputChange} required className={`${inputBaseClasses} py-2.5 px-3.5`} list="patientNamesOptions" placeholder="Full Name" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                    <div className="space-y-4">
+                        {/* Excel-style Instant Match Patient Name Input */}
+                        <div className="relative">
+                            <label className={labelBaseClasses}>Patient Name * (টাইপ করলেই এক্সেল টেবিল শো হবে)</label>
+                            <input 
+                                type="text" 
+                                name="pt_name" 
+                                value={formData.pt_name} 
+                                onChange={(e) => {
+                                    handleInputChange(e);
+                                    setShowNameDropdown(true);
+                                }}
+                                onFocus={() => setShowNameDropdown(true)}
+                                required 
+                                className={`${inputBaseClasses} py-2 px-3`} 
+                                placeholder="নাম লিখে খুঁজুন বা নতুন নাম দিন..." 
+                            />
+                            
+                            {showNameDropdown && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowNameDropdown(false)} />
+                                    <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border-2 border-sky-600 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto custom-scrollbar">
+                                        <div className="p-2 bg-slate-950 border-b border-sky-800 flex items-center justify-between text-xs font-bold text-sky-300">
+                                            <span>এক্সেল শিট মোড: বিদ্যমান রোগী তালিকা (ক্লিক করে সিলেক্ট করুন)</span>
+                                            <button type="button" onClick={() => setShowNameDropdown(false)} className="text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-800">বন্ধ করুন ✕</button>
+                                        </div>
+                                        <table className="w-full text-left text-xs">
+                                            <thead className="bg-slate-950 text-slate-400 font-bold sticky top-0 border-b border-slate-800">
+                                                <tr>
+                                                    <th className="p-2">ID</th>
+                                                    <th className="p-2">Name</th>
+                                                    <th className="p-2">Age</th>
+                                                    <th className="p-2">Mobile</th>
+                                                    <th className="p-2">Address</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800 font-medium">
+                                                {(Array.isArray(patients) ? patients : [])
+                                                  .filter(p => p && p.pt_name && (!formData.pt_name || p.pt_name.toLowerCase().includes(formData.pt_name.toLowerCase()) || p.pt_id?.toLowerCase().includes(formData.pt_name.toLowerCase()) || p.mobile?.includes(formData.pt_name)))
+                                                  .slice(0, 20)
+                                                  .map(pat => (
+                                                    <tr 
+                                                        key={pat.pt_id}
+                                                        onClick={() => {
+                                                            setFormData(pat);
+                                                            setSelectedPatientId(pat.pt_id);
+                                                            setIsEditing(false);
+                                                            setShowNameDropdown(false);
+                                                        }}
+                                                        className="hover:bg-sky-950/80 cursor-pointer transition-colors"
+                                                    >
+                                                        <td className="p-2 font-mono text-sky-300 font-bold">{pat.pt_id}</td>
+                                                        <td className="p-2 font-bold text-white">{pat.pt_name}</td>
+                                                        <td className="p-2 text-amber-300">{pat.ageY ? `${pat.ageY}Y` : ''}</td>
+                                                        <td className="p-2 font-mono text-emerald-300">{pat.mobile}</td>
+                                                        <td className="p-2 text-slate-300 truncate max-w-[130px]">{pat.address}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
+                            )}
                         </div>
                         
-                        <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex flex-col sm:flex-row gap-3">
                             <div className="w-full sm:w-1/3">
                                 <label className={labelBaseClasses}>Gender</label>
-                                <select name="gender" value={formData.gender} onChange={handleInputChange} className={`${inputBaseClasses} py-2.5 px-3`}>
+                                <select name="gender" value={formData.gender} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-2.5`}>
                                     <option value="" className="bg-slate-900">Select</option>
                                     <option value="Male" className="bg-slate-900">Male</option>
                                     <option value="Female" className="bg-slate-900">Female</option>
@@ -600,34 +657,34 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                             <div className="flex-1">
                                 <label className={labelBaseClasses}>Care Of</label>
                                 <div className="flex items-center gap-2">
-                                    <select name="co_pref" value={formData.co_pref} onChange={handleInputChange} className={`${inputBaseClasses} py-2.5 px-2 w-[85px] shrink-0`}>
+                                    <select name="co_pref" value={formData.co_pref} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-2 w-[85px] shrink-0`}>
                                         <option value="S/O" className="bg-slate-900">S/O</option>
                                         <option value="D/O" className="bg-slate-900">D/O</option>
                                         <option value="W/O" className="bg-slate-900">W/O</option>
                                     </select>
-                                    <input type="text" name="co_name" value={formData.co_name} onChange={handleInputChange} className={`${inputBaseClasses} py-2.5 px-3 flex-1 min-w-0`} placeholder="Guardian Name" />
+                                    <input type="text" name="co_name" value={formData.co_name} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3 flex-1 min-w-0`} placeholder="Guardian Name" />
                                 </div>
                             </div>
                         </div>
                         
                         <div>
                           <label className={labelBaseClasses}>Age (Y / M / D)</label>
-                          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                            <input type="number" min="0" max="150" name="ageY" placeholder="Years" value={formData.ageY} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2.5 text-center`} />
-                            <input type="number" min="0" max="11" name="ageM" placeholder="Months" value={formData.ageM} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2.5 text-center`} />
-                            <input type="number" min="0" max="30" name="ageD" placeholder="Days" value={formData.ageD} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2.5 text-center`} />
+                          <div className="grid grid-cols-3 gap-2">
+                            <input type="number" min="0" max="150" name="ageY" placeholder="Years" value={formData.ageY} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
+                            <input type="number" min="0" max="11" name="ageM" placeholder="Months" value={formData.ageM} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
+                            <input type="number" min="0" max="30" name="ageD" placeholder="Days" value={formData.ageD} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
                           </div>
                         </div>
                         
                         <div>
                           <label className={labelBaseClasses}>Date of Birth (YYYY / MM / DD)</label>
-                          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                            <input type="number" name="dobY" placeholder="YYYY" value={formData.dobY} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2.5 text-center`} />
-                            <select name="dobM" value={formData.dobM} onChange={handleInputChange} className={`${inputBaseClasses} py-2.5 px-1 sm:px-2`}>
+                          <div className="grid grid-cols-3 gap-2">
+                            <input type="number" name="dobY" placeholder="YYYY" value={formData.dobY} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
+                            <select name="dobM" value={formData.dobM} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-1`}>
                               <option value="" className="bg-slate-900">MM</option>
                               {Array.from({length: 12}, (_, i) => String(i + 1).padStart(2, '0')).map(m => <option key={m} value={m} className="bg-slate-900">{m}</option>)}
                             </select>
-                            <select name="dobD" value={formData.dobD} onChange={handleInputChange} className={`${inputBaseClasses} py-2.5 px-1 sm:px-2`}>
+                            <select name="dobD" value={formData.dobD} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-1`}>
                               <option value="" className="bg-slate-900">DD</option>
                               {Array.from({length: 31}, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d} className="bg-slate-900">{d}</option>)}
                             </select>
@@ -635,26 +692,40 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                         </div>
                     </div>
                     
-                    <div className="space-y-5">
+                    <div className="space-y-4">
                         <div>
                             <label className={labelBaseClasses}>Address / Village / Area</label>
-                            <input type="text" name="address" value={formData.address} onChange={handleInputChange} className={`${inputBaseClasses} py-2.5 px-3.5`} list="addressOptions" placeholder="House / Area details" />
+                            <input type="text" name="address" value={formData.address} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="addressOptions" placeholder="House / Area details" />
                         </div>
                         
-                        <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex flex-col sm:flex-row gap-3">
                             <div className="w-full sm:w-1/2">
                                 <label className={labelBaseClasses}>Thana / Upazila</label>
-                                <input type="text" name="thana" value={formData.thana} onChange={handleInputChange} className={`${inputBaseClasses} py-2.5 px-3`} list="thanaOptions" placeholder="Thana" />
+                                <input type="text" name="thana" value={formData.thana} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="thanaOptions" placeholder="Thana" />
                             </div>
                             <div className="w-full sm:w-1/2">
                                 <label className={labelBaseClasses}>District</label>
-                                <input type="text" name="district" value={formData.district} onChange={handleInputChange} className={`${inputBaseClasses} py-2.5 px-3`} list="districtOptions" placeholder="District" />
+                                <input type="text" name="district" value={formData.district} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="districtOptions" placeholder="District" />
                             </div>
                         </div>
                         
                         <div>
-                            <label className={labelBaseClasses}>Mobile Number</label>
-                            <input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXX-XXXXXX" className={`${inputBaseClasses} py-2.5 px-3.5 font-mono tracking-wider`} />
+                            <label className={labelBaseClasses}>Mobile Number & Relation</label>
+                            <div className="flex items-center gap-2">
+                                <select 
+                                    name="relation" 
+                                    value={formData.relation || 'Self'} 
+                                    onChange={handleInputChange} 
+                                    className={`${inputBaseClasses} py-2 px-2 w-[115px] shrink-0`}
+                                >
+                                    <option value="Self" className="bg-slate-900">Self (নিজের)</option>
+                                    <option value="Husband" className="bg-slate-900">Husband (স্বামী)</option>
+                                    <option value="Father" className="bg-slate-900">Father (পিতা)</option>
+                                    <option value="Mother" className="bg-slate-900">Mother (মাতা)</option>
+                                    <option value="Guardian" className="bg-slate-900">Guardian (অভিভাবক)</option>
+                                </select>
+                                <input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXX-XXXXXX" className={`${inputBaseClasses} py-2 px-3 flex-1 font-mono tracking-wider`} />
+                            </div>
                             {mobileError && <p className="text-red-400 text-xs mt-1.5 font-medium">{mobileError}</p>}
                         </div>
                     </div>

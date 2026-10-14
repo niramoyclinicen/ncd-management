@@ -315,6 +315,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
     const [isDeleting, setIsDeleting] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+    // --- Daily Expense Detail Modal & Filtering States ---
+    const [selectedExpenseDate, setSelectedExpenseDate] = useState<{ dateStr: string; displayDate: string; dept: 'All' | 'Diagnostic' | 'Clinic' } | null>(null);
+    const [expenseDeptFilter, setExpenseDeptFilter] = useState<'All' | 'Diagnostic' | 'Clinic'>('All');
+    const [selectedExpenseIds, setSelectedExpenseIds] = useState<Set<string | number>>(new Set());
+    const [showDeleteExpenseConfirm, setShowDeleteExpenseConfirm] = useState(false);
+
     useEffect(() => {
         if (toastMessage) {
             const timer = setTimeout(() => setToastMessage(null), 3500);
@@ -543,6 +549,173 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         } catch (err) {
             console.error('Delete sources error:', err);
             setToastMessage('ডিলিট করার সময় ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const expenseCategoryBanglaMap: Record<string, string> = {
+        'House rent': 'বাড়ী ভাড়া',
+        'Electricity bill': 'বিদ্যুৎ বিল',
+        'Stuff salary': 'স্টাফ বেতন',
+        'Staff salary': 'স্টাফ বেতন',
+        'Reagent buy': 'রিএজেন্ট',
+        'Marketing': 'মার্কেটিং',
+        'Motorcycle': 'মোটর সাইকেল',
+        'Doctor donation & Vehicle service': 'ডাঃ ডোনেশন+ যাতায়াত',
+        'Doctor donation': 'ডাঃ ডোনেশন+ যাতায়াত',
+        'Instruments buy/ repair': 'যন্ত্রপাতি ক্রয়/মেরামত',
+        'Instruments': 'ইন্সট্রুমেন্ট',
+        'Diagnostic development': 'ডায়াগনস্টিক উন্নয়ন',
+        'Clinic development': 'ক্লিনিক উন্নয়ন',
+        'Clinic_Dev': 'ক্লিনিক উন্নয়ন',
+        'Maintenance': 'রক্ষণাবেক্ষণ',
+        'License cost': 'লাইসেন্স',
+        'License': 'লাইসেন্স',
+        'License/Official': 'লাইসেন্স',
+        'X-ray Film buy': 'এক্স-রে',
+        'X-Ray': 'এক্স-রে',
+        'Mobile buy/ Flexiload': 'মোবাইল খরচ',
+        'Mobile': 'মোবাইল খরচ',
+        'Press Cost': 'প্রেস',
+        'Press': 'প্রেস',
+        'Food/Meal Cost': 'খাবার',
+        'Food': 'খাবার',
+        'Food/Refreshment': 'খাবার',
+        'Paper / Dish / Wifi Bill': 'বিদ্যুৎ+ পেপার+ ডিশ বিল',
+        'Bills': 'বিদ্যুৎ+ পেপার+ ডিশ বিল',
+        'Electrical and Electronics': 'ইলেকট্রিক্যাল ও ইলেকট্রনিক্স',
+        'Generator': 'জেনারেটর',
+        'Stationery': 'স্টেশনারী',
+        'Installment': 'কিস্তি',
+        'Bank/NGO Installment': 'ব্যাংক/এনজিও কিস্তি',
+        'Interest/Loan': 'ঋণ/সুদ',
+        'Old Loan Repay': 'পূর্বের ঋণ পরিশোধ',
+        'Others': 'অন্যান্য খরচ'
+    };
+
+    // Calculate expense items for selected day in Daily Expense
+    const activeDateExpenses = useMemo(() => {
+        if (!selectedExpenseDate) return [];
+        const targetDate = selectedExpenseDate.dateStr;
+        const list: Array<{
+            id: string | number;
+            date: string;
+            category: string;
+            subCategory: string;
+            description: string;
+            billAmount: number;
+            paidAmount: number;
+            dept: 'Clinic' | 'Diagnostic';
+            rawItem: any;
+        }> = [];
+
+        const addExp = (ex: any, rawDateKey?: string) => {
+            if (!ex || ex.isDeleted) return;
+            let normKey = normalizeDate(ex.date || ex.expense_date || ex.created_at || rawDateKey || '');
+            if (!normKey && ex.id) {
+                const m = String(ex.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+                if (m) normKey = `${m[1]}-${m[2]}-${m[3]}`;
+            }
+            if (!normKey && rawDateKey) normKey = normalizeDate(rawDateKey);
+            if (normKey === targetDate) {
+                let cat = ex.category || 'Others';
+                if (cat === 'House rent') cat = 'House rent';
+                const isClinic = ex.dept === 'Clinic' || (!ex.dept && clinicExpenseCategories.includes(cat) && !diagExpenseCategories.includes(cat));
+                const computedDept: 'Clinic' | 'Diagnostic' = isClinic ? 'Clinic' : 'Diagnostic';
+                const amt = getExpAmount(ex);
+                list.push({
+                    id: ex.id ?? `${normKey}_${Math.random()}`,
+                    date: normKey,
+                    category: cat,
+                    subCategory: ex.subCategory || ex.sub_category || ex.voucher_no || ex.voucherNo || '',
+                    description: ex.description || ex.particulars || ex.title || ex.details || ex.note || ex.comment || '',
+                    billAmount: Number(ex.billAmount ?? ex.bill_amount ?? amt) || 0,
+                    paidAmount: amt,
+                    dept: computedDept,
+                    rawItem: ex
+                });
+            }
+        };
+
+        if (Array.isArray(detailedExpenses)) {
+            detailedExpenses.forEach(ex => addExp(ex));
+        } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+            Object.entries(detailedExpenses).forEach(([rawDateKey, items]: [string, any]) => {
+                const arr = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                arr.forEach(ex => addExp(ex, rawDateKey));
+            });
+        }
+
+        return list;
+    }, [selectedExpenseDate, detailedExpenses]);
+
+    const displayedExpenses = useMemo(() => {
+        if (!selectedExpenseDate) return [];
+        if (expenseDeptFilter === 'All') return activeDateExpenses;
+        return activeDateExpenses.filter(ex => ex.dept === expenseDeptFilter);
+    }, [activeDateExpenses, expenseDeptFilter, selectedExpenseDate]);
+
+    const toggleSelectExpense = (id: string | number) => {
+        setSelectedExpenseIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAllExpenses = () => {
+        if (selectedExpenseIds.size === displayedExpenses.length) {
+            setSelectedExpenseIds(new Set());
+        } else {
+            setSelectedExpenseIds(new Set(displayedExpenses.map(e => e.id)));
+        }
+    };
+
+    const handleExecuteDeleteExpenses = async () => {
+        setShowDeleteExpenseConfirm(false);
+        setIsDeleting(true);
+
+        try {
+            const idsToDelete = new Set(Array.from(selectedExpenseIds).map(id => String(id)));
+            if (idsToDelete.size === 0) {
+                setIsDeleting(false);
+                return;
+            }
+
+            let updatedExpenses: any;
+            if (Array.isArray(detailedExpenses)) {
+                updatedExpenses = detailedExpenses.filter(ex => !idsToDelete.has(String(ex.id)));
+            } else if (detailedExpenses && typeof detailedExpenses === 'object') {
+                updatedExpenses = {};
+                Object.entries(detailedExpenses).forEach(([k, items]: [string, any]) => {
+                    const arr = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+                    updatedExpenses[k] = arr.filter((ex: any) => !idsToDelete.has(String(ex.id)));
+                });
+            } else {
+                updatedExpenses = detailedExpenses;
+            }
+
+            if (setDetailedExpenses) {
+                setDetailedExpenses(updatedExpenses);
+            }
+
+            const syncPayload = {
+                detailedExpenses: updatedExpenses
+            };
+
+            if (performBlockingSync) {
+                await performBlockingSync(syncPayload);
+            } else {
+                await dbService.saveToCloud(syncPayload);
+            }
+
+            setSelectedExpenseIds(new Set());
+            setToastMessage(`সফলভাবে ${idsToDelete.size} টি খরচ এন্ট্রি ডিলিট করা হয়েছে!`);
+        } catch (err) {
+            console.error('Delete expense error:', err);
+            setToastMessage('খরচ ডিলিট করার সময় ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
         } finally {
             setIsDeleting(false);
         }
@@ -1227,6 +1400,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const displayDate = `${String(d).padStart(2, '0')}-${shortMonth}`;
             rawRows.push({
                 date: displayDate,
+                fullDate: dateStr,
                 diag: { today: diagToday, upto: diagUpto },
                 clinic: { today: clinicToday, upto: clinicUpto },
                 total: diagToday + clinicToday
@@ -1512,12 +1686,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             p { font-size: ${isLandscape ? '9.5pt' : (isAccounts ? '10.5pt' : '10pt')} !important; margin: 0 !important; line-height: 1.2; }
             .print-border-b { border-bottom: 2px solid black !important; }
             ${isAccounts ? `
-              .accounts-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 16px !important; }
+              .accounts-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 16px !important; align-items: stretch !important; }
               @media print {
                 @page { size: A4 portrait; margin: 6mm 7mm 6mm 7mm; }
                 body { padding: 0 !important; margin: 0 !important; }
                 main { padding: 0 !important; margin: 0 !important; }
-                .accounts-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 16px !important; }
+                .accounts-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 16px !important; align-items: stretch !important; }
               }
             ` : ''}
             ${isDailyCollection ? `
@@ -1740,29 +1914,134 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                     <div id="section-daily-expense" className="relative animate-fade-in">
                         <button onClick={() => handlePrintSpecific('section-daily-expense')} className="no-print absolute top-2 right-2 p-2 bg-rose-600 text-white rounded-full shadow-lg flex items-center gap-2"><PrinterIcon size={18} /> <span className="text-xs font-bold">Print</span></button>
                         <main className="p-6 max-w-[1200px] mx-auto w-full bg-white text-black shadow-2xl flex flex-col border border-gray-300">
-                            <h1 className="text-[16pt] font-black uppercase text-center mb-4">Expense detail - {monthOptions[selectedMonth].name} {selectedYear}</h1>
+                            <h1 className="text-[16pt] font-black uppercase text-center mb-2">Expense detail - {monthOptions[selectedMonth].name} {selectedYear}</h1>
+                            
+                            {/* Tips notification banner */}
+                            <div className="no-print mb-4 p-3 bg-gradient-to-r from-indigo-50 via-slate-50 to-emerald-50 border border-slate-300 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm">
+                                <div className="flex items-center gap-2.5 text-slate-800 font-bold font-['Hind_Siliguri']">
+                                    <span className="p-1.5 bg-rose-600 text-white rounded-xl shadow-sm"><Activity size={15} /></span>
+                                    <span>💡 <b>টিপস:</b> যেকোনো তারিখের <b>ডায়াগনস্টিক খরচে ডাবল ক্লিক</b> করলে শুধুমাত্র ডায়াগনস্টিক খরচ এবং <b>ক্লিনিক খরচে ডাবল ক্লিক</b> করলে শুধুমাত্র ক্লিনিক খরচের বিস্তারিত দেখা যাবে।</span>
+                                </div>
+                                <div className="text-xs font-mono font-black px-3 py-1 bg-white border border-slate-300 rounded-xl shadow-xs text-slate-800 whitespace-nowrap">
+                                    মাসিক মোট খরচ: <span className="text-rose-700">৳{dailyExpenseReportData.reduce((s, r) => s + r.total, 0).toLocaleString()}</span>
+                                </div>
+                            </div>
+
                             <table className="w-full border-collapse border-2 border-black text-[9pt]">
                                 <thead>
                                     <tr className="bg-gray-50">
                                         <th className="border-2 border-black p-2 w-[100px]" rowSpan={2}>Date</th>
-                                        <th className="border-2 border-black p-2" colSpan={2}>Diagnostic Expense</th>
-                                        <th className="border-2 border-black p-2" colSpan={2}>Clinic Expense</th>
+                                        <th className="border-2 border-black p-2 bg-indigo-50/60" colSpan={2}>
+                                            <div className="flex flex-col items-center justify-center">
+                                                <span className="font-black text-indigo-950 uppercase tracking-tight">Diagnostic Expense</span>
+                                                <span className="text-[8px] font-bold text-indigo-600 font-['Hind_Siliguri'] no-print">(ডাবল ক্লিকে বিস্তারিত)</span>
+                                            </div>
+                                        </th>
+                                        <th className="border-2 border-black p-2 bg-emerald-50/60" colSpan={2}>
+                                            <div className="flex flex-col items-center justify-center">
+                                                <span className="font-black text-emerald-950 uppercase tracking-tight">Clinic Expense</span>
+                                                <span className="text-[8px] font-bold text-emerald-600 font-['Hind_Siliguri'] no-print">(ডাবল ক্লিকে বিস্তারিত)</span>
+                                            </div>
+                                        </th>
                                         <th className="border-2 border-black p-2 w-[100px]" rowSpan={2}>Daily Total</th>
                                     </tr>
                                     <tr className="bg-gray-50 uppercase text-[8px] font-black">
-                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1 bg-blue-50">Upto</th>
-                                        <th className="border-2 border-black p-1">Today</th><th className="border-2 border-black p-1 bg-emerald-50">Upto</th>
+                                        <th className="border-2 border-black p-1 bg-indigo-50/30">Today</th><th className="border-2 border-black p-1 bg-blue-100/60">Upto</th>
+                                        <th className="border-2 border-black p-1 bg-emerald-50/30">Today</th><th className="border-2 border-black p-1 bg-emerald-100/60">Upto</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {dailyExpenseReportData.map((row, idx) => (
                                         <tr key={idx} className="h-7 hover:bg-slate-50 transition-colors print:h-[6mm]">
-                                            <td className="border border-black p-1 font-['JetBrains_Mono'] font-bold">{row.date}</td>
-                                            <td className="border border-black p-1 text-right">{row.diag.today > 0 ? safeNum(row.diag.today).toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto !== null ? safeNum(row.diag.upto).toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? safeNum(row.clinic.today).toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto !== null ? safeNum(row.clinic.upto).toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right font-black bg-slate-100">{row.total > 0 ? safeNum(row.total).toLocaleString() : ''}</td>
+                                            {/* Date: Double-click opens All */}
+                                            <td 
+                                                onDoubleClick={() => {
+                                                    if (row.fullDate) {
+                                                        setSelectedExpenseDate({ dateStr: row.fullDate, displayDate: row.date, dept: 'All' });
+                                                        setExpenseDeptFilter('All');
+                                                        setSelectedExpenseIds(new Set());
+                                                    }
+                                                }}
+                                                className="border border-black p-1 font-['JetBrains_Mono'] font-bold cursor-pointer hover:bg-amber-100/80 transition-colors select-none"
+                                                title={`ডাবল ক্লিক করে ${row.date} এর সকল খরচের বিস্তারিত দেখুন`}
+                                            >
+                                                {row.date}
+                                            </td>
+
+                                            {/* Diagnostic Today: Double-click opens Diagnostic ONLY */}
+                                            <td 
+                                                onDoubleClick={() => {
+                                                    if (row.fullDate) {
+                                                        setSelectedExpenseDate({ dateStr: row.fullDate, displayDate: row.date, dept: 'Diagnostic' });
+                                                        setExpenseDeptFilter('Diagnostic');
+                                                        setSelectedExpenseIds(new Set());
+                                                    }
+                                                }}
+                                                className="border border-black p-1 text-right font-bold cursor-pointer hover:bg-indigo-100 hover:text-indigo-900 transition-colors select-none"
+                                                title={`ডাবল ক্লিক করে ${row.date} এর শুধুমাত্র ডায়াগনস্টিক খরচ বিস্তারিত দেখুন`}
+                                            >
+                                                {row.diag.today > 0 ? safeNum(row.diag.today).toLocaleString() : ''}
+                                            </td>
+
+                                            {/* Diagnostic Upto: Double-click opens Diagnostic ONLY */}
+                                            <td 
+                                                onDoubleClick={() => {
+                                                    if (row.fullDate) {
+                                                        setSelectedExpenseDate({ dateStr: row.fullDate, displayDate: row.date, dept: 'Diagnostic' });
+                                                        setExpenseDeptFilter('Diagnostic');
+                                                        setSelectedExpenseIds(new Set());
+                                                    }
+                                                }}
+                                                className="border border-black p-1 text-right font-black bg-blue-50/50 cursor-pointer hover:bg-indigo-100 hover:text-indigo-900 transition-colors select-none"
+                                                title={`ডাবল ক্লিক করে ${row.date} এর শুধুমাত্র ডায়াগনস্টিক খরচ বিস্তারিত দেখুন`}
+                                            >
+                                                {row.diag.upto !== null ? safeNum(row.diag.upto).toLocaleString() : ''}
+                                            </td>
+
+                                            {/* Clinic Today: Double-click opens Clinic ONLY */}
+                                            <td 
+                                                onDoubleClick={() => {
+                                                    if (row.fullDate) {
+                                                        setSelectedExpenseDate({ dateStr: row.fullDate, displayDate: row.date, dept: 'Clinic' });
+                                                        setExpenseDeptFilter('Clinic');
+                                                        setSelectedExpenseIds(new Set());
+                                                    }
+                                                }}
+                                                className="border border-black p-1 text-right font-bold cursor-pointer hover:bg-emerald-100 hover:text-emerald-900 transition-colors select-none"
+                                                title={`ডাবল ক্লিক করে ${row.date} এর শুধুমাত্র ক্লিনিক খরচ বিস্তারিত দেখুন`}
+                                            >
+                                                {row.clinic.today > 0 ? safeNum(row.clinic.today).toLocaleString() : ''}
+                                            </td>
+
+                                            {/* Clinic Upto: Double-click opens Clinic ONLY */}
+                                            <td 
+                                                onDoubleClick={() => {
+                                                    if (row.fullDate) {
+                                                        setSelectedExpenseDate({ dateStr: row.fullDate, displayDate: row.date, dept: 'Clinic' });
+                                                        setExpenseDeptFilter('Clinic');
+                                                        setSelectedExpenseIds(new Set());
+                                                    }
+                                                }}
+                                                className="border border-black p-1 text-right font-black bg-emerald-50/50 cursor-pointer hover:bg-emerald-100 hover:text-emerald-900 transition-colors select-none"
+                                                title={`ডাবল ক্লিক করে ${row.date} এর শুধুমাত্র ক্লিনিক খরচ বিস্তারিত দেখুন`}
+                                            >
+                                                {row.clinic.upto !== null ? safeNum(row.clinic.upto).toLocaleString() : ''}
+                                            </td>
+
+                                            {/* Daily Total: Double-click opens All */}
+                                            <td 
+                                                onDoubleClick={() => {
+                                                    if (row.fullDate) {
+                                                        setSelectedExpenseDate({ dateStr: row.fullDate, displayDate: row.date, dept: 'All' });
+                                                        setExpenseDeptFilter('All');
+                                                        setSelectedExpenseIds(new Set());
+                                                    }
+                                                }}
+                                                className="border border-black p-1 text-right font-black bg-slate-100 cursor-pointer hover:bg-amber-100/80 transition-colors select-none"
+                                                title={`ডাবল ক্লিক করে ${row.date} এর মোট খরচ বিস্তারিত দেখুন`}
+                                            >
+                                                {row.total > 0 ? safeNum(row.total).toLocaleString() : ''}
+                                            </td>
                                         </tr>
                                     ))}
                                     <tr className="h-6 print:h-[5.5mm] bg-gray-100 font-black uppercase text-[8pt] border-t-[3px] border-black">
@@ -1793,8 +2072,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                     <h3 className="text-sm sm:text-base font-bold underline uppercase tracking-wider bg-gray-50 px-4 py-1.5 border border-black font-['Hind_Siliguri','SolaimanLipi',sans-serif]">অ্যাকাউন্টস শিট : {monthOptions[selectedMonth]?.bnName || monthOptions[selectedMonth]?.name}, {selectedYear}</h3>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start flex-1 min-w-0 accounts-grid mt-1">
-                                <div className="flex flex-col min-w-0 w-full space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch flex-1 min-w-0 accounts-grid mt-1">
+                                <div className="flex flex-col min-w-0 w-full h-full justify-between space-y-3">
                                     <div className="space-y-3 w-full">
                                         <div className="bg-gray-100 text-slate-900 border-2 border-black py-1.5 px-3 text-center font-black text-[15px] sm:text-base font-['Hind_Siliguri','SolaimanLipi',sans-serif] uppercase shadow-sm relative overflow-hidden tracking-wide h-9 flex items-center justify-center">
                                             <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
@@ -1861,7 +2140,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="mt-auto border-t-2 border-black pt-2 w-full">
+                                    <div className="mt-auto border-t-2 border-black pt-5 sm:pt-6 print:pt-5 w-full">
                                         <table className="w-full border-2 border-black border-collapse table-fixed">
                                             <colgroup>
                                                 <col style={{ width: '28px' }} />
@@ -1954,7 +2233,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         </table>
                                     </div>
                                 </div>
-                                <div className="flex flex-col min-w-0 w-full space-y-3">
+                                <div className="flex flex-col min-w-0 w-full h-full justify-between space-y-3">
                                     <div className="space-y-3 w-full flex-1 flex flex-col">
                                         <div className="bg-gray-100 text-slate-900 border-2 border-black py-1.5 px-3 text-center font-black text-[15px] sm:text-base font-['Hind_Siliguri','SolaimanLipi',sans-serif] uppercase shadow-sm relative overflow-hidden tracking-wide h-9 flex items-center justify-center">
                                             <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:10px_10px]"></div>
@@ -2778,6 +3057,312 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                 className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs rounded-xl transition-colors"
                             >
                                 বন্ধ করুন (Close)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Daily Expense Detail Breakdown Modal */}
+            {selectedExpenseDate && (
+                <div className="fixed inset-0 z-[9990] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto no-print">
+                    <div className="bg-slate-900 border-2 border-slate-700 text-white rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-scale-in">
+                        {/* Modal Header */}
+                        <div className="bg-slate-800 p-4 sm:p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-rose-600/30 text-rose-400 rounded-2xl border border-rose-500/40">
+                                    <WalletIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h2 className="text-lg sm:text-xl font-black text-white font-['Hind_Siliguri']">
+                                            📅 খরচের বিস্তারিত বিবরণ - {selectedExpenseDate.displayDate}
+                                        </h2>
+                                        {expenseDeptFilter === 'Diagnostic' && (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-['Hind_Siliguri']">
+                                                শুধুমাত্র ডায়াগনস্টিক
+                                            </span>
+                                        )}
+                                        {expenseDeptFilter === 'Clinic' && (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-['Hind_Siliguri']">
+                                                শুধুমাত্র ক্লিনিক
+                                            </span>
+                                        )}
+                                        {expenseDeptFilter === 'All' && (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-slate-700 text-slate-300 border border-slate-600 font-['Hind_Siliguri']">
+                                                সকল খরচ
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-400 font-mono mt-0.5">
+                                        তারিখ: {selectedExpenseDate.dateStr} | মোট খরচ ভাউচার: {displayedExpenses.length} টি
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setSelectedExpenseDate(null);
+                                    setSelectedExpenseIds(new Set());
+                                }}
+                                className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded-full transition-colors"
+                            >
+                                <XIcon size={20} />
+                            </button>
+                        </div>
+
+                        {/* Department Switcher Tabs & Summary Cards */}
+                        <div className="p-4 bg-slate-950 border-b border-slate-800 space-y-3 shrink-0">
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-['Hind_Siliguri'] mr-1 shrink-0">ফিল্টার:</span>
+                                <button
+                                    onClick={() => {
+                                        setExpenseDeptFilter('All');
+                                        setSelectedExpenseIds(new Set());
+                                    }}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shrink-0 ${
+                                        expenseDeptFilter === 'All'
+                                            ? 'bg-slate-700 text-white shadow-md border border-slate-500'
+                                            : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                                    }`}
+                                >
+                                    <span>সকল খরচ</span>
+                                    <span className="px-1.5 py-0.2 bg-black/40 rounded-full text-[10px] font-mono">
+                                        {activeDateExpenses.length}
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setExpenseDeptFilter('Diagnostic');
+                                        setSelectedExpenseIds(new Set());
+                                    }}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shrink-0 ${
+                                        expenseDeptFilter === 'Diagnostic'
+                                            ? 'bg-indigo-600 text-white shadow-md border border-indigo-400'
+                                            : 'bg-slate-900 text-indigo-400 hover:text-indigo-300 border border-slate-800'
+                                    }`}
+                                >
+                                    <span>ডায়াগনস্টিক খরচ</span>
+                                    <span className="px-1.5 py-0.2 bg-black/40 rounded-full text-[10px] font-mono">
+                                        {activeDateExpenses.filter(e => e.dept === 'Diagnostic').length}
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setExpenseDeptFilter('Clinic');
+                                        setSelectedExpenseIds(new Set());
+                                    }}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shrink-0 ${
+                                        expenseDeptFilter === 'Clinic'
+                                            ? 'bg-emerald-600 text-white shadow-md border border-emerald-400'
+                                            : 'bg-slate-900 text-emerald-400 hover:text-emerald-300 border border-slate-800'
+                                    }`}
+                                >
+                                    <span>ক্লিনিক খরচ</span>
+                                    <span className="px-1.5 py-0.2 bg-black/40 rounded-full text-[10px] font-mono">
+                                        {activeDateExpenses.filter(e => e.dept === 'Clinic').length}
+                                    </span>
+                                </button>
+                            </div>
+
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                <div className="bg-indigo-950/40 border border-indigo-500/30 p-3 rounded-2xl">
+                                    <span className="text-[10px] font-extrabold uppercase text-indigo-400 block mb-1">ডায়াগনস্টিক খরচ</span>
+                                    <span className="text-base font-black text-indigo-300 font-mono">
+                                        ৳{activeDateExpenses.filter(e => e.dept === 'Diagnostic').reduce((s, e) => s + e.paidAmount, 0).toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-2xl">
+                                    <span className="text-[10px] font-extrabold uppercase text-emerald-400 block mb-1">ক্লিনিক খরচ</span>
+                                    <span className="text-base font-black text-emerald-300 font-mono">
+                                        ৳{activeDateExpenses.filter(e => e.dept === 'Clinic').reduce((s, e) => s + e.paidAmount, 0).toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="bg-amber-950/40 border border-amber-500/30 p-3 rounded-2xl">
+                                    <span className="text-[10px] font-extrabold uppercase text-amber-400 block mb-1">প্রদর্শিত মোট খরচ</span>
+                                    <span className="text-base font-black text-amber-300 font-mono">
+                                        ৳{displayedExpenses.reduce((s, e) => s + e.paidAmount, 0).toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="bg-rose-950/40 border border-rose-500/30 p-3 rounded-2xl">
+                                    <span className="text-[10px] font-extrabold uppercase text-rose-400 block mb-1">নির্বাচিত আইটেম মোট</span>
+                                    <span className="text-base font-black text-rose-300 font-mono">
+                                        ৳{displayedExpenses.filter(e => selectedExpenseIds.has(e.id)).reduce((s, e) => s + e.paidAmount, 0).toLocaleString()} ({selectedExpenseIds.size} টি)
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action controls */}
+                        <div className="p-3 sm:p-4 bg-slate-900 border-b border-slate-800 flex flex-wrap justify-between items-center gap-3 shrink-0">
+                            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-300 hover:text-white">
+                                <input
+                                    type="checkbox"
+                                    checked={displayedExpenses.length > 0 && selectedExpenseIds.size === displayedExpenses.length}
+                                    onChange={toggleSelectAllExpenses}
+                                    className="w-4 h-4 accent-rose-500 rounded cursor-pointer"
+                                />
+                                <span>সবগুলো নির্বাচন করুন ({selectedExpenseIds.size}/{displayedExpenses.length})</span>
+                            </label>
+
+                            <button
+                                onClick={() => {
+                                    if (selectedExpenseIds.size === 0) {
+                                        setToastMessage('ডিলিট করার জন্য অন্তত একটি খরচ নির্বাচন করুন!');
+                                        return;
+                                    }
+                                    setShowDeleteExpenseConfirm(true);
+                                }}
+                                disabled={selectedExpenseIds.size === 0}
+                                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95"
+                            >
+                                <TrashIcon size={14} />
+                                <span>নির্বাচিত খরচ ডিলিট করুন ({selectedExpenseIds.size})</span>
+                            </button>
+                        </div>
+
+                        {/* Expense Items Table */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            {displayedExpenses.length === 0 ? (
+                                <div className="text-center py-12 text-slate-500 font-bold font-['Hind_Siliguri']">
+                                    এই তারিখে কোনো {expenseDeptFilter === 'Diagnostic' ? 'ডায়াগনস্টিক' : (expenseDeptFilter === 'Clinic' ? 'ক্লিনিক' : '')} খরচের ডাটা পাওয়া যায়নি।
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto border border-slate-800 rounded-2xl bg-slate-950">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-800 text-slate-300 font-black uppercase tracking-wider border-b border-slate-700">
+                                                <th className="p-3 text-center w-10">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedExpenseIds.size === displayedExpenses.length}
+                                                        onChange={toggleSelectAllExpenses}
+                                                        className="w-4 h-4 accent-rose-500 rounded cursor-pointer"
+                                                    />
+                                                </th>
+                                                <th className="p-3 w-12 text-center">SL</th>
+                                                <th className="p-3">বিভাগ</th>
+                                                <th className="p-3">খরচের খাত (Category)</th>
+                                                <th className="p-3">সাব-ক্যাটাগরি / ভাউচার</th>
+                                                <th className="p-3">বিস্তারিত বিবরণ</th>
+                                                <th className="p-3 text-right">টাকা (৳)</th>
+                                                <th className="p-3 text-center w-24">অ্যাকশন</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/60">
+                                            {displayedExpenses.map((item, idx) => {
+                                                const isSelected = selectedExpenseIds.has(item.id);
+                                                return (
+                                                    <tr 
+                                                        key={item.id} 
+                                                        className={`transition-colors hover:bg-slate-800/80 ${isSelected ? 'bg-rose-950/30' : 'odd:bg-slate-900/40'}`}
+                                                    >
+                                                        <td className="p-3 text-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={() => toggleSelectExpense(item.id)}
+                                                                className="w-4 h-4 accent-rose-500 rounded cursor-pointer"
+                                                            />
+                                                        </td>
+                                                        <td className="p-3 text-center font-mono font-bold text-slate-400">{idx + 1}</td>
+                                                        <td className="p-3">
+                                                            <span className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                                                                item.dept === 'Clinic'
+                                                                    ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40'
+                                                                    : 'bg-indigo-900/60 text-indigo-300 border border-indigo-500/40'
+                                                            }`}>
+                                                                {item.dept === 'Clinic' ? 'ক্লিনিক' : 'ডায়াগনস্টিক'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-3">
+                                                            <span className="font-bold text-slate-200 font-['Hind_Siliguri']">
+                                                                {expenseCategoryBanglaMap[item.category] || item.category}
+                                                            </span>
+                                                            {expenseCategoryBanglaMap[item.category] && (
+                                                                <span className="block text-[10px] text-slate-500 font-mono">
+                                                                    {item.category}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-3 font-mono text-slate-300">
+                                                            {item.subCategory || '-'}
+                                                        </td>
+                                                        <td className="p-3 text-slate-300 font-medium max-w-xs truncate">
+                                                            {item.description || '-'}
+                                                        </td>
+                                                        <td className="p-3 text-right font-black font-mono text-rose-300 text-sm">
+                                                            ৳{item.paidAmount.toLocaleString()}
+                                                        </td>
+                                                        <td className="p-3 text-center">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedExpenseIds(new Set([item.id]));
+                                                                    setShowDeleteExpenseConfirm(true);
+                                                                }}
+                                                                className="p-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg border border-rose-500/30 transition-all active:scale-95"
+                                                                title="এই খরচ ডিলিট করুন"
+                                                            >
+                                                                <TrashIcon size={14} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 bg-slate-800 border-t border-slate-700 flex justify-end shrink-0">
+                            <button
+                                onClick={() => {
+                                    setSelectedExpenseDate(null);
+                                    setSelectedExpenseIds(new Set());
+                                }}
+                                className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs rounded-xl transition-colors"
+                            >
+                                বন্ধ করুন (Close)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Expense Confirmation Dialog */}
+            {showDeleteExpenseConfirm && (
+                <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+                    <div className="bg-slate-900 border-2 border-rose-500/80 rounded-3xl p-6 max-w-md w-full shadow-2xl text-white space-y-4 animate-scale-in">
+                        <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                            <div className="p-2.5 bg-rose-500/20 text-rose-400 rounded-2xl border border-rose-500/30">
+                                <TrashIcon size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-rose-400 font-['Hind_Siliguri']">খরচ ডাটা ডিলিট কনফার্মেশন</h3>
+                                <p className="text-xs text-slate-400">সতর্কতা: এটি স্থায়ীভাবে খরচ তালিকা থেকে মুছে যাবে</p>
+                            </div>
+                        </div>
+                        <p className="text-sm font-medium text-slate-200 leading-relaxed font-['Hind_Siliguri']">
+                            আপনি কি নিশ্চিত যে নির্বাচিত <span className="text-amber-400 font-black font-mono text-base px-1">{selectedExpenseIds.size}</span> টি খরচের এন্ট্রি ডিলিট করতে চান?
+                        </p>
+                        <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-xs text-slate-400 font-bold">
+                            ⚠️ ডিলিট করার পর দৈনিক খরচ ও অ্যাকাউন্টস রিপোর্ট তাৎক্ষণিকভাবে স্বয়ংক্রিয়ভাবে আপডেট হয়ে যাবে।
+                        </div>
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                            <button
+                                onClick={() => setShowDeleteExpenseConfirm(false)}
+                                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+                            >
+                                না, বাতিল
+                            </button>
+                            <button
+                                onClick={handleExecuteDeleteExpenses}
+                                className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 active:scale-95"
+                            >
+                                <TrashIcon size={14} />
+                                হ্যাঁ, ডিলিট করুন
                             </button>
                         </div>
                     </div>

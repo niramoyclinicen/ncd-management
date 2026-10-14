@@ -145,24 +145,39 @@ export function useAppData() {
             }
           });
         }
-        
+
         if (Object.keys(finalDataToLoad).length > 0) {
           updateLocalState(finalDataToLoad, true);
         }
         setIsDataLoaded(true);
         setConnectionError(false);
       } else {
-        if (localData) {
-          console.log("Cloud load failed, but found local data. Using local backup.");
+        if (localData && Object.keys(localData).length > 0) {
+          console.log("Using local backup data.");
           updateLocalState(localData, true);
           setIsDataLoaded(true);
           setConnectionError(false);
         } else {
-          // FALLBACK FOR TESTING: If no cloud and no local data, just use the mock data so the user can test the UI.
-          console.warn("Cloud and Local load failed. Falling back to default mock data for testing.");
-          setConnectionErrorMessage(loadedData ? loadedData._error : 'Unknown load error');
-          setIsDataLoaded(true); // Let the app load!
-          setConnectionError(false); // Remove the blocking error screen
+          // Fresh software start: pristine clean empty state
+          console.log("Fresh software start: clean state.");
+          updateLocalState({
+            detailedExpenses: {},
+            indoorInvoices: [],
+            labInvoices: [],
+            dueCollections: [],
+            admissions: [],
+            purchaseInvoices: [],
+            salesInvoices: [],
+            patients: [],
+            doctors: [],
+            referrars: [],
+            tests: [],
+            reagents: [],
+            medicines: [],
+            consolidatedLabEntries: []
+          }, true);
+          setIsDataLoaded(true);
+          setConnectionError(false);
         }
       }
     };
@@ -477,7 +492,52 @@ export function useAppData() {
     // The application relies entirely on manual explicit saves via performBlockingSync.
   }, []);
 
-  // --- HANDLERS ---
-  
-  return { viewState, userRole, isAdminLoggedIn, isDataLoaded, connectionError, connectionErrorMessage, lastSavedAt, currentUserEmail, passwords, patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, employeeReferrerMap, attendanceLog, leaveLog, monthlyRoster, monthlyAdjustments, setMonthlyAdjustments, diagnosticSettings, consolidatedLabEntries, setConsolidatedLabEntries, isSyncing, isManualSyncing, manualSyncError, syncError, lastManualSyncTime, setViewState, setUserRole, setIsAdminLoggedIn, setIsDataLoaded, setConnectionError, setConnectionErrorMessage, setLastSavedAt, setPasswords, setPatients, setDoctors, setReferrars, setTests, setReagents, setLabInvoices, setDueCollections, setReports, setRtTemplates, setEmployees, setMedicines, setClinicalDrugs, setPurchaseInvoices, setSalesInvoices, setAdmissions, setIndoorInvoices, setDetailedExpenses, setPrescriptions, setAppointments, setEmployeeReferrerMap, setAttendanceLog, setLeaveLog, setMonthlyRoster, setDiagnosticSettings, setIsSyncing, setIsManualSyncing, setManualSyncError, setSyncError, setLastManualSyncTime, getCurrentState, performBlockingSync, showSyncNotification };
+  const resetToFreshSoftware = useCallback(() => {
+    // 1. Clear all in-memory state
+    setPatients([]);
+    setDoctors([]);
+    setReferrars([]);
+    setTests([]);
+    setReagents([]);
+    setLabInvoices([]);
+    setDueCollections([]);
+    setReports([]);
+    setEmployees([]);
+    setMedicines([]);
+    setClinicalDrugs([]);
+    setPurchaseInvoices([]);
+    setSalesInvoices([]);
+    setAdmissions([]);
+    setIndoorInvoices([]);
+    setDetailedExpenses({});
+    setPrescriptions([]);
+    setAppointments([]);
+    setConsolidatedLabEntries([]);
+    setMonthlyAdjustments({});
+    setAttendanceLog({});
+    setLeaveLog({});
+    setMonthlyRoster({});
+
+    // 2. Clear all cached data keys from localStorage
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('ncd_') || key.startsWith('diag_') || key.startsWith('diagnostic_'))) {
+            if (key !== 'ncd_passwords' && key !== 'ncd_user_email') {
+              keysToRemove.push(key);
+            }
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        localStorage.removeItem('app_state');
+        localStorage.removeItem('offline_cache');
+      }
+    } catch (e) {
+      console.error("Error clearing local storage:", e);
+    }
+  }, []);
+
+  return { viewState, userRole, isAdminLoggedIn, isDataLoaded, connectionError, connectionErrorMessage, lastSavedAt, currentUserEmail, passwords, patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, employeeReferrerMap, attendanceLog, leaveLog, monthlyRoster, monthlyAdjustments, setMonthlyAdjustments, diagnosticSettings, consolidatedLabEntries, setConsolidatedLabEntries, isSyncing, isManualSyncing, manualSyncError, syncError, lastManualSyncTime, setViewState, setUserRole, setIsAdminLoggedIn, setIsDataLoaded, setConnectionError, setConnectionErrorMessage, setLastSavedAt, setPasswords, setPatients, setDoctors, setReferrars, setTests, setReagents, setLabInvoices, setDueCollections, setReports, setRtTemplates, setEmployees, setMedicines, setClinicalDrugs, setPurchaseInvoices, setSalesInvoices, setAdmissions, setIndoorInvoices, setDetailedExpenses, setPrescriptions, setAppointments, setEmployeeReferrerMap, setAttendanceLog, setLeaveLog, setMonthlyRoster, setDiagnosticSettings, setIsSyncing, setIsManualSyncing, setManualSyncError, setSyncError, setLastManualSyncTime, getCurrentState, performBlockingSync, showSyncNotification, resetToFreshSoftware };
 }

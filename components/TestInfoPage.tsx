@@ -78,7 +78,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
 
   const filteredTests = useMemo(() => {
     if (!Array.isArray(tests)) return [];
-    return tests.filter(test => {
+    const filtered = tests.filter(test => {
       if (!test) return false;
       const testName = String(test.test_name || '').toLowerCase();
       const testId = String(test.test_id || '').toLowerCase();
@@ -91,6 +91,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
         (selectedFilterCategory === 'Others' && !testCategories.some(c => c.toLowerCase() === testCat.toLowerCase()));
       return matchesSearch && matchesCategory;
     });
+    return filtered.sort((a, b) => (a.test_name || '').localeCompare(b.test_name || ''));
   }, [searchTerm, tests, selectedFilterCategory]);
 
   const getCategoryCount = (cat: string) => {
@@ -476,15 +477,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                         >
                             <span className={isReloading ? "animate-spin" : ""}>🔄</span> {isReloading ? 'লোড হচ্ছে...' : 'Reload from Cloud'}
                         </button>
-                        <button
-                            type="button"
-                            onClick={handleRestoreFromNcdState}
-                            disabled={isRestoringNcdState || isReloading}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow transition-all active:scale-95 disabled:opacity-50"
-                            title="পুরাতন ncd_state টেবিল (জানুয়ারি-জুলাই ২০২৬) থেকে টেস্ট ও আসল কমিশন রিস্টোর করুন"
-                        >
-                            <span className={isRestoringNcdState ? "animate-spin" : ""}>💎</span> {isRestoringNcdState ? (restoreProgressMsg || 'রিস্টোর চলছে...') : 'ncd_state থেকে কমিশন ও টেস্ট রিস্টোর'}
-                        </button>
+                        {/* NCD button removed */}
                     </div>
                     <div className="relative w-80">
                         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
@@ -503,7 +496,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-700">
                     <thead className="bg-slate-700/50 text-[10px] uppercase font-black text-slate-400 tracking-[0.2em]">
-                        <tr><th className="px-8 py-5 text-left">Master ID</th><th className="px-8 py-5 text-left">Investigation</th><th className="px-8 py-5 text-left">Dept</th><th className="px-8 py-5 text-center">Protocol</th><th className="px-8 py-5 text-right">Price</th><th className="px-8 py-5 text-right">PC</th><th className="px-8 py-5 text-right">USG Fee</th><th className="px-8 py-5 text-right">Lab Fee</th></tr>
+                        <tr><th className="px-8 py-5 text-left">#</th><th className="px-8 py-5 text-left">Master ID</th><th className="px-8 py-5 text-left">Investigation</th><th className="px-8 py-5 text-left">Dept</th><th className="px-8 py-5 text-center">Protocol</th><th className="px-8 py-5 text-right">Price</th><th className="px-8 py-5 text-right">PC</th><th className="px-8 py-5 text-right">USG Fee</th><th className="px-8 py-5 text-right">Lab Fee</th></tr>
                     </thead>
                     <tbody className="bg-slate-800 divide-y divide-slate-700/50">
                         {filteredTests.length === 0 ? (
@@ -527,8 +520,9 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                                 </td>
                             </tr>
                         ) : (
-                            filteredTests.map((test) => (
+                            filteredTests.map((test, index) => (
                             <tr key={test.test_id} onClick={() => handleRowClick(test)} className={`cursor-pointer hover:bg-blue-900/20 transition-all group ${selectedTestId === test.test_id ? 'bg-blue-900/40' : ''}`}>
+                                <td className="px-8 py-5 text-xs text-slate-500 font-mono">{index + 1}</td>
                                 <td className="px-8 py-5 text-xs text-sky-400 font-mono">{test.test_id}</td>
                                 <td className="px-8 py-5"><div className="text-sm text-slate-200 font-black">{test.test_name}</div></td>
                                 <td className="px-8 py-5 text-xs text-slate-400 font-bold">{test.category}</td>

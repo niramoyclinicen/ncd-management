@@ -882,8 +882,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
           </div>
         </div>
 
-        {/* Sub Navigation */}
-        <div className="flex items-center gap-2">
+          {/* Sub Navigation */}
           <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner">
             <button
               onClick={() => setActiveSubTab('new_entry')}
@@ -902,7 +901,6 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               <FileSpreadsheet size={13} /> ভাউচার হিস্ট্রি ({entries.length})
             </button>
           </div>
-        </div>
       </header>
 
       {/* Success Notification Modal */}
@@ -1625,18 +1623,10 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
             {/* Quick Clean Auto Entries Banner */}
             <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="text-slate-300 text-xs font-bold flex items-center gap-2">
-                <span className="text-lg">🧹</span>
                 <span>
-                  <b>অটো-জেনারেটেড ডামি এন্ট্রি পরিষ্কার:</b> সফটওয়্যার আপডেট বা সিঙ্কের কারণে জানুয়ারি/ফেব্রুয়ারি/মার্চ বা অন্য মাসের ১ তারিখে কোনো অতিরিক্ত ডামি এন্ট্রি এসে থাকলে এক ক্লিকে তা মুছে ফেলুন (আগস্ট ও সেপ্টেম্বর সুরক্ষিত থাকবে)।
+                  <b>ডাটা ফিল্টারিং:</b> এখানে আপনার কনসোলিডেটেড ল্যাব ভাউচারের তালিকা দেখতে ও প্রয়োজন অনুযায়ী মুছে ফেলতে পারবেন।
                 </span>
               </div>
-              <button
-                onClick={() => setShowCleanAutoModal(true)}
-                disabled={isSaving}
-                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-black rounded-2xl text-xs uppercase tracking-wide transition-all shadow-md active:scale-95 shrink-0"
-              >
-                {isSaving ? 'পরিষ্কার হচ্ছে...' : '⚡ ১ তারিখের ডামি এন্ট্রিগুলো মুছুন'}
-              </button>
             </div>
 
             {/* Filter Bar */}

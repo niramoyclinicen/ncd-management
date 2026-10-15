@@ -366,7 +366,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         // 2. Consolidated Lab Entries
         (consolidatedEntries || []).forEach(e => {
             if (!e) return;
-            const rawDate = e.date || e.created_at || e.createdAt || e.entry_date || e.invoice_date || e.collection_date || '';
+            const rawDate = e.date || '';
             const normE = normalizeDateStr(rawDate);
             let matches = isSameDay(rawDate, targetDate) || normE === targetDate;
             if (!normE && e.id) {

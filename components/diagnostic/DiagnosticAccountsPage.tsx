@@ -2502,20 +2502,20 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                     return false;
                 }
                 if (rangeType === 'monthly') {
-                    if (hasValidDate && (dParts.m - 1) === selectedMonth && dParts.y === selectedYear) {
-                        return true;
+                    if (hasValidDate) {
+                        return (dParts.m - 1) === selectedMonth && dParts.y === selectedYear;
                     }
                     if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
                         const em = Number(e.month);
                         const ey = Number(e.year);
-                        return ey === selectedYear && (em === selectedMonth || em === selectedMonth + 1);
+                        return ey === selectedYear && em === selectedMonth;
                     }
                     if (!hasValidDate && e.id) {
                         const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
                         if (m) {
                             const ey = Number(m[1]);
                             const em = Number(m[2]);
-                            return ey === selectedYear && em === selectedMonth + 1;
+                            return ey === selectedYear && (em - 1) === selectedMonth;
                         }
                     }
                     return false;

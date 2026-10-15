@@ -203,6 +203,54 @@ function getConsolidatedNet(e: any): number {
     return Math.max(0, cash - docPC - usgFee);
 }
 
+function getConsolidatedEntryDate(e: any): string {
+    if (!e) return '';
+    const rawDate = e.date || e.created_at || e.createdAt || e.entry_date || e.invoice_date || e.collection_date || '';
+    const norm = normalizeDate(rawDate);
+    if (norm) {
+        const parts = norm.split('-');
+        if (parts.length === 3) {
+            return norm;
+        }
+        if (parts.length === 2) {
+            const y = Number(parts[0]);
+            const m = Number(parts[1]);
+            if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
+                const lastD = new Date(y, m, 0).getDate();
+                return `${y}-${String(m).padStart(2, '0')}-${String(lastD).padStart(2, '0')}`;
+            }
+        }
+    }
+    if (e.id) {
+        const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+        if (m) {
+            return `${m[1]}-${m[2]}-${m[3]}`;
+        }
+        const mMonth = String(e.id).match(/MCE-(\d{4})-(\d{2})/);
+        if (mMonth) {
+            const y = Number(mMonth[1]);
+            const m = Number(mMonth[2]);
+            if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
+                const lastD = new Date(y, m, 0).getDate();
+                return `${y}-${String(m).padStart(2, '0')}-${String(lastD).padStart(2, '0')}`;
+            }
+        }
+    }
+    if (e.year !== undefined && e.month !== undefined && !isNaN(Number(e.year)) && !isNaN(Number(e.month))) {
+        const y = Number(e.year);
+        const m = Number(e.month);
+        // DailyConsolidatedEntry stores 0-indexed month (0 = Jan, 1 = Feb, ..., 11 = Dec)
+        if (m >= 0 && m <= 11) {
+            const lastD = new Date(y, m + 1, 0).getDate();
+            return `${y}-${String(m + 1).padStart(2, '0')}-${String(lastD).padStart(2, '0')}`;
+        } else if (m >= 1 && m <= 12) {
+            const lastD = new Date(y, m, 0).getDate();
+            return `${y}-${String(m).padStart(2, '0')}-${String(lastD).padStart(2, '0')}`;
+        }
+    }
+    return '';
+}
+
 const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
   onBack, labInvoices, setLabInvoices, dueCollections, setDueCollections, detailedExpenses, setDetailedExpenses, employees, purchaseInvoices, salesInvoices, indoorInvoices, setIndoorInvoices, medicines = [], consolidatedLabEntries, setConsolidatedLabEntries, monthlyAdjustments: propMonthlyAdjustments, setMonthlyAdjustments: propSetMonthlyAdjustments, performBlockingSync
 }) => {
@@ -366,12 +414,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         // 2. Consolidated Lab Entries
         (consolidatedEntries || []).forEach(e => {
             if (!e) return;
-            const rawDate = e.date || '';
-            const normE = normalizeDateStr(rawDate);
-            let matches = isSameDay(rawDate, targetDate) || normE === targetDate;
-            if (!normE && e.id) {
-                const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
-                if (m && `${m[1]}-${m[2]}-${m[3]}` === targetDate) matches = true;
+            const entryDate = getConsolidatedEntryDate(e);
+            let matches = Boolean(entryDate && entryDate === targetDate);
+            if (!matches) {
+                const rawDate = e.date || '';
+                const normE = normalizeDateStr(rawDate);
+                matches = isSameDay(rawDate, targetDate) || normE === targetDate;
             }
             if (matches) {
                 const net = getConsolidatedNet(e);
@@ -1245,30 +1293,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             
             const isEntryForDay = (e: any) => {
                 if (!e) return false;
-                const rawDate = e.date || e.created_at || e.createdAt || e.entry_date || e.invoice_date || e.collection_date || '';
-                const normE = normalizeDateStr(rawDate);
-                if (normE && normE === dateStr) return true;
-                if (isSameDay(rawDate, dateStr)) return true;
-                if (!normE && e.id) {
-                    const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
-                    if (m && `${m[1]}-${m[2]}-${m[3]}` === dateStr) return true;
-                }
-                const isMonthlyEntry = (e.entryType === 'monthly' || e.shift === 'Monthly' || !normE || normE.split('-').length < 3);
-                if (d === 1 && isMonthlyEntry) {
-                    if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
-                        const em = Number(e.month);
-                        const ey = Number(e.year);
-                        return ey === selectedYear && (em === selectedMonth || em === selectedMonth + 1);
-                    }
-                    if (normE) {
-                        const parts = normE.split('-');
-                        const ey = Number(parts[0]);
-                        const em = Number(parts[1]);
-                        return ey === selectedYear && (em === selectedMonth + 1 || em === selectedMonth);
-                    }
-                    return isSelectedMonth(rawDate);
-                }
-                return false;
+                const entryDate = getConsolidatedEntryDate(e);
+                return Boolean(entryDate && entryDate === dateStr);
             };
             const diagConsolidatedToday = (consolidatedEntries || []).filter(isEntryForDay).reduce((s, e) => s + getConsolidatedNet(e), 0);
             const diagToday = diagInvToday + diagConsolidatedToday;
@@ -1467,26 +1493,12 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         };
 
         const calcNetPrev = () => {
-            const isEntrySelectedMonth = (e: any) => {
-                if (!e) return false;
-                if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
-                    const em = Number(e.month);
-                    const ey = Number(e.year);
-                    return ey === selectedYear && (em === selectedMonth || em === selectedMonth + 1);
-                }
-                const rawDate = e.date || e.created_at || '';
-                const normE = normalizeDateStr(rawDate);
-                if (normE) {
-                    const parts = normE.split('-');
-                    const ey = Number(parts[0]);
-                    const em = Number(parts[1]);
-                    return ey === selectedYear && em === selectedMonth + 1;
-                }
-                return isSelectedMonth(rawDate);
-            };
-
             const isEntryBeforeSelectedMonth = (e: any) => {
                 if (!e) return false;
+                const entryDate = getConsolidatedEntryDate(e);
+                if (entryDate) {
+                    return isBeforeSelectedMonth(entryDate);
+                }
                 if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
                     const y = Number(e.year);
                     const m = Number(e.month);

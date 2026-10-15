@@ -44,7 +44,8 @@ import {
   Unlock, 
   FileText, 
   Zap, 
-  Check 
+  Check,
+  Copy
 } from 'lucide-react';
 import { ClinicLogo } from './ClinicLogo';
 
@@ -342,6 +343,12 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   const handleCheckMultiTableStats = async () => {
     const stats = await dbService.getMultiTableMigrationStats();
     setMultiTableStats(stats);
+  };
+
+  const handleCopyFullSql = () => {
+    navigator.clipboard.writeText(SUPABASE_MULTI_TABLE_SCHEMA_SQL);
+    setCopiedFullSql(true);
+    setTimeout(() => setCopiedFullSql(false), 2500);
   };
 
   const handleRunMedicineMigration = async () => {
@@ -2413,6 +2420,59 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                       <p className="text-[11px] text-emerald-400 font-semibold">
                         ✓ সফটওয়্যারটি ইতিমধ্যেই শতভাগ পৃথক টেবিল (modular tables) থেকে ডাটা পড়া ও লেখার জন্য কনফিগার করা হয়েছে। ncd_state ড্রপ করলেও সফটওয়্যার পুরোপুরি স্বাভাবিকভাবে আজীবন চলবে।
                       </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* FULL MULTI-TABLE SQL SCRIPT VIEWER & COPY CARD */}
+                <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border-2 border-sky-500/40 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3 border-b border-slate-800 pb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="p-2.5 rounded-xl bg-sky-600/20 text-sky-400 font-bold text-lg">
+                        📜
+                      </span>
+                      <div>
+                        <h4 className="text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
+                          <span>Full Multi-Table SQL Script (Supabase Cloud Database)</span>
+                        </h4>
+                        <p className="text-xs text-slate-300 mt-0.5">
+                          সাপ্লায়ার, রোগী, ইনভয়েস, ল্যাব, ফার্মেসি ও ক্লিনিক কনসোলিডেটেড টেবিলসমূহের সম্পূর্ণ পোস্টগ্রিজ এসকিউএল (PostgreSQL) স্ক্রিপ্ট।
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyFullSql}
+                        className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                      >
+                        <Copy size={15} />
+                        {copiedFullSql ? '✓ কপি করা হয়েছে!' : 'ফুল এসকিউএল কপি করুন'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowFullSqlScript(!showFullSqlScript)}
+                        className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold uppercase transition-all cursor-pointer"
+                      >
+                        {showFullSqlScript ? 'স্ক্রিপ্ট লুকান ▲' : 'স্ক্রিপ্ট দেখুন ▼'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {showFullSqlScript && (
+                    <div className="space-y-3 animate-fade-in">
+                      <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+                        <span>সরাসরি কপি করে Supabase SQL Editor-এ পেস্ট করুন:</span>
+                        <span className="font-mono text-sky-400">Total Length: {SUPABASE_MULTI_TABLE_SCHEMA_SQL.length} chars</span>
+                      </div>
+                      <div className="relative">
+                        <textarea
+                          readOnly
+                          value={SUPABASE_MULTI_TABLE_SCHEMA_SQL}
+                          rows={16}
+                          className="w-full bg-slate-950 font-mono text-[11px] text-emerald-400 p-4 rounded-xl border border-slate-800 outline-none selection:bg-sky-600 selection:text-white leading-relaxed resize-y shadow-inner"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>

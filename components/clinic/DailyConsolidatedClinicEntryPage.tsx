@@ -40,8 +40,6 @@ export interface ShiftRowItem {
   dmcMinorSurgery: number;      // ডিএমসি এবং মাইনর সার্জারি
   cesareanOperation: number;    // সিজার সহ অন্যান্য অপারেশন
   dressing: number;             // ড্রেসিং
-  medicinePurchase: number;     // মেডিসিন ক্রয় (Medicine Purchase)
-  medicineSales: number;        // মেডিসিন বিক্রয় (Medicine Sales)
   others: number;               // অন্যান্য
   grossAmount: number;          // মোট গ্রস
   discountAmount: number;       // মোট ছাড়
@@ -105,8 +103,6 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
     dmcMinorSurgery: 0,
     cesareanOperation: 0,
     dressing: 0,
-    medicinePurchase: 0,
-    medicineSales: 0,
     others: 0,
     grossAmount: 0,
     discountAmount: 0,
@@ -171,7 +167,7 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
       const breakdownFields = [
         'totalIndoorRevenue', 'admissionFee', 'oxygenNebulization',
         'conservativeTreatment', 'normalDelivery', 'dmcMinorSurgery',
-        'cesareanOperation', 'dressing', 'medicineSales', 'others'
+        'cesareanOperation', 'dressing', 'others'
       ];
       const hasBreakdownEdit = breakdownFields.some(f => f in updates);
 
@@ -184,7 +180,6 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
                        (Number(merged.dmcMinorSurgery) || 0) +
                        (Number(merged.cesareanOperation) || 0) +
                        (Number(merged.dressing) || 0) +
-                       (Number(merged.medicineSales) || 0) +
                        (Number(merged.others) || 0);
         if (bGross > 0 || !('grossAmount' in updates)) {
           merged.grossAmount = bGross;
@@ -269,7 +264,7 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
     const b = row.breakdown || {
       totalIndoorRevenue: 0, admissionFee: 0, oxygenNebulization: 0,
       conservativeTreatment: 0, normalDelivery: 0, dmcMinorSurgery: 0,
-      cesareanOperation: 0, dressing: 0, medicinePurchase: 0, medicineSales: 0, others: 0
+      cesareanOperation: 0, dressing: 0, others: 0
     };
 
     const editRowItem: ShiftRowItem = {
@@ -286,8 +281,6 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
       dmcMinorSurgery: Number(b.dmcMinorSurgery) || 0,
       cesareanOperation: Number(b.cesareanOperation) || 0,
       dressing: Number(b.dressing) || 0,
-      medicinePurchase: Number(b.medicinePurchase) || 0,
-      medicineSales: Number(b.medicineSales) || 0,
       others: Number(b.others) || 0,
       grossAmount: Number(row.grossAmount) || 0,
       discountAmount: Number(row.discountAmount) || 0,
@@ -325,8 +318,6 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
       acc.dmcMinorSurgery += Number(r.dmcMinorSurgery) || 0;
       acc.cesareanOperation += Number(r.cesareanOperation) || 0;
       acc.dressing += Number(r.dressing) || 0;
-      acc.medicinePurchase += Number(r.medicinePurchase) || 0;
-      acc.medicineSales += Number(r.medicineSales) || 0;
       acc.others += Number(r.others) || 0;
       acc.gross += Number(r.grossAmount) || 0;
       acc.discount += Number(r.discountAmount) || 0;
@@ -340,7 +331,7 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
     }, {
       patients: 0, totalIndoorRevenue: 0, admissionFee: 0, oxygenNebulization: 0,
       conservativeTreatment: 0, normalDelivery: 0, dmcMinorSurgery: 0, cesareanOperation: 0,
-      dressing: 0, medicinePurchase: 0, medicineSales: 0, others: 0,
+      dressing: 0, others: 0,
       gross: 0, discount: 0, net: 0, cash: 0, due: 0, doctorCommission: 0, otCharge: 0, centerNet: 0
     });
   }, [shiftRows]);
@@ -367,9 +358,7 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
       (Number(r.totalPatients) || 0) > 0 ||
       (Number(r.totalIndoorRevenue) || 0) > 0 ||
       (Number(r.admissionFee) || 0) > 0 ||
-      (Number(r.cesareanOperation) || 0) > 0 ||
-      (Number(r.medicinePurchase) || 0) > 0 ||
-      (Number(r.medicineSales) || 0) > 0
+      (Number(r.cesareanOperation) || 0) > 0
     );
 
     if (activeRows.length === 0) {
@@ -429,8 +418,6 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
             dmcMinorSurgery: Number(r.dmcMinorSurgery) || 0,
             cesareanOperation: Number(r.cesareanOperation) || 0,
             dressing: Number(r.dressing) || 0,
-            medicinePurchase: Number(r.medicinePurchase) || 0,
-            medicineSales: Number(r.medicineSales) || 0,
             others: Number(r.others) || 0
           },
           notes: r.notes || (isMonthly ? `মাসিক এককালীন ক্লিনিক এন্ট্রি: ${monthBn} ${selectedYear}` : ''),
@@ -1028,262 +1015,237 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
                   </div>
                 </div>
 
-                <div className="overflow-x-auto custom-scrollbar border border-slate-800 rounded-xl">
-                  <table className="w-full text-left text-xs text-slate-300 border-collapse min-w-[1700px]">
-                    <thead>
-                      <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase font-black text-[10px] tracking-wider">
-                        <th className="p-2.5 w-10 text-center">#</th>
-                        <th className="p-2.5 w-[680px]">শিফট / ধরণ</th>
-                        <th className="p-2.5 w-24 text-right">রোগী সংখ্যা</th>
-                        {/* 11 Requested Categories */}
-                        <th className="p-2.5 w-36 text-right bg-indigo-950/40 text-indigo-300">ভর্তি রোগী বাবদ একত্রে</th>
-                        <th className="p-2.5 w-32 text-right bg-indigo-950/30 text-indigo-300">এডমিশন ফি</th>
-                        <th className="p-2.5 w-16 text-right bg-indigo-950/20 text-indigo-300 leading-tight">অক্সিজেন<br/>নেবুলাইজার</th>
-                        <th className="p-2.5 w-32 text-right bg-indigo-950/30 text-indigo-300">কনজারভেটিভ</th>
-                        <th className="p-2.5 w-32 text-right bg-indigo-950/20 text-indigo-300">নরমাল ডেলিভারি</th>
-                        <th className="p-2.5 w-32 text-right bg-indigo-950/30 text-indigo-300">ডিএমসি+মাইনর সার্জারি</th>
-                        <th className="p-2.5 w-32 text-right bg-indigo-950/40 text-indigo-300">সিজার+অন্যান্য অপারেশন</th>
-                        <th className="p-2.5 w-32 text-right bg-indigo-950/20 text-indigo-300">ড্রেসিং</th>
-                        <th className="p-2.5 w-32 text-right bg-rose-950/40 text-rose-300">মেডিসিন ক্রয়</th>
-                        <th className="p-2.5 w-32 text-right bg-emerald-950/40 text-emerald-300">মেডিসিন বিক্রয়</th>
-                        <th className="p-2.5 w-32 text-right bg-slate-950 text-slate-300">অন্যান্য</th>
-                        {/* Financial Totals */}
-                        <th className="p-2.5 w-32 text-right bg-slate-800 text-white font-black">মোট গ্রস</th>
-                        <th className="p-2.5 w-24 text-right bg-rose-950/30 text-rose-300">ছাড়</th>
-                        <th className="p-2.5 w-32 text-right bg-indigo-950 text-indigo-200 font-black">প্রদেয় নেট</th>
-                        <th className="p-2.5 w-32 text-right bg-emerald-950 text-emerald-300 font-black">নগদ আদায়</th>
-                        <th className="p-2.5 w-28 text-right bg-amber-950 text-amber-300 font-black">বকেয়া</th>
-                        <th className="p-2.5 w-40">মন্তব্য</th>
-                        <th className="p-2.5 w-12 text-center">অ্যাকশন</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/80 bg-slate-900/60 font-mono">
-                      {shiftRows.map((row, idx) => (
-                        <tr key={row.id} className="hover:bg-slate-800/50 transition-colors">
-                          <td className="p-2 text-center font-bold text-slate-500 font-sans">{idx + 1}</td>
-                          <td className="p-1.5 font-sans">
-                            <input
-                              type="text"
-                              value={row.shift}
-                              onChange={e => updateShiftRow(row.id, { shift: e.target.value })}
-                              placeholder="শিফটের নাম"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white"
-                            />
-                          </td>
-                          <td className="p-1.5">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.totalPatients || ''}
-                              onChange={e => updateShiftRow(row.id, { totalPatients: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-cyan-400 font-bold"
-                            />
-                          </td>
+                <div className="bg-white border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto max-h-[550px]">
+                    <table className="w-full text-left border-collapse text-xs border border-slate-300 min-w-[1500px]">
+                      <thead className="bg-slate-200 text-slate-800 uppercase font-black tracking-wider border-b-2 border-slate-400 sticky top-0 z-10 select-none text-[11px]">
+                        <tr className="divide-x divide-slate-300">
+                          <th className="border border-slate-300 p-2.5 w-10 text-center">#</th>
+                          <th className="border border-slate-300 p-2.5 w-[200px]">শিফট / ধরণ</th>
+                          <th className="border border-slate-300 p-2.5 w-16 text-center">রোগী</th>
+                          <th className="border border-slate-300 p-2.5 w-28 text-right bg-slate-200 text-slate-900">ভর্তি রোগী বাবদ একত্রে</th>
+                          <th className="border border-slate-300 p-2.5 w-24 text-right bg-slate-200 text-slate-900">এডমিশন ফি</th>
+                          <th className="border border-slate-300 p-2.5 w-20 text-right bg-slate-200 text-slate-900 leading-tight">অক্সিজেন<br/>নেবুলাইজার</th>
+                          <th className="border border-slate-300 p-2.5 w-24 text-right bg-slate-200 text-slate-900">কনজারভেটিভ</th>
+                          <th className="border border-slate-300 p-2.5 w-24 text-right bg-slate-200 text-slate-900">নরমাল ডেলিভারি</th>
+                          <th className="border border-slate-300 p-2.5 w-28 text-right bg-slate-200 text-slate-900">ডিএমসি+মাইনর</th>
+                          <th className="border border-slate-300 p-2.5 w-28 text-right bg-slate-200 text-slate-900">সিজার+অন্যান্য</th>
+                          <th className="border border-slate-300 p-2.5 w-24 text-right bg-slate-200 text-slate-900">ড্রেসিং</th>
+                          <th className="border border-slate-300 p-2.5 w-24 text-right bg-slate-200 text-slate-900">অন্যান্য</th>
+                          <th className="border border-slate-300 p-2.5 w-28 text-right bg-slate-300 text-slate-900 font-black">মোট গ্রস</th>
+                          <th className="border border-slate-300 p-2.5 w-24 text-right bg-rose-100 text-rose-800">ছাড়</th>
+                          <th className="border border-slate-300 p-2.5 w-28 text-right bg-sky-100 text-sky-900 font-black">প্রদেয় নেট</th>
+                          <th className="border border-slate-300 p-2.5 w-28 text-right bg-emerald-100 text-emerald-900 font-black">নগদ আদায়</th>
+                          <th className="border border-slate-300 p-2.5 w-24 text-right bg-amber-100 text-amber-900 font-black">বকেয়া</th>
+                          <th className="border border-slate-300 p-2.5 w-32">মন্তব্য</th>
+                          <th className="border border-slate-300 p-2.5 w-12 text-center">অ্যাকশন</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-300 bg-slate-100 font-bold text-slate-800">
+                        {shiftRows.map((row, idx) => (
+                          <tr key={row.id} className="divide-x divide-slate-300 bg-slate-100 hover:bg-slate-200/95 transition-colors">
+                            <td className="border border-slate-300 p-1.5 text-center font-mono text-slate-700 bg-slate-200/80 font-bold">{idx + 1}</td>
+                            <td className="border border-slate-300 p-0 font-sans">
+                              <input
+                                type="text"
+                                value={row.shift}
+                                onChange={e => updateShiftRow(row.id, { shift: e.target.value })}
+                                placeholder="শিফটের নাম"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-2 text-slate-900 font-bold text-xs"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.totalPatients || ''}
+                                onChange={e => updateShiftRow(row.id, { totalPatients: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1 text-slate-900 font-bold text-xs text-center select-all"
+                              />
+                            </td>
 
-                          {/* 11 Breakdown categories */}
-                          <td className="p-1.5 bg-indigo-950/20">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.totalIndoorRevenue || ''}
-                              onChange={e => updateShiftRow(row.id, { totalIndoorRevenue: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-indigo-700/60 rounded-lg px-2 py-1 text-xs text-right text-indigo-300 font-bold"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-indigo-950/15">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.admissionFee || ''}
-                              onChange={e => updateShiftRow(row.id, { admissionFee: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-indigo-200"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-indigo-950/10">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.oxygenNebulization || ''}
-                              onChange={e => updateShiftRow(row.id, { oxygenNebulization: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-indigo-200"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-indigo-950/15">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.conservativeTreatment || ''}
-                              onChange={e => updateShiftRow(row.id, { conservativeTreatment: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-indigo-200"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-indigo-950/10">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.normalDelivery || ''}
-                              onChange={e => updateShiftRow(row.id, { normalDelivery: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-indigo-200"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-indigo-950/15">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.dmcMinorSurgery || ''}
-                              onChange={e => updateShiftRow(row.id, { dmcMinorSurgery: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-indigo-200"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-indigo-950/20">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.cesareanOperation || ''}
-                              onChange={e => updateShiftRow(row.id, { cesareanOperation: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-purple-300 font-bold"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-indigo-950/10">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.dressing || ''}
-                              onChange={e => updateShiftRow(row.id, { dressing: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-indigo-200"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-rose-950/20">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.medicinePurchase || ''}
-                              onChange={e => updateShiftRow(row.id, { medicinePurchase: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-rose-800/60 rounded-lg px-2 py-1 text-xs text-right text-rose-300 font-bold"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-emerald-950/20">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.medicineSales || ''}
-                              onChange={e => updateShiftRow(row.id, { medicineSales: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-emerald-800/60 rounded-lg px-2 py-1 text-xs text-right text-emerald-300 font-bold"
-                            />
-                          </td>
-                          <td className="p-1.5">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.others || ''}
-                              onChange={e => updateShiftRow(row.id, { others: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-slate-300"
-                            />
-                          </td>
+                            <td className="border border-slate-300 p-0 bg-slate-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.totalIndoorRevenue || ''}
+                                onChange={e => updateShiftRow(row.id, { totalIndoorRevenue: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-900 font-bold text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-slate-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.admissionFee || ''}
+                                onChange={e => updateShiftRow(row.id, { admissionFee: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-900 font-bold text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-slate-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.oxygenNebulization || ''}
+                                onChange={e => updateShiftRow(row.id, { oxygenNebulization: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-900 font-bold text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-slate-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.conservativeTreatment || ''}
+                                onChange={e => updateShiftRow(row.id, { conservativeTreatment: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-900 font-bold text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-slate-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.normalDelivery || ''}
+                                onChange={e => updateShiftRow(row.id, { normalDelivery: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-900 font-bold text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-slate-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.dmcMinorSurgery || ''}
+                                onChange={e => updateShiftRow(row.id, { dmcMinorSurgery: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-900 font-bold text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-slate-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.cesareanOperation || ''}
+                                onChange={e => updateShiftRow(row.id, { cesareanOperation: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-900 font-bold text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-slate-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.dressing || ''}
+                                onChange={e => updateShiftRow(row.id, { dressing: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-900 font-bold text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-slate-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.others || ''}
+                                onChange={e => updateShiftRow(row.id, { others: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-900 font-bold text-xs text-right select-all"
+                              />
+                            </td>
 
-                          {/* Financials */}
-                          <td className="p-1.5 bg-slate-950">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.grossAmount || ''}
-                              onChange={e => updateShiftRow(row.id, { grossAmount: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 text-xs text-right text-white font-black"
-                            />
+                            {/* Financials */}
+                            <td className="border border-slate-300 p-0 bg-slate-200">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.grossAmount || ''}
+                                onChange={e => updateShiftRow(row.id, { grossAmount: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-slate-950 font-black text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-rose-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.discountAmount || ''}
+                                onChange={e => updateShiftRow(row.id, { discountAmount: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-rose-700 font-bold text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-1.5 bg-sky-50 text-right">
+                              <span className="font-mono font-black text-sky-900 text-xs">
+                                ৳{row.netPayable.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="border border-slate-300 p-0 bg-emerald-50">
+                              <input
+                                type="number"
+                                min="0"
+                                value={row.cashCollected || ''}
+                                onChange={e => updateShiftRow(row.id, { cashCollected: Number(e.target.value) || 0 })}
+                                placeholder="0"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-1.5 text-emerald-900 font-black text-xs text-right select-all"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-1.5 bg-amber-50 text-right">
+                              <span className="font-mono font-black text-amber-900 text-xs">
+                                ৳{row.dueAmount.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="border border-slate-300 p-0 font-sans">
+                              <input
+                                type="text"
+                                value={row.notes}
+                                onChange={e => updateShiftRow(row.id, { notes: e.target.value })}
+                                placeholder="নোট"
+                                className="w-full h-9 bg-transparent border-0 outline-none focus:bg-white px-2 text-slate-900 font-bold text-xs"
+                              />
+                            </td>
+                            <td className="border border-slate-300 p-1 text-center bg-slate-200/50">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveShiftRow(row.id)}
+                                className="p-1 text-rose-700 hover:text-rose-900 hover:bg-rose-200 rounded transition-all cursor-pointer"
+                                title="সারি মুছুন"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-200 border-t-2 border-slate-400 font-black text-slate-900 uppercase text-[11px] divide-x divide-slate-300">
+                          <td colSpan={3} className="border border-slate-300 p-2.5 text-center text-slate-900 font-black">
+                            সর্বমোট যোগফল:
                           </td>
-                          <td className="p-1.5 bg-rose-950/20">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.discountAmount || ''}
-                              onChange={e => updateShiftRow(row.id, { discountAmount: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-rose-400 font-bold"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-indigo-950/30">
-                            <span className="block px-2 py-1 text-right text-xs font-black text-indigo-300">
-                              ৳{row.netPayable.toLocaleString()}
-                            </span>
-                          </td>
-                          <td className="p-1.5 bg-emerald-950/30">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.cashCollected || ''}
-                              onChange={e => updateShiftRow(row.id, { cashCollected: Number(e.target.value) || 0 })}
-                              placeholder="0"
-                              className="w-full bg-slate-950 border border-emerald-700/80 rounded-lg px-2 py-1 text-xs text-right text-emerald-300 font-black"
-                            />
-                          </td>
-                          <td className="p-1.5 bg-amber-950/30">
-                            <span className="block px-2 py-1 text-right text-xs font-black text-amber-300">
-                              ৳{row.dueAmount.toLocaleString()}
-                            </span>
-                          </td>
-                          <td className="p-1.5 font-sans">
-                            <input
-                              type="text"
-                              value={row.notes}
-                              onChange={e => updateShiftRow(row.id, { notes: e.target.value })}
-                              placeholder="নোট / মন্তব্য"
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300"
-                            />
-                          </td>
-                          <td className="p-1.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveShiftRow(row.id)}
-                              className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-all"
-                              title="সারি মুছুন"
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono font-black text-indigo-900">{shiftSheetTotals.patients} জন</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono font-black">৳{shiftSheetTotals.totalIndoorRevenue.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono">৳{shiftSheetTotals.admissionFee.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono">৳{shiftSheetTotals.oxygenNebulization.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono">৳{shiftSheetTotals.conservativeTreatment.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono">৳{shiftSheetTotals.normalDelivery.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono">৳{shiftSheetTotals.dmcMinorSurgery.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono text-purple-900">৳{shiftSheetTotals.cesareanOperation.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono">৳{shiftSheetTotals.dressing.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono">৳{shiftSheetTotals.others.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono font-black bg-slate-300 text-slate-950">৳{shiftSheetTotals.gross.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono text-rose-700 bg-rose-100">৳{shiftSheetTotals.discount.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono font-black text-sky-950 bg-sky-100">৳{shiftSheetTotals.net.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono font-black text-emerald-950 bg-emerald-100">৳{shiftSheetTotals.cash.toLocaleString()}</td>
+                          <td className="border border-slate-300 p-2.5 text-right font-mono font-black text-amber-950 bg-amber-100">৳{shiftSheetTotals.due.toLocaleString()}</td>
+                          <td colSpan={2} className="border border-slate-300 p-2.5 text-center text-xs text-slate-700 font-bold">
+                            {shiftRows.length} শিফট
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-slate-950 border-t-2 border-slate-700 font-bold text-white uppercase text-[11px]">
-                        <td colSpan={3} className="p-3 text-center text-indigo-400 font-black font-sans">
-                          সর্বমোট যোগফল (Grand Totals):
-                        </td>
-                        <td className="p-3 text-right text-cyan-400 font-mono font-black">{shiftSheetTotals.patients}</td>
-                        <td className="p-3 text-right text-indigo-300 font-mono font-black">৳{shiftSheetTotals.totalIndoorRevenue.toLocaleString()}</td>
-                        <td className="p-3 text-right text-indigo-200 font-mono">৳{shiftSheetTotals.admissionFee.toLocaleString()}</td>
-                        <td className="p-3 text-right text-indigo-200 font-mono">৳{shiftSheetTotals.oxygenNebulization.toLocaleString()}</td>
-                        <td className="p-3 text-right text-indigo-200 font-mono">৳{shiftSheetTotals.conservativeTreatment.toLocaleString()}</td>
-                        <td className="p-3 text-right text-indigo-200 font-mono">৳{shiftSheetTotals.normalDelivery.toLocaleString()}</td>
-                        <td className="p-3 text-right text-indigo-200 font-mono">৳{shiftSheetTotals.dmcMinorSurgery.toLocaleString()}</td>
-                        <td className="p-3 text-right text-purple-300 font-mono font-black">৳{shiftSheetTotals.cesareanOperation.toLocaleString()}</td>
-                        <td className="p-3 text-right text-indigo-200 font-mono">৳{shiftSheetTotals.dressing.toLocaleString()}</td>
-                        <td className="p-3 text-right text-rose-300 font-mono font-black">৳{shiftSheetTotals.medicinePurchase.toLocaleString()}</td>
-                        <td className="p-3 text-right text-emerald-300 font-mono font-black">৳{shiftSheetTotals.medicineSales.toLocaleString()}</td>
-                        <td className="p-3 text-right text-slate-300 font-mono">৳{shiftSheetTotals.others.toLocaleString()}</td>
-                        <td className="p-3 text-right text-white font-mono font-black bg-slate-800">৳{shiftSheetTotals.gross.toLocaleString()}</td>
-                        <td className="p-3 text-right text-rose-400 font-mono font-bold bg-rose-950/30">৳{shiftSheetTotals.discount.toLocaleString()}</td>
-                        <td className="p-3 text-right text-indigo-300 font-mono font-black bg-indigo-950">৳{shiftSheetTotals.net.toLocaleString()}</td>
-                        <td className="p-3 text-right text-emerald-300 font-mono font-black bg-emerald-950">৳{shiftSheetTotals.cash.toLocaleString()}</td>
-                        <td className="p-3 text-right text-amber-300 font-mono font-black bg-amber-950">৳{shiftSheetTotals.due.toLocaleString()}</td>
-                        <td colSpan={2} className="p-3 text-center text-xs text-slate-500 font-sans">
-                          {shiftRows.length} টি শিফট
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
 
                 {/* Save Bar */}
@@ -1365,94 +1327,104 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto custom-scrollbar border border-slate-800 rounded-xl">
-                  <table className="w-full text-left text-xs text-slate-300 border-collapse min-w-[1000px]">
-                    <thead>
-                      <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase font-black text-[10px]">
-                        <th className="p-3 w-10 text-center">#</th>
-                        <th className="p-3 w-40">আইডি</th>
-                        <th className="p-3 w-32">তারিখ / মাস</th>
-                        <th className="p-3 w-48">শিফট / ধরণ</th>
-                        <th className="p-3 w-20 text-right">রোগী</th>
-                        <th className="p-3 w-28 text-right text-slate-200">গ্রস</th>
-                        <th className="p-3 w-28 text-right text-indigo-300 font-bold">নেট</th>
-                        <th className="p-3 w-28 text-right text-emerald-400 font-black">নগদ আদায়</th>
-                        <th className="p-3 w-24 text-right text-amber-400 font-bold">বকেয়া</th>
-                        <th className="p-3 w-36 text-center">অ্যাকশন</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/80 font-mono">
-                      {liveFilteredEntries.length === 0 ? (
-                        <tr>
-                          <td colSpan={10} className="p-8 text-center text-slate-500 font-sans text-xs">
-                            কোনো সংরক্ষিত ক্লিনিক কনসোলিডেটেড রেকর্ড পাওয়া যায়নি।
-                          </td>
+                <div className="bg-white border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto max-h-[500px]">
+                    <table className="w-full text-left border-collapse text-xs border border-slate-300 min-w-[1000px]">
+                      <thead className="bg-slate-200 text-slate-800 uppercase font-black tracking-wider border-b-2 border-slate-400 sticky top-0 z-10 select-none text-[11px]">
+                        <tr className="divide-x divide-slate-300">
+                          <th className="border border-slate-300 p-2.5 w-10 text-center">#</th>
+                          <th className="border border-slate-300 p-2.5 w-40">আইডি</th>
+                          <th className="border border-slate-300 p-2.5 w-32">তারিখ / মাস</th>
+                          <th className="border border-slate-300 p-2.5 w-48">শিফট / ধরণ</th>
+                          <th className="border border-slate-300 p-2.5 w-20 text-center">রোগী</th>
+                          <th className="border border-slate-300 p-2.5 w-28 text-right bg-slate-200 text-slate-900">গ্রস</th>
+                          <th className="border border-slate-300 p-2.5 w-28 text-right bg-sky-100 text-sky-900">নেট</th>
+                          <th className="border border-slate-300 p-2.5 w-28 text-right bg-emerald-100 text-emerald-900 font-black">নগদ আদায়</th>
+                          <th className="border border-slate-300 p-2.5 w-24 text-right bg-amber-100 text-amber-900">বকেয়া</th>
+                          <th className="border border-slate-300 p-2.5 w-36 text-center">অ্যাকশন</th>
                         </tr>
-                      ) : (
-                        liveFilteredEntries.map((row, idx) => {
-                          const isMonthly = row.entryType === 'monthly' || row.shift === 'Monthly';
-                          const mBn = BENGALI_MONTHS[row.month ?? -1]?.bn || '';
-                          const isEditingThis = editingRecordId === row.id;
+                      </thead>
+                      <tbody className="divide-y divide-slate-300 bg-slate-100 font-semibold text-slate-800">
+                        {liveFilteredEntries.length === 0 ? (
+                          <tr>
+                            <td colSpan={10} className="border border-slate-300 p-8 text-center text-slate-500 font-sans text-xs bg-white">
+                              কোনো সংরক্ষিত ক্লিনিক কনসোলিডেটেড রেকর্ড পাওয়া যায়নি।
+                            </td>
+                          </tr>
+                        ) : (
+                          liveFilteredEntries.map((row, idx) => {
+                            const isMonthly = row.entryType === 'monthly' || row.shift === 'Monthly';
+                            const mBn = BENGALI_MONTHS[row.month ?? -1]?.bn || '';
+                            const isEditingThis = editingRecordId === row.id;
 
-                          return (
-                            <tr
-                              key={row.id}
-                              className={`hover:bg-slate-800/50 transition-colors ${
-                                isEditingThis ? 'bg-indigo-950/40 border-l-4 border-indigo-500' : ''
-                              }`}
-                            >
-                              <td className="p-3 text-center text-slate-500 font-sans font-bold">{idx + 1}</td>
-                              <td className="p-3 text-indigo-400 font-bold">{row.id}</td>
-                              <td className="p-3 font-sans">
-                                {isMonthly ? (
-                                  <span className="px-2 py-0.5 rounded bg-purple-950/60 text-purple-300 font-bold border border-purple-800/40">
-                                    {mBn} {row.year}
+                            return (
+                              <tr
+                                key={row.id}
+                                className={`transition-colors divide-x divide-slate-300 ${
+                                  isEditingThis ? 'bg-amber-100/90 text-amber-950 font-bold' : 'hover:bg-blue-50/70 bg-white even:bg-slate-50/70'
+                                }`}
+                              >
+                                <td className="border border-slate-300 p-2 text-center text-slate-600 font-sans font-bold bg-slate-100/60">{idx + 1}</td>
+                                <td className="border border-slate-300 p-2.5 text-indigo-800 font-mono font-bold">{row.id}</td>
+                                <td className="border border-slate-300 p-2.5 font-sans">
+                                  {isMonthly ? (
+                                    <span className="px-2 py-0.5 rounded bg-emerald-100 border border-emerald-300 text-emerald-800 font-black text-[10px]">
+                                      {mBn} {row.year}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-900 font-mono font-bold">{row.date}</span>
+                                  )}
+                                </td>
+                                <td className="border border-slate-300 p-2.5 font-sans">
+                                  <span className="px-2 py-0.5 rounded text-[11px] font-black uppercase bg-sky-100 border border-sky-300 text-sky-800">
+                                    {isMonthly ? 'মাসিক এককালীন' : row.shift}
                                   </span>
-                                ) : (
-                                  <span className="text-slate-300 font-mono">{row.date}</span>
-                                )}
-                              </td>
-                              <td className="p-3 font-sans">
-                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-slate-300">
-                                  {isMonthly ? 'মাসিক এককালীন' : row.shift}
-                                </span>
-                              </td>
-                              <td className="p-3 text-right text-cyan-400 font-bold">{row.totalPatients}</td>
-                              <td className="p-3 text-right text-slate-200">৳{Number(row.grossAmount || 0).toLocaleString()}</td>
-                              <td className="p-3 text-right text-indigo-300 font-bold">৳{Number(row.netPayable || 0).toLocaleString()}</td>
-                              <td className="p-3 text-right text-emerald-400 font-black">৳{Number(row.cashCollected || 0).toLocaleString()}</td>
-                              <td className="p-3 text-right text-amber-400 font-bold">৳{Number(row.dueAmount || 0).toLocaleString()}</td>
-                              <td className="p-3 text-center">
-                                <div className="flex items-center justify-center gap-1.5 font-sans">
-                                  <button
-                                    onClick={() => handlePrintVoucher(row)}
-                                    className="p-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition-all"
-                                    title="প্রিন্ট ভাউচার"
-                                  >
-                                    <PrinterIcon className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleStartEdit(row)}
-                                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold transition-all"
-                                    title="এডিট করুন"
-                                  >
-                                    এডিট
-                                  </button>
-                                  <button
-                                    onClick={() => setEntryToDelete(row)}
-                                    className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all"
-                                    title="মুছুন"
-                                  >
-                                    <TrashIcon className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                                </td>
+                                <td className="border border-slate-300 p-2 text-center text-slate-950 font-mono font-black">{row.totalPatients}</td>
+                                <td className="border border-slate-300 p-2.5 text-right font-mono text-slate-950 font-bold bg-slate-50">৳{Number(row.grossAmount || 0).toLocaleString()}</td>
+                                <td className="border border-slate-300 p-2.5 text-right font-mono text-sky-900 font-black bg-sky-50/40">৳{Number(row.netPayable || 0).toLocaleString()}</td>
+                                <td className="border border-slate-300 p-2.5 text-right font-mono text-emerald-800 font-black bg-emerald-50/60">৳{Number(row.cashCollected || 0).toLocaleString()}</td>
+                                <td className="border border-slate-300 p-2.5 text-right font-mono font-bold text-amber-800">
+                                  {(Number(row.dueAmount) || 0) > 0 ? (
+                                    <span className="px-2 py-0.5 rounded bg-rose-100 border border-rose-300 text-rose-800 font-black">
+                                      ৳{(Number(row.dueAmount) || 0).toLocaleString()} ⚠️
+                                    </span>
+                                  ) : (
+                                    <span>৳0</span>
+                                  )}
+                                </td>
+                                <td className="border border-slate-300 p-1.5 text-center bg-slate-50/40">
+                                  <div className="flex items-center justify-center gap-1.5 font-sans">
+                                    <button
+                                      onClick={() => handlePrintVoucher(row)}
+                                      className="p-1.5 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 transition-all shadow-sm active:scale-95 cursor-pointer"
+                                      title="প্রিন্ট ভাউচার"
+                                    >
+                                      <PrinterIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleStartEdit(row)}
+                                      className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 text-[11px] font-black transition-all shadow-sm active:scale-95 cursor-pointer"
+                                      title="এডিট করুন"
+                                    >
+                                      এডিট
+                                    </button>
+                                    <button
+                                      onClick={() => setEntryToDelete(row)}
+                                      className="p-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 transition-all shadow-sm active:scale-95 cursor-pointer"
+                                      title="মুছুন"
+                                    >
+                                      <TrashIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>

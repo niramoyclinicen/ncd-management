@@ -373,16 +373,6 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 const m = String(e.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
                 if (m && `${m[1]}-${m[2]}-${m[3]}` === targetDate) matches = true;
             }
-            const dayNum = parseInt(targetDate.split('-')[2] || '1', 10);
-            const isMonthly = (e.entryType === 'monthly' || e.shift === 'Monthly' || !normE || normE.split('-').length < 3);
-            if (dayNum === 1 && isMonthly) {
-                const parts = targetDate.split('-');
-                const ey = Number(parts[0]);
-                const em = Number(parts[1]) - 1;
-                if (e.month !== undefined && e.year !== undefined && !isNaN(Number(e.month)) && !isNaN(Number(e.year))) {
-                    matches = Number(e.year) === ey && (Number(e.month) === em || Number(e.month) === em + 1);
-                }
-            }
             if (matches) {
                 const net = getConsolidatedNet(e);
                 items.push({

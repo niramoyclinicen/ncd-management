@@ -318,8 +318,9 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     if (e) e.preventDefault();
     const isMonthly = entryMode === 'monthly';
 
+    const lastDay = new Date(selectedYear, selectedMonth + 1, 0).getDate();
     const computedDate = isMonthly
-      ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`
+      ? `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
       : selectedDate;
 
     if (!computedDate) {

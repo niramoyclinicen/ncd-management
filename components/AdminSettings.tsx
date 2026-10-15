@@ -49,6 +49,7 @@ import {
 import { ClinicLogo } from './ClinicLogo';
 
 import { generateOfflineViewer } from '../utils/portableBackup';
+import { SUPABASE_TABLES_LIST, SUPABASE_MULTI_TABLE_SCHEMA_SQL } from '../supabaseSchema';
 
 interface AdminSettingsProps {
   passwords: DepartmentPasswords;

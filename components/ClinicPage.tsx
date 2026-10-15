@@ -8,7 +8,8 @@ import ReferrerInfoPage from './ReferrerInfoPage';
 import ErrorBoundary from './ErrorBoundary';
 import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle, UsersIcon, EditIcon, ClipboardList as LayoutIcon } from './Icons';
 import { dbService } from '../dbService';
-import { CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Sparkles, Layers } from 'lucide-react';
+import DailyConsolidatedClinicEntryPage from './clinic/DailyConsolidatedClinicEntryPage';
 
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
@@ -5815,13 +5816,17 @@ interface ClinicPageProps {
     setIndoorInvoices: React.Dispatch<React.SetStateAction<IndoorInvoice[]>>;
     detailedExpenses: Record<string, ExpenseItem[]>;
     performBlockingSync?: (overrides?: any) => Promise<boolean>;
+    currentUserEmail?: string;
+    consolidatedClinicEntries?: any[];
+    setConsolidatedClinicEntries?: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 const ClinicPage: React.FC<ClinicPageProps> = ({ 
-    onBack, patients, setPatients, doctors, setDoctors, referrars, setReferrars, employees, medicines, setMedicines, admissions, setAdmissions, indoorInvoices, setIndoorInvoices, detailedExpenses, performBlockingSync
+    onBack, patients, setPatients, doctors, setDoctors, referrars, setReferrars, employees, medicines, setMedicines, admissions, setAdmissions, indoorInvoices, setIndoorInvoices, detailedExpenses, performBlockingSync,
+    currentUserEmail = 'Admin', consolidatedClinicEntries, setConsolidatedClinicEntries
 }) => {
     const [now] = useState(() => Date.now());
-    const [activeTab, setActiveTab] = useState<'admission' | 'invoice' | 'due_collection' | 'report_summary' | 'bed_status' | 'patient_info'>(() => {
+    const [activeTab, setActiveTab] = useState<'admission' | 'invoice' | 'due_collection' | 'report_summary' | 'bed_status' | 'patient_info' | 'consolidated_clinic_entry'>(() => {
         if (localStorage.getItem('ncd_pending_edit_invoice_id')) {
             return 'invoice';
         }
@@ -5861,19 +5866,23 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                             </div>
                         </div>
                         <div className="flex bg-slate-900/50 rounded-xl p-1.5 border border-slate-800 overflow-x-auto w-full scrollbar-hide gap-1">
-                            <button onClick={() => setActiveTab('patient_info')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'patient_info' ? 'bg-gradient-to-br from-cyan-500 to-blue-700 text-white shadow-lg shadow-cyan-900/40 border border-cyan-400/30' : 'text-slate-500 hover:text-cyan-400 hover:bg-slate-800/50'}`}>Patient Info</button>
-                            <button onClick={() => setActiveTab('admission')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'admission' ? 'bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg shadow-emerald-900/40 border border-emerald-400/30' : 'text-slate-500 hover:text-emerald-400 hover:bg-slate-800/50'}`}>Admission & Treatment</button>
-                            <button onClick={() => setActiveTab('bed_status')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'bed_status' ? 'bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg shadow-teal-900/40 border border-teal-400/30' : 'text-slate-500 hover:text-teal-400 hover:bg-slate-800/50'}`}>Bed Status</button>
-                            <button onClick={() => setActiveTab('invoice')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'invoice' ? 'bg-gradient-to-br from-blue-500 to-indigo-700 text-white shadow-lg shadow-blue-900/40 border border-blue-400/30' : 'text-slate-500 hover:text-blue-400 hover:bg-slate-800/50'}`}>Indoor Invoice</button>
-                            <button onClick={() => setActiveTab('due_collection')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'due_collection' ? 'bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg shadow-amber-900/40 border border-amber-400/30' : 'text-slate-500 hover:text-amber-400 hover:bg-slate-800/50'}`}>Due Collection</button>
-                            <button onClick={() => setActiveTab('report_summary')} className={`flex-1 min-w-[160px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'report_summary' ? 'bg-gradient-to-br from-purple-500 to-fuchsia-700 text-white shadow-lg shadow-purple-900/40 border border-purple-400/30' : 'text-slate-500 hover:text-purple-400 hover:bg-slate-800/50'}`}>Report Summary</button>
+                            <button onClick={() => setActiveTab('patient_info')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'patient_info' ? 'bg-gradient-to-br from-cyan-500 to-blue-700 text-white shadow-lg shadow-cyan-900/40 border border-cyan-400/30' : 'text-slate-500 hover:text-cyan-400 hover:bg-slate-800/50'}`}>Patient Info</button>
+                            <button onClick={() => setActiveTab('admission')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'admission' ? 'bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg shadow-emerald-900/40 border border-emerald-400/30' : 'text-slate-500 hover:text-emerald-400 hover:bg-slate-800/50'}`}>Admission & Treatment</button>
+                            <button onClick={() => setActiveTab('bed_status')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'bed_status' ? 'bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg shadow-teal-900/40 border border-teal-400/30' : 'text-slate-500 hover:text-teal-400 hover:bg-slate-800/50'}`}>Bed Status</button>
+                            <button onClick={() => setActiveTab('invoice')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'invoice' ? 'bg-gradient-to-br from-blue-500 to-indigo-700 text-white shadow-lg shadow-blue-900/40 border border-blue-400/30' : 'text-slate-500 hover:text-blue-400 hover:bg-slate-800/50'}`}>Indoor Invoice</button>
+                            <button onClick={() => setActiveTab('due_collection')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'due_collection' ? 'bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg shadow-amber-900/40 border border-amber-400/30' : 'text-slate-500 hover:text-amber-400 hover:bg-slate-800/50'}`}>Due Collection</button>
+                            <button onClick={() => setActiveTab('report_summary')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'report_summary' ? 'bg-gradient-to-br from-purple-500 to-fuchsia-700 text-white shadow-lg shadow-purple-900/40 border border-purple-400/30' : 'text-slate-500 hover:text-purple-400 hover:bg-slate-800/50'}`}>Report Summary</button>
+                            <button onClick={() => setActiveTab('consolidated_clinic_entry')} className={`flex-1 min-w-[210px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'consolidated_clinic_entry' ? 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 text-white shadow-lg shadow-indigo-900/50 border border-indigo-400/40' : 'text-slate-400 hover:text-indigo-300 hover:bg-slate-800/70 border border-transparent'}`}>
+                              <Layers className="w-4 h-4 text-indigo-400" />
+                              <span>Consolidated clinic data entry</span>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto w-full">
-                <div className="max-w-[1600px] mx-auto p-6 w-full">
+                <div className={`${activeTab === 'consolidated_clinic_entry' ? 'w-full p-0' : 'max-w-[1600px] mx-auto p-6 w-full'}`}>
                     {successMessage && <div className="fixed top-20 right-5 bg-green-600 text-white px-6 py-3 rounded shadow-xl z-50 animate-bounce">{successMessage}</div>}
                     
                     <div className={activeTab === 'admission' ? 'block' : 'hidden'}>
@@ -5911,6 +5920,18 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     <div className={activeTab === 'report_summary' ? 'block' : 'hidden'}>
                         <ErrorBoundary fallbackTitle="রিপোর্ট সামারি মডিউলে ত্রুটি হয়েছে">
                             <ReportSummaryPage admissions={admissions} doctors={doctors} patients={patients} onOpenRxMaster={() => setShowRxMaster(true)} />
+                        </ErrorBoundary>
+                    </div>
+
+                    <div className={activeTab === 'consolidated_clinic_entry' ? 'block w-full h-full' : 'hidden'}>
+                        <ErrorBoundary fallbackTitle="কনসোলিডেটেড ক্লিনিক ডাটা এন্ট্রি মডিউলে ত্রুটি হয়েছে">
+                            <DailyConsolidatedClinicEntryPage 
+                                onBack={() => setActiveTab('patient_info')}
+                                performBlockingSync={performBlockingSync}
+                                currentUserEmail={currentUserEmail}
+                                consolidatedClinicEntries={consolidatedClinicEntries}
+                                setConsolidatedClinicEntries={setConsolidatedClinicEntries}
+                            />
                         </ErrorBoundary>
                     </div>
                 </div>

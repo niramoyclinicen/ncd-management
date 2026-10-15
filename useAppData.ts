@@ -62,6 +62,9 @@ export function useAppData() {
   const [consolidatedLabEntries, setConsolidatedLabEntries] = useState<any[]>(() => {
     return dbService.getConsolidatedEntries();
   });
+  const [consolidatedClinicEntries, setConsolidatedClinicEntries] = useState<any[]>(() => {
+    return dbService.getConsolidatedClinicEntries();
+  });
 
   // HR/Payroll States
   const [attendanceLog, setAttendanceLog] = useState<Record<string, any>>({});
@@ -131,14 +134,18 @@ export function useAppData() {
             reports: ['report_id', 'id'],
             prescriptions: ['id'],
             appointments: ['appointment_id', 'id'],
-            consolidatedLabEntries: ['id', '_id']
+            consolidatedLabEntries: ['id', '_id'],
+            consolidatedClinicEntries: ['id', '_id']
           };
 
           Object.entries(mergeConfig).forEach(([col, idFields]) => {
             const cloudArr = finalDataToLoad[col];
-            let src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : undefined);
+            let src = localData[col] || (col === 'consolidatedLabEntries' ? (localData.consolidated_lab_entries || localData.consolidatedEntries) : (col === 'consolidatedClinicEntries' ? (localData.consolidated_clinic_entries || localData.consolidatedClinicEntries) : undefined));
             if (col === 'consolidatedLabEntries' && (!Array.isArray(src) || src.length === 0)) {
               src = dbService.getConsolidatedEntries();
+            }
+            if (col === 'consolidatedClinicEntries' && (!Array.isArray(src) || src.length === 0)) {
+              src = dbService.getConsolidatedClinicEntries();
             }
             if (Array.isArray(src) && src.length > 0) {
               finalDataToLoad[col] = dbService.mergeEntityList(cloudArr || [], src, idFields);
@@ -174,7 +181,8 @@ export function useAppData() {
             tests: [],
             reagents: [],
             medicines: [],
-            consolidatedLabEntries: []
+            consolidatedLabEntries: [],
+            consolidatedClinicEntries: []
           }, true);
           setIsDataLoaded(true);
           setConnectionError(false);
@@ -292,6 +300,17 @@ export function useAppData() {
           return merged;
         });
       }
+      const incomingClinicCons = Array.isArray(data.consolidatedClinicEntries) 
+        ? data.consolidatedClinicEntries 
+        : (Array.isArray(data.consolidated_clinic_entries) ? data.consolidated_clinic_entries : null);
+      if (incomingClinicCons !== null) {
+        setConsolidatedClinicEntries(prev => {
+          const localCurrent = Array.isArray(prev) && prev.length > 0 ? prev : dbService.getConsolidatedClinicEntries();
+          const merged = dbService.mergeEntityList(localCurrent || [], incomingClinicCons, ['id', '_id']);
+          dbService.saveConsolidatedClinicEntries(merged);
+          return merged;
+        });
+      }
       if (data.passwords !== undefined && typeof data.passwords === 'object' && data.passwords !== null) {
         const defaultPasswords = {
           DIAGNOSTIC: 'diag123',
@@ -350,11 +369,12 @@ export function useAppData() {
       monthlyAdjustments: { ...monthlyAdjustments, ...localAdj, ...(overrides?.monthlyAdjustments || {}) },
       diagnosticSettings, employeeReferrerMap,
       consolidatedLabEntries: (overrides && overrides.consolidatedLabEntries) || consolidatedLabEntries || dbService.getConsolidatedEntries(),
+      consolidatedClinicEntries: (overrides && overrides.consolidatedClinicEntries) || consolidatedClinicEntries || dbService.getConsolidatedClinicEntries(),
       passwords,
       last_updated_at: new Date().toISOString(),
       ...overrides
     };
-  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, monthlyAdjustments, diagnosticSettings, employeeReferrerMap, consolidatedLabEntries, passwords]);
+  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, monthlyAdjustments, diagnosticSettings, employeeReferrerMap, consolidatedLabEntries, consolidatedClinicEntries, passwords]);
 
   // Blocking Manual Sync Handler
   const performBlockingSync = useCallback(async (overrides?: any) => {
@@ -394,6 +414,9 @@ export function useAppData() {
     }
     if (overrides?.consolidatedLabEntries) {
       setConsolidatedLabEntries(overrides.consolidatedLabEntries);
+    }
+    if (overrides?.consolidatedClinicEntries) {
+      setConsolidatedClinicEntries(overrides.consolidatedClinicEntries);
     }
     if (overrides?.admissions) {
       setAdmissions(overrides.admissions);
@@ -539,5 +562,5 @@ export function useAppData() {
     }
   }, []);
 
-  return { viewState, userRole, isAdminLoggedIn, isDataLoaded, connectionError, connectionErrorMessage, lastSavedAt, currentUserEmail, passwords, patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, employeeReferrerMap, attendanceLog, leaveLog, monthlyRoster, monthlyAdjustments, setMonthlyAdjustments, diagnosticSettings, consolidatedLabEntries, setConsolidatedLabEntries, isSyncing, isManualSyncing, manualSyncError, syncError, lastManualSyncTime, setViewState, setUserRole, setIsAdminLoggedIn, setIsDataLoaded, setConnectionError, setConnectionErrorMessage, setLastSavedAt, setPasswords, setPatients, setDoctors, setReferrars, setTests, setReagents, setLabInvoices, setDueCollections, setReports, setRtTemplates, setEmployees, setMedicines, setClinicalDrugs, setPurchaseInvoices, setSalesInvoices, setAdmissions, setIndoorInvoices, setDetailedExpenses, setPrescriptions, setAppointments, setEmployeeReferrerMap, setAttendanceLog, setLeaveLog, setMonthlyRoster, setDiagnosticSettings, setIsSyncing, setIsManualSyncing, setManualSyncError, setSyncError, setLastManualSyncTime, getCurrentState, performBlockingSync, showSyncNotification, resetToFreshSoftware };
+  return { viewState, userRole, isAdminLoggedIn, isDataLoaded, connectionError, connectionErrorMessage, lastSavedAt, currentUserEmail, passwords, patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, employeeReferrerMap, attendanceLog, leaveLog, monthlyRoster, monthlyAdjustments, setMonthlyAdjustments, diagnosticSettings, consolidatedLabEntries, setConsolidatedLabEntries, consolidatedClinicEntries, setConsolidatedClinicEntries, isSyncing, isManualSyncing, manualSyncError, syncError, lastManualSyncTime, setViewState, setUserRole, setIsAdminLoggedIn, setIsDataLoaded, setConnectionError, setConnectionErrorMessage, setLastSavedAt, setPasswords, setPatients, setDoctors, setReferrars, setTests, setReagents, setLabInvoices, setDueCollections, setReports, setRtTemplates, setEmployees, setMedicines, setClinicalDrugs, setPurchaseInvoices, setSalesInvoices, setAdmissions, setIndoorInvoices, setDetailedExpenses, setPrescriptions, setAppointments, setEmployeeReferrerMap, setAttendanceLog, setLeaveLog, setMonthlyRoster, setDiagnosticSettings, setIsSyncing, setIsManualSyncing, setManualSyncError, setSyncError, setLastManualSyncTime, getCurrentState, performBlockingSync, showSyncNotification, resetToFreshSoftware };
 }

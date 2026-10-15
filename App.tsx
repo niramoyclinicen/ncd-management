@@ -382,6 +382,9 @@ const AppContent = () => {
                 indoorInvoices={data.indoorInvoices || []} setIndoorInvoices={data.setIndoorInvoices}
                 detailedExpenses={data.detailedExpenses || {}}
                 performBlockingSync={data.performBlockingSync}
+                currentUserEmail={data.currentUserEmail}
+                consolidatedClinicEntries={data.consolidatedClinicEntries}
+                setConsolidatedClinicEntries={data.setConsolidatedClinicEntries}
               />
             </ErrorBoundary>
           </RequireAuth>
@@ -456,6 +459,8 @@ const AppContent = () => {
               setDiagnosticSettings={data.setDiagnosticSettings}
               consolidatedLabEntries={data.consolidatedLabEntries}
               setConsolidatedLabEntries={data.setConsolidatedLabEntries}
+              consolidatedClinicEntries={data.consolidatedClinicEntries}
+              setConsolidatedClinicEntries={data.setConsolidatedClinicEntries}
               performBlockingSync={data.performBlockingSync}
             />
           </RequireAuth>

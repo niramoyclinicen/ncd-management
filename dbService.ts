@@ -659,9 +659,11 @@ export const dbService = {
 
       // Test individual tables
       const tableNames = [
-        'patients', 'doctors', 'referrars', 'referrers', 'tests', 'test', 'lab_tests', 'test_info', 'employees', 'medicines', 'reagents',
+        'patients', 'doctors', 'referrars', 'referrers', 'tests', 'employees', 'medicines', 'reagents',
         'lab_invoices', 'invoices', 'indoor_invoices', 'sales_invoices', 'purchase_invoices', 'detailed_expenses',
-        'reports', 'prescriptions', 'appointments', 'due_collections', 'dues', 'admissions'
+        'reports', 'prescriptions', 'appointments', 'due_collections', 'dues', 'admissions',
+        'consolidated_clinic_entries', 'consolidated_lab_entries', 'consolidated_entries',
+        'monthly_adjustments', 'adjustments', 'attendance_log', 'leave_log'
       ];
 
       for (const t of tableNames) {
@@ -743,6 +745,7 @@ export const dbService = {
           admRows,
           consRows,
           altConsRows,
+          consClinicRows,
           adjTableRows1,
           adjTableRows2,
           adjTableRows3
@@ -773,6 +776,7 @@ export const dbService = {
           fetchTableSafe(supabase, 'admissions'),
           fetchTableSafe(supabase, 'consolidated_lab_entries'),
           fetchTableSafe(supabase, 'consolidated_entries'),
+          fetchTableSafe(supabase, 'consolidated_clinic_entries'),
           fetchTableSafe(supabase, 'monthly_adjustments'),
           fetchTableSafe(supabase, 'adjustments'),
           fetchTableSafe(supabase, 'ncd_monthly_adjustments')
@@ -1085,6 +1089,64 @@ export const dbService = {
             };
           }).filter((e: any) => e.id);
           state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], parsedCons, ['id', '_id']);
+        }
+
+        // Merge Consolidated Clinic Entries from modular table 'consolidated_clinic_entries'
+        if (Array.isArray(consClinicRows) && consClinicRows.length > 0) {
+          const parsedClinicCons = consClinicRows.map((r: any) => {
+            let raw = r.data;
+            if (typeof raw === 'string') {
+              try { raw = JSON.parse(raw); } catch { raw = {}; }
+            }
+            if (!raw || typeof raw !== 'object') raw = {};
+            const gross = Number(r.grossAmount ?? r.gross_amount ?? raw.grossAmount ?? raw.gross_amount ?? 0);
+            const discount = Number(r.discountAmount ?? r.discount_amount ?? raw.discountAmount ?? raw.discount_amount ?? 0);
+            const net = Number(r.netPayable ?? r.net_payable ?? raw.netPayable ?? raw.net_payable ?? Math.max(0, gross - discount));
+            const cash = Number(r.cashCollected ?? r.cash_collected ?? raw.cashCollected ?? raw.cash_collected ?? 0);
+            const due = Number(r.dueAmount ?? r.due_amount ?? raw.dueAmount ?? raw.due_amount ?? Math.max(0, net - cash));
+            const docPC = Number(r.doctorCommissionPaid ?? r.doctor_commission_paid ?? raw.doctorCommissionPaid ?? raw.doctor_commission_paid ?? 0);
+            const otFee = Number(r.otChargesPaid ?? r.ot_charges_paid ?? raw.otChargesPaid ?? raw.ot_charges_paid ?? 0);
+            const normDate = normalizeDate(r.date || raw.date || '') || r.date || raw.date;
+            const bd = r.breakdown || raw.breakdown || {};
+
+            return {
+              ...raw,
+              ...r,
+              id: String(r.id || raw.id || r._id || raw._id || '').trim(),
+              date: normDate,
+              shift: r.shift || raw.shift || 'Full Day',
+              entryType: r.entryType || r.entry_type || raw.entryType || raw.entry_type || 'daily',
+              grossAmount: gross,
+              gross_amount: gross,
+              discountAmount: discount,
+              discount_amount: discount,
+              netPayable: net,
+              net_payable: net,
+              cashCollected: cash,
+              cash_collected: cash,
+              dueAmount: due,
+              due_amount: due,
+              doctorCommissionPaid: docPC,
+              doctor_commission_paid: docPC,
+              otChargesPaid: otFee,
+              ot_charges_paid: otFee,
+              totalPatients: Number(r.totalPatients ?? r.total_patients ?? raw.totalPatients ?? raw.total_patients ?? 0),
+              totalIndoorRevenue: Number(bd.totalIndoorRevenue || r.total_indoor_revenue || raw.totalIndoorRevenue || 0),
+              admissionFee: Number(bd.admissionFee || r.admission_fee || raw.admissionFee || 0),
+              oxygenNebulization: Number(bd.oxygenNebulization || r.oxygen_nebulization || raw.oxygenNebulization || 0),
+              conservativeTreatment: Number(bd.conservativeTreatment || r.conservative_treatment || raw.conservativeTreatment || 0),
+              normalDelivery: Number(bd.normalDelivery || r.normal_delivery || raw.normalDelivery || 0),
+              dmcMinorSurgery: Number(bd.dmcMinorSurgery || r.dmc_minor_surgery || raw.dmcMinorSurgery || 0),
+              cesareanOperation: Number(bd.cesareanOperation || r.cesarean_operation || raw.cesareanOperation || 0),
+              dressing: Number(bd.dressing || r.dressing || raw.dressing || 0),
+              medicinePurchase: Number(bd.medicinePurchase || r.medicine_purchase || raw.medicinePurchase || 0),
+              medicineSales: Number(bd.medicineSales || r.medicine_sales || raw.medicineSales || 0),
+              others: Number(bd.others || r.others_revenue || raw.others || 0),
+              breakdown: bd,
+              notes: r.notes || raw.notes || ''
+            };
+          }).filter((e: any) => e.id);
+          state.consolidatedClinicEntries = mergeEntityList(state.consolidatedClinicEntries || [], parsedClinicCons, ['id', '_id']);
         }
 
         // Merge Monthly Adjustments from modular table(s) if available
@@ -1973,6 +2035,10 @@ export const dbService = {
             ? sanitizeList(appState.consolidatedLabEntries)
             : sanitizeList(legacyBase.consolidatedLabEntries || []);
 
+          const masterConsolidatedClinic = appState.consolidatedClinicEntries !== undefined 
+            ? sanitizeList(appState.consolidatedClinicEntries)
+            : sanitizeList(legacyBase.consolidatedClinicEntries || []);
+
           const masterReports = appState.reports !== undefined ? (appState.reports || []) : (legacyBase.reports || []);
           const masterPrescriptions = appState.prescriptions !== undefined ? (appState.prescriptions || []) : (legacyBase.prescriptions || []);
           const masterAppointments = appState.appointments !== undefined ? (appState.appointments || []) : (legacyBase.appointments || []);
@@ -2040,6 +2106,8 @@ export const dbService = {
             dueCollections: masterDues,
             indoorInvoices: masterIndoor,
             consolidatedLabEntries: masterConsolidated,
+            consolidatedClinicEntries: masterConsolidatedClinic,
+            consolidated_clinic_entries: masterConsolidatedClinic,
             reports: masterReports,
             prescriptions: masterPrescriptions,
             appointments: masterAppointments,
@@ -2220,6 +2288,17 @@ export const dbService = {
         }
       } catch (consErr) {
         console.warn("Modular consolidated lab entries sync notice:", consErr);
+      }
+
+      // 2k. Modular Sync for consolidated_clinic_entries
+      try {
+        const modernClinicConsolidated = (appState.consolidatedClinicEntries || []).filter((r: any) => isMultiTableDate(getRecordDate(r)));
+        if (modernClinicConsolidated.length > 0) {
+          const consClSync = await dbService.syncConsolidatedClinicEntriesToModularTable(modernClinicConsolidated);
+          if (consClSync) hasAnySaveSuccess = true;
+        }
+      } catch (consClErr) {
+        console.warn("Modular consolidated clinic entries sync notice:", consClErr);
       }
 
       // Master tables sync (patients, doctors, referrars, tests, reagents, employees)
@@ -3972,6 +4051,203 @@ export const dbService = {
     return dbService.deleteConsolidatedEntryDirectly(idOrObj);
   },
 
+  getConsolidatedClinicEntries: (): DailyConsolidatedClinicEntry[] => {
+    try {
+      const candidates: any[] = [];
+      const keys = [
+        'ncd_consolidated_clinic_entries',
+        'ncd_consolidated_clinic_backup_vault',
+        'ncd_consolidated_clinic_entries_v1',
+        LOCAL_STORAGE_KEY,
+        'ncd_offline_cache_v1'
+      ];
+      keys.forEach(k => {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              candidates.push(...parsed);
+            } else if (parsed && typeof parsed === 'object') {
+              const rawCons = parsed.consolidatedClinicEntries || parsed.consolidated_clinic_entries;
+              if (Array.isArray(rawCons) && rawCons.length > 0) {
+                candidates.push(...rawCons);
+              }
+            }
+          }
+        } catch {}
+      });
+
+      if (candidates.length > 0) {
+        const seen = new Set<string>();
+        const uniqueList: DailyConsolidatedClinicEntry[] = [];
+        candidates.forEach((e: any, idx: number) => {
+          if (!e) return;
+          const cleanId = String(e.id || e._id || `DCCE-${e.date || 'entry'}-${e.shift || idx}-${idx}`).trim();
+          const sig = `${cleanId}_${e.date || ''}_${e.shift || ''}`;
+          if (!seen.has(sig)) {
+            seen.add(sig);
+            uniqueList.push({
+              ...e,
+              id: cleanId
+            });
+          }
+        });
+        return uniqueList;
+      }
+    } catch (e) {}
+    return [];
+  },
+
+  saveConsolidatedClinicEntries: (entries: DailyConsolidatedClinicEntry[]) => {
+    try {
+      const sanitized = (entries || []).map((e: any, idx: number) => ({
+        ...e,
+        id: String(e.id || e._id || `DCCE-${e.date || 'entry'}-${idx}-${Date.now()}`).trim()
+      }));
+      localStorage.setItem('ncd_consolidated_clinic_entries', JSON.stringify(sanitized));
+      localStorage.setItem('ncd_consolidated_clinic_backup_vault', JSON.stringify(sanitized));
+      try {
+        const cachedRaw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          cached.consolidatedClinicEntries = sanitized;
+          cached.last_updated_at = new Date().toISOString();
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cached));
+          localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
+        }
+      } catch (e) {}
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  saveSingleConsolidatedClinicEntry: (entry: DailyConsolidatedClinicEntry) => {
+    try {
+      const cleanId = String(entry.id || (entry as any)._id || '').trim();
+      const existing = dbService.getConsolidatedClinicEntries();
+      const filtered = existing.filter(e => String(e.id || (e as any)._id).trim() !== cleanId);
+      const updated = [entry, ...filtered];
+      dbService.saveConsolidatedClinicEntries(updated);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  saveConsolidatedClinicEntryDirectly: async (entry: DailyConsolidatedClinicEntry | any) => {
+    try {
+      if (!entry) return { success: false, error: 'No entry provided' };
+      const now = new Date().toISOString();
+      const entryId = String(entry.id || entry._id || '').trim();
+
+      // 0. Update all local storage keys immediately
+      try {
+        dbService.saveSingleConsolidatedClinicEntry(entry);
+      } catch (e) {}
+
+      if (!supabase) return { success: true };
+
+      // 1. Persist to ncd_state master archive
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
+        if (!cachedLegacyState) cachedLegacyState = {};
+        const existingNcd = Array.isArray(cachedLegacyState.consolidatedClinicEntries) 
+          ? cachedLegacyState.consolidatedClinicEntries 
+          : (Array.isArray(cachedLegacyState.consolidated_clinic_entries) ? cachedLegacyState.consolidated_clinic_entries : []);
+
+        const newArr = [entry, ...existingNcd.filter((x: any) => String(x.id || x._id || '').trim() !== entryId)];
+        cachedLegacyState.consolidatedClinicEntries = newArr;
+        cachedLegacyState.consolidated_clinic_entries = newArr;
+        cachedLegacyState.last_updated_at = now;
+
+        await supabase.from('ncd_state').upsert({
+          id: cachedLegacyRecordId || MASTER_RECORD_ID,
+          data: cachedLegacyState,
+          updated_at: now
+        }, { onConflict: 'id' });
+      } catch (sbErr) {
+        console.warn("[dbService] ncd_state clinic consolidated save notice:", sbErr);
+      }
+
+      // 2. Sync to modular tables 'consolidated_clinic_entries' and 'consolidated_entries'
+      try {
+        await dbService.syncConsolidatedClinicEntriesToModularTable([entry]);
+      } catch (modErr) {
+        console.warn("[dbService] Modular clinic consolidated save notice:", modErr);
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      console.warn("[dbService] saveConsolidatedClinicEntryDirectly notice:", e);
+      return { success: true, warning: e?.message };
+    }
+  },
+
+  deleteConsolidatedClinicEntry: async (idOrObj: string | any) => {
+    try {
+      if (!idOrObj) return { success: true };
+      const targetId = typeof idOrObj === 'string' ? idOrObj.trim() : String(idOrObj?.id || idOrObj?._id || '').trim();
+
+      // 1. Local update
+      const existing = dbService.getConsolidatedClinicEntries();
+      const updated = existing.filter(e => String(e.id || (e as any)._id || '').trim() !== targetId);
+      dbService.saveConsolidatedClinicEntries(updated);
+
+      if (!supabase) return { success: true };
+
+      // 2. ncd_state master sync
+      try {
+        if (!cachedLegacyState) {
+          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
+          if (data && data.length > 0) {
+            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
+            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
+            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
+          }
+        }
+        if (cachedLegacyState) {
+          const list = Array.isArray(cachedLegacyState.consolidatedClinicEntries) 
+            ? cachedLegacyState.consolidatedClinicEntries 
+            : (Array.isArray(cachedLegacyState.consolidated_clinic_entries) ? cachedLegacyState.consolidated_clinic_entries : []);
+          const filtered = list.filter((x: any) => String(x.id || x._id || '').trim() !== targetId);
+          cachedLegacyState.consolidatedClinicEntries = filtered;
+          cachedLegacyState.consolidated_clinic_entries = filtered;
+          cachedLegacyState.last_updated_at = new Date().toISOString();
+
+          await supabase.from('ncd_state').upsert({
+            id: cachedLegacyRecordId || MASTER_RECORD_ID,
+            data: cachedLegacyState,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+        }
+      } catch (err) {
+        console.warn("[dbService] deleteConsolidatedClinicEntry ncd_state notice:", err);
+      }
+
+      // 3. Delete from modular tables
+      try {
+        await supabase.from('consolidated_clinic_entries').delete().eq('id', targetId);
+        await supabase.from('consolidated_entries').delete().eq('id', targetId);
+      } catch (modDelErr) {
+        console.warn("[dbService] deleteConsolidatedClinicEntry modular notice:", modDelErr);
+      }
+
+      return { success: true };
+    } catch (e) {
+      console.warn("[dbService] deleteConsolidatedClinicEntry notice:", e);
+      return { success: true };
+    }
+  },
+
   getAutoBackupSettings: (): AutoBackupSettings => {
     try {
       const saved = localStorage.getItem('ncd_auto_backup_settings');
@@ -4528,6 +4804,77 @@ export const dbService = {
       return res1 || res2;
     } catch (e) {
       console.warn("syncConsolidatedLabEntriesToModularTable notice:", e);
+      return false;
+    }
+  },
+
+  syncConsolidatedClinicEntriesToModularTable: async (entries: any[]) => {
+    if (!supabase || !Array.isArray(entries) || entries.length === 0) return true;
+    try {
+      const now = new Date().toISOString();
+      const rows = entries.map((entry: any) => {
+        const id = String(entry.id || entry._id || `DCCE-${Date.now()}_${Math.random().toString(36).substring(2, 6)}`).trim();
+        const date = normalizeDate(entry.date || entry.created_at || now.split('T')[0]);
+        const shift = String(entry.shift || 'Full Day');
+        const entryType = String(entry.entryType || entry.entry_type || (shift === 'Monthly' ? 'monthly' : 'daily'));
+        const gross = Number(entry.grossAmount ?? entry.gross_amount ?? entry.gross ?? 0);
+        const discount = Number(entry.discountAmount ?? entry.discount_amount ?? entry.discount ?? 0);
+        const net = Number(entry.netPayable ?? entry.net_payable ?? Math.max(0, gross - discount));
+        const cash = Number(entry.cashCollected ?? entry.cash_collected ?? entry.cash ?? 0);
+        const due = Number(entry.dueAmount ?? entry.due_amount ?? Math.max(0, net - cash));
+        const docPC = Number(entry.doctorCommissionPaid ?? entry.doctor_commission_paid ?? entry.commission ?? 0);
+        const otFee = Number(entry.otChargesPaid ?? entry.ot_charges_paid ?? entry.ot_fee ?? 0);
+        const bd = entry.breakdown || {};
+
+        return {
+          id,
+          date,
+          shift,
+          entry_type: entryType,
+          entryType,
+          month: entry.month !== undefined ? entry.month : (date ? parseInt(date.split('-')[1], 10) - 1 : new Date().getMonth()),
+          year: entry.year !== undefined ? entry.year : (date ? parseInt(date.split('-')[0], 10) : new Date().getFullYear()),
+          entry_time: entry.entryTime || entry.entry_time || '',
+          operator_name: entry.operatorName || entry.operator_name || 'Cashier',
+          total_patients: Number(entry.totalPatients ?? entry.total_patients ?? 0),
+          total_tests: Number(entry.totalTests ?? entry.total_tests ?? 0),
+          gross_amount: gross,
+          grossAmount: gross,
+          discount_amount: discount,
+          discountAmount: discount,
+          net_payable: net,
+          netPayable: net,
+          cash_collected: cash,
+          cashCollected: cash,
+          due_amount: due,
+          dueAmount: due,
+          doctor_commission_paid: docPC,
+          doctorCommissionPaid: docPC,
+          ot_charges_paid: otFee,
+          otChargesPaid: otFee,
+          total_indoor_revenue: Number(bd.totalIndoorRevenue || entry.totalIndoorRevenue || 0),
+          admission_fee: Number(bd.admissionFee || entry.admissionFee || 0),
+          oxygen_nebulization: Number(bd.oxygenNebulization || entry.oxygenNebulization || 0),
+          conservative_treatment: Number(bd.conservativeTreatment || entry.conservativeTreatment || 0),
+          normal_delivery: Number(bd.normalDelivery || entry.normalDelivery || 0),
+          dmc_minor_surgery: Number(bd.dmcMinorSurgery || entry.dmcMinorSurgery || 0),
+          cesarean_operation: Number(bd.cesareanOperation || entry.cesareanOperation || 0),
+          dressing: Number(bd.dressing || entry.dressing || 0),
+          medicine_purchase: Number(bd.medicinePurchase || entry.medicinePurchase || 0),
+          medicine_sales: Number(bd.medicineSales || entry.medicineSales || 0),
+          others_revenue: Number(bd.others || entry.others || 0),
+          breakdown: bd,
+          notes: entry.notes || '',
+          data: entry,
+          updated_at: now
+        };
+      });
+
+      const res1 = await upsertTableSafe(supabase, 'consolidated_clinic_entries', rows);
+      const res2 = await upsertTableSafe(supabase, 'consolidated_entries', rows);
+      return res1 || res2;
+    } catch (e) {
+      console.warn("syncConsolidatedClinicEntriesToModularTable notice:", e);
       return false;
     }
   },
@@ -5441,6 +5788,40 @@ export interface DailyConsolidatedEntry {
     ecg: number;
     hormone: number;
     others: number;
+  };
+  notes: string;
+  createdAt: string;
+  entryType?: 'daily' | 'monthly';
+  month?: number;
+  year?: number;
+}
+
+export interface DailyConsolidatedClinicEntry {
+  id: string;
+  date: string;
+  shift: 'Full Day' | 'Morning' | 'Evening' | 'Night' | 'Monthly' | string;
+  entryTime: string;
+  operatorName: string;
+  totalPatients: number;
+  grossAmount: number;
+  discountAmount: number;
+  netPayable: number;
+  cashCollected: number;
+  dueAmount: number;
+  doctorCommissionPaid: number; // সার্জন/ডাক্তার ফি বা কমিশন
+  otChargesPaid: number;        // ওটি/এনেস্থেসিয়া চার্জ
+  breakdown: {
+    totalIndoorRevenue: number;   // ভর্তি রোগী বাবদ সকল টাকা একত্রে
+    admissionFee: number;         // এডমিশন ফি
+    oxygenNebulization: number;   // অক্সিজেন এবং নেবুলাইজেশন
+    conservativeTreatment: number;// কনজারভেティブ ট্রিটমেন্ট
+    normalDelivery: number;       // নরমাল ডেলিভারি
+    dmcMinorSurgery: number;      // ডিএমসি এবং মাইনর সার্জারি
+    cesareanOperation: number;    // সিজার সহ অন্যান্য অপারেশন
+    dressing: number;             // ড্রেসিং
+    medicinePurchase: number;     // মেডিসিন ক্রয়
+    medicineSales: number;        // মেডিসিন বিক্রয়
+    others: number;               // অন্যান্য
   };
   notes: string;
   createdAt: string;

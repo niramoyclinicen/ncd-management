@@ -48,6 +48,8 @@ interface AccountingPageProps {
   setDiagnosticSettings: React.Dispatch<React.SetStateAction<any>>;
   consolidatedLabEntries?: any[];
   setConsolidatedLabEntries?: React.Dispatch<React.SetStateAction<any[]>>;
+  consolidatedClinicEntries?: any[];
+  setConsolidatedClinicEntries?: React.Dispatch<React.SetStateAction<any[]>>;
   performBlockingSync: (overrides?: any) => Promise<boolean>;
 }
 
@@ -141,7 +143,8 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
   attendanceLog = {}, setAttendanceLog, leaveLog = {}, setLeaveLog,
   monthlyRoster = {}, setMonthlyRoster, monthlyAdjustments, setMonthlyAdjustments, patients = [], doctors = [],
   diagnosticSettings = {}, setDiagnosticSettings, performBlockingSync,
-  consolidatedLabEntries = [], setConsolidatedLabEntries
+  consolidatedLabEntries = [], setConsolidatedLabEntries,
+  consolidatedClinicEntries = [], setConsolidatedClinicEntries
 }) => {
   const [activeView, setActiveView] = useState<'main' | 'diagnostic' | 'clinic_accounts' | 'employee_info' | 'medicine_accounts' | 'consolidated'>('main');
 
@@ -234,6 +237,8 @@ const AccountingPage: React.FC<AccountingPageProps> = ({
             medicines={medicines}
             consolidatedLabEntries={consolidatedLabEntries}
             setConsolidatedLabEntries={setConsolidatedLabEntries}
+            consolidatedClinicEntries={consolidatedClinicEntries}
+            setConsolidatedClinicEntries={setConsolidatedClinicEntries}
             monthlyAdjustments={monthlyAdjustments}
             setMonthlyAdjustments={setMonthlyAdjustments}
             performBlockingSync={performBlockingSync}

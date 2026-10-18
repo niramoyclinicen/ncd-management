@@ -408,6 +408,11 @@ export function useAppData() {
     // Merge overrides with current state if any, otherwise use current state
     if (overrides?.labInvoices) {
       setLabInvoices(overrides.labInvoices);
+      try {
+        await dbService.syncLabInvoicesToModularTable(overrides.labInvoices);
+      } catch (e) {
+        console.error("Error syncing Lab Invoices:", e);
+      }
     }
     if (overrides?.dueCollections) {
       setDueCollections(overrides.dueCollections);

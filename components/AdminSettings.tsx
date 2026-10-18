@@ -139,6 +139,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; tablesFound?: Record<string, number> } | null>(null);
   const [isReloadingFromCloud, setIsReloadingFromCloud] = useState(false);
+  const [isPushingLocal, setIsPushingLocal] = useState(false);
   const [showConfigInputs, setShowConfigInputs] = useState(!supConfig.isConnected);
 
   // Medicine Multi-Table Migration State
@@ -731,6 +732,34 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
     }
   };
 
+  const handlePushLocalToCloud = async () => {
+    const confirmPush = window.confirm("আপনি কি আপনার এই ব্রাউজারে থাকা সমস্ত লোকাল ডাটা (টেস্ট তালিকা, পেশেন্ট, ইনভয়েস ইত্যাদি) Supabase ক্লাউডে আপলোড ও সিঙ্ক করতে চান?");
+    if (!confirmPush) return;
+
+    setIsPushingLocal(true);
+    try {
+      const localData = dbService.getLocalBackup();
+      if (!localData || Object.keys(localData).length === 0) {
+        alert("লোকাল ব্রাউজারে কোনো ডাটা পাওয়া যায়নি!");
+        setIsPushingLocal(false);
+        return;
+      }
+
+      if (performBlockingSync) {
+        await performBlockingSync(localData);
+      } else {
+        await dbService.saveToCloud(localData);
+      }
+
+      alert("সফলভাবে আপনার ব্রাউজারের সমস্ত লোকাল ডাটা Supabase ক্লাউডে আপলোড ও সিঙ্ক করা হয়েছে! এখন অন্য সব কম্পিউটার থেকেও এই ডাটা দেখা যাবে।");
+      window.location.reload();
+    } catch (e: any) {
+      alert("ক্লাউডে আপলোড ব্যর্থ: " + (e.message || "Unknown error"));
+    } finally {
+      setIsPushingLocal(false);
+    }
+  };
+
   const handleManualRestore = async () => {
     if (!pastedJson.trim()) return;
     try {
@@ -793,14 +822,20 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
 
   const handleDownloadBackup = async () => {
     try {
-      const state = await dbService.loadFromCloud();
+      let state: any = null;
+      try {
+        state = dbService.getLocalBackup();
+      } catch (e) {}
+      if (!state || Object.keys(state).length === 0) {
+        state = await dbService.loadFromCloud();
+      }
       generateOfflineViewer(state);
       setSuccessMsg('অফলাইন ব্যাকআপ ভিউয়ার (HTML) ডাউনলোড শুরু হয়েছে!');
       setTimeout(() => setSuccessMsg(''), 3000);
       
       if (resetStep === 2) setResetStep(3);
     } catch (err) {
-      alert('ব্যাকআপ তৈরি করতে সমস্যা হয়েছে! ইন্টারনেট কানেকশন চেক করুন।');
+      alert('ব্যাকআপ তৈরি করতে সমস্যা হয়েছে!');
     }
   };
 
@@ -2024,6 +2059,18 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                     >
                       <RefreshIcon size={16} className={isReloadingFromCloud ? 'animate-spin' : ''} />
                       {isReloadingFromCloud ? 'লোড হচ্ছে...' : '⚡ ক্লাউড ডাটা রিফ্রেশ'}
+                    </button>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handlePushLocalToCloud}
+                      disabled={isPushingLocal}
+                      className="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black py-3.5 px-4 rounded-xl uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg"
+                    >
+                      <Upload size={16} className={isPushingLocal ? 'animate-spin' : ''} />
+                      {isPushingLocal ? 'আপলোড ও সিঙ্ক হচ্ছে...' : '🚀 ব্রাউজারের লোকাল ডাটা সুপাবেজে আপলোড ও সিঙ্ক করুন'}
                     </button>
                   </div>
 

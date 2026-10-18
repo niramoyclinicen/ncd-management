@@ -1201,10 +1201,10 @@ export const dbService = {
         }
 
         // B. Merge entity tables from modular Supabase tables
-        if (patientRows && patientRows.length > 0) state.patients = mergeEntityList(state.patients || [], patientRows, ['id', 'patient_id', 'pt_id']);
-        if (doctorRows && doctorRows.length > 0) state.doctors = mergeEntityList(state.doctors || [], doctorRows, ['id', 'doctor_id']);
+        if (patientRows && patientRows.length > 0) state.patients = mergeEntityList(state.patients || [], patientRows, ['pt_id', 'patient_id', 'id']);
+        if (doctorRows && doctorRows.length > 0) state.doctors = mergeEntityList(state.doctors || [], doctorRows, ['doctor_id', 'id']);
         const combinedRefRows = [...(referrerRows || []), ...(altReferrerRows || [])];
-        if (combinedRefRows.length > 0) state.referrars = mergeEntityList(state.referrars || [], combinedRefRows, ['id', 'referrar_id', 'ref_id', 'referrer_id']);
+        if (combinedRefRows.length > 0) state.referrars = mergeEntityList(state.referrars || [], combinedRefRows, ['ref_id', 'referrer_id', 'referrar_id', 'id']);
         
         // Merge Tests from tests, test, lab_tests, and test_info modular tables
         const combinedTestRows = [
@@ -1754,7 +1754,24 @@ export const dbService = {
       if (!Array.isArray(state.salesInvoices)) state.salesInvoices = [];
       if (!Array.isArray(state.purchaseInvoices)) state.purchaseInvoices = [];
       if (!Array.isArray(state.employees)) state.employees = [];
-      if (!Array.isArray(state.medicines)) state.medicines = [];
+      if (!Array.isArray(state.medicines) || state.medicines.length === 0) {
+        state.medicines = [
+          { id: 'MED-01', tradeName: 'Cefixime 200mg', genericName: 'Cefixime Trihydrate', unit: 'Cap', sellPrice: 25 },
+          { id: 'MED-02', tradeName: 'Paracetamol 500mg', genericName: 'Paracetamol', unit: 'Tab', sellPrice: 2 },
+          { id: 'MED-03', tradeName: 'Esomeprazole 20mg', genericName: 'Esomeprazole Magnesium', unit: 'Cap', sellPrice: 7 },
+          { id: 'MED-04', tradeName: 'Cefuroxime 500mg', genericName: 'Cefuroxime Axetil', unit: 'Cap', sellPrice: 35 },
+          { id: 'MED-05', tradeName: 'Metronidazole 400mg', genericName: 'Metronidazole', unit: 'Tab', sellPrice: 3 },
+          { id: 'MED-06', tradeName: 'Ketorolac 10mg', genericName: 'Ketorolac Tromethamine', unit: 'Tab', sellPrice: 10 },
+          { id: 'MED-07', tradeName: 'Amoxicillin 500mg', genericName: 'Amoxicillin Trihydrate', unit: 'Cap', sellPrice: 6 },
+          { id: 'MED-08', tradeName: 'Calcium + Vit D3', genericName: 'Calcium Carbonate + Cholecalciferol', unit: 'Tab', sellPrice: 8 },
+          { id: 'MED-09', tradeName: 'Napa Extra', genericName: 'Paracetamol + Caffeine', unit: 'Tab', sellPrice: 3 },
+          { id: 'MED-10', tradeName: 'Seclo 20mg', genericName: 'Omeprazole', unit: 'Cap', sellPrice: 6 },
+          { id: 'MED-11', tradeName: 'Monas 10mg', genericName: 'Montelukast Sodium', unit: 'Tab', sellPrice: 15 },
+          { id: 'MED-12', tradeName: 'Pantix 40mg', genericName: 'Pantoprazole', unit: 'Tab', sellPrice: 8 }
+        ];
+      } else {
+        state.medicines = state.medicines.map((m: any) => ({ ...m, id: m.id || 'MED-' + Math.random().toString(36).substring(2, 7) }));
+      }
       if (!Array.isArray(state.dueCollections)) state.dueCollections = [];
       if (!Array.isArray(state.reports)) state.reports = [];
       if (!Array.isArray(state.admissions)) state.admissions = [];
@@ -2513,10 +2530,18 @@ export const dbService = {
         // Merge invoices and collections
         ['labInvoices', 'indoorInvoices', 'dueCollections', 'salesInvoices', 'purchaseInvoices', 'patients', 'doctors', 'medicines', 'consolidatedLabEntries'].forEach(col => {
           const sourceList = cand[col] || (col === 'consolidatedLabEntries' ? (cand.consolidated_lab_entries || cand.consolidatedEntries) : undefined);
-          if (Array.isArray(sourceList) && sourceList.length > 0) {
-            const idFields = col === 'dueCollections' ? ['collection_id', 'id'] : (col === 'consolidatedLabEntries' ? ['id', '_id'] : ['invoice_id', 'daily_id', 'invoiceId', 'id']);
+            const idFields = col === 'dueCollections' 
+              ? ['collection_id', 'id'] 
+              : col === 'consolidatedLabEntries' 
+                ? ['id', '_id'] 
+                : col === 'patients' 
+                  ? ['pt_id', 'patient_id', 'id'] 
+                  : col === 'doctors' 
+                    ? ['doctor_id', 'id'] 
+                    : col === 'medicines' 
+                      ? ['id', 'tradeName', 'trade_name'] 
+                      : ['invoice_id', 'daily_id', 'invoiceId', 'id'];
             mergedBackup[col] = mergeEntityList(mergedBackup[col] || [], sourceList, idFields);
-          }
         });
       });
 

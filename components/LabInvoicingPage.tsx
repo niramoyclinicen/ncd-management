@@ -534,9 +534,15 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const filterAddress = (patientSearchFilters?.address || '').toLowerCase();
     const filterThana = (patientSearchFilters?.thana || '').toLowerCase();
     const filterAge = String(patientSearchFilters?.age || '');
+    const seenIds = new Set<string>();
 
     return safePatients.filter(p => {
       if (!p) return false;
+      const pid = String(p.pt_id || '').trim();
+      if (pid) {
+        if (seenIds.has(pid)) return false;
+        seenIds.add(pid);
+      }
       const pAge = String(p.ageY || '');
       return (p.pt_name || '').toLowerCase().includes(filterName) &&
              (p.mobile || '').toLowerCase().includes(filterMobile) &&
@@ -1462,9 +1468,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             <div className="flex-1 overflow-y-auto p-4 no-scrollbar bg-slate-900/20">
               {filteredPatients.length > 0 ? (
                 <div className="grid grid-cols-1 gap-2">
-                  {filteredPatients.map(p => (
+                  {filteredPatients.map((p, idx) => (
                     <div 
-                      key={p.pt_id}
+                      key={`${p.pt_id || 'pt'}-${idx}`}
                       onClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
                       onDoubleClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
                       className="px-6 py-4 bg-slate-800/20 hover:bg-blue-600/10 border border-slate-800 hover:border-blue-500/50 rounded-2xl grid grid-cols-12 gap-5 items-center cursor-pointer transition-all group active:scale-[0.99]"

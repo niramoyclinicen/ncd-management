@@ -1435,6 +1435,60 @@ const ClinicAccountsPage: React.FC<any> = ({
         });
     }, [collectionReportData]);
 
+    // Top overview cards stats for Today, Month, Year Hospital Cash & Total Due
+    const stats = useMemo(() => {
+        const now = new Date();
+        const todayString = now.toISOString().split('T')[0];
+        const currentMonthString = todayString.substring(0, 7);
+        const currentYearString = now.getFullYear().toString();
+
+        const calculateStatsForPeriod = (period: string, type: 'day' | 'month' | 'year') => {
+            let totalBill = 0;
+            let hospitalNet = 0;
+
+            const safeInvoices = Array.isArray(invoices) ? invoices : [];
+            safeInvoices.forEach((inv: any) => {
+                if (!inv) return;
+                const dateToUse = inv.admission_date || inv.invoice_date;
+                if (!dateToUse || typeof dateToUse !== 'string') return;
+
+                const isMatch = type === 'day' ? dateToUse === period 
+                              : type === 'month' ? dateToUse.startsWith(period)
+                              : dateToUse.startsWith(period);
+
+                if (isMatch && inv.status !== 'Cancelled' && inv.status !== 'Deleted') {
+                    if (inv.status !== 'Returned') {
+                        totalBill += (inv.total_bill || 0);
+                        const catData = categorizeInvoiceData(inv);
+                        hospitalNet += catData.clinicNet;
+                    }
+                }
+                
+                if (inv.status === 'Returned') {
+                    const returnDate = inv.return_date || dateToUse;
+                    const isReturnMatch = type === 'day' ? returnDate === period 
+                                        : type === 'month' ? (typeof returnDate === 'string' && returnDate.startsWith(period))
+                                        : (typeof returnDate === 'string' && returnDate.startsWith(period));
+                    
+                    if (isReturnMatch) {
+                        const catData = categorizeInvoiceData(inv);
+                        hospitalNet += catData.clinicNet;
+                    }
+                }
+            });
+
+            return { totalBill, hospitalNet };
+        };
+
+        const today = calculateStatsForPeriod(todayString, 'day');
+        const month = calculateStatsForPeriod(currentMonthString, 'month');
+        const year = calculateStatsForPeriod(currentYearString, 'year');
+        const safeInvoices = Array.isArray(invoices) ? invoices : [];
+        const totalDue = safeInvoices.filter((i: any) => i && i.status !== 'Returned' && i.status !== 'Cancelled' && i.status !== 'Deleted').reduce((s: number, i: any) => s + (i.due_bill || 0), 0);
+
+        return { today, month, year, totalDue };
+    }, [invoices, categorizeInvoiceData]);
+
     const handlePrintCollectionReport = () => {
         const win = window.open('', '_blank');
         if (!win) return;
@@ -1909,6 +1963,79 @@ const ClinicAccountsPage: React.FC<any> = ({
             </header>
 
             <main className="flex-1 w-full px-3 sm:px-5 lg:px-6 py-6 space-y-8 max-w-[98%] 2xl:max-w-[1800px] mx-auto">
+                {/* 4 Overview Display Boxes (Off-White Design with Centered Headings - Moved from Indoor Invoice) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 no-print animate-fade-in">
+                    {/* Today Hospital Cash */}
+                    <div className="bg-[#faf9f6] p-4 rounded-2xl border border-stone-200/90 shadow-md shadow-slate-950/20 relative overflow-hidden transition-all hover:shadow-lg text-slate-800">
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-emerald-500"></div>
+                        <div className="text-center pt-1 pb-2 border-b border-stone-200/80">
+                            <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider">Today Hospital Cash</h4>
+                            <div className="text-[10px] font-bold text-emerald-600 mt-0.5">টুডে হসপিটাল ক্যাশ</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-3 bg-white p-2.5 rounded-xl border border-stone-200/90 shadow-inner">
+                            <div className="text-center border-r border-stone-200 pr-2">
+                                <div className="text-[9.5px] uppercase text-stone-500 font-bold tracking-wider">টোটাল বিল</div>
+                                <div className="text-xs font-mono font-bold text-slate-800 mt-0.5">৳{stats.today.totalBill.toLocaleString()}</div>
+                            </div>
+                            <div className="text-center pl-2">
+                                <div className="text-[9.5px] uppercase text-stone-500 font-bold tracking-wider">হসপিটাল নেট</div>
+                                <div className="text-sm font-mono font-black text-emerald-600 mt-0.5">৳{stats.today.hospitalNet.toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Monthly Hospital Cash */}
+                    <div className="bg-[#faf9f6] p-4 rounded-2xl border border-stone-200/90 shadow-md shadow-slate-950/20 relative overflow-hidden transition-all hover:shadow-lg text-slate-800">
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-blue-500"></div>
+                        <div className="text-center pt-1 pb-2 border-b border-stone-200/80">
+                            <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider">Monthly Hospital Cash</h4>
+                            <div className="text-[10px] font-bold text-blue-600 mt-0.5">মান্থলি হসপিটাল ক্যাশ</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-3 bg-white p-2.5 rounded-xl border border-stone-200/90 shadow-inner">
+                            <div className="text-center border-r border-stone-200 pr-2">
+                                <div className="text-[9.5px] uppercase text-stone-500 font-bold tracking-wider">টোটাল বিল</div>
+                                <div className="text-xs font-mono font-bold text-slate-800 mt-0.5">৳{stats.month.totalBill.toLocaleString()}</div>
+                            </div>
+                            <div className="text-center pl-2">
+                                <div className="text-[9.5px] uppercase text-stone-500 font-bold tracking-wider">হসপিটাল নেট</div>
+                                <div className="text-sm font-mono font-black text-blue-600 mt-0.5">৳{stats.month.hospitalNet.toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Yearly Hospital Cash */}
+                    <div className="bg-[#faf9f6] p-4 rounded-2xl border border-stone-200/90 shadow-md shadow-slate-950/20 relative overflow-hidden transition-all hover:shadow-lg text-slate-800">
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-purple-500"></div>
+                        <div className="text-center pt-1 pb-2 border-b border-stone-200/80">
+                            <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider">Yearly Hospital Cash</h4>
+                            <div className="text-[10px] font-bold text-purple-600 mt-0.5">ইয়ারলি হসপিটাল ক্যাশ</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-3 bg-white p-2.5 rounded-xl border border-stone-200/90 shadow-inner">
+                            <div className="text-center border-r border-stone-200 pr-2">
+                                <div className="text-[9.5px] uppercase text-stone-500 font-bold tracking-wider">টোটাল বিল</div>
+                                <div className="text-xs font-mono font-bold text-slate-800 mt-0.5">৳{stats.year.totalBill.toLocaleString()}</div>
+                            </div>
+                            <div className="text-center pl-2">
+                                <div className="text-[9.5px] uppercase text-stone-500 font-bold tracking-wider">হসপিটাল নেট</div>
+                                <div className="text-sm font-mono font-black text-purple-600 mt-0.5">৳{stats.year.hospitalNet.toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Total Outstanding Due */}
+                    <div className="bg-[#faf9f6] p-4 rounded-2xl border border-stone-200/90 shadow-md shadow-slate-950/20 relative overflow-hidden transition-all hover:shadow-lg text-slate-800">
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-rose-500"></div>
+                        <div className="text-center pt-1 pb-2 border-b border-stone-200/80">
+                            <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider">Total Outstanding Due</h4>
+                            <div className="text-[10px] font-bold text-rose-600 mt-0.5">টোটাল আউটস্ট্যান্ডিং ডিউ</div>
+                        </div>
+                        <div className="mt-3 bg-white p-2.5 rounded-xl border border-rose-200/90 text-center flex flex-col items-center justify-center shadow-inner">
+                            <div className="text-[9.5px] uppercase text-rose-500 font-bold tracking-wider">সর্বমোট বকেয়া (Due Balance)</div>
+                            <div className="text-sm font-mono font-black text-rose-600 mt-0.5">৳{stats.totalDue.toLocaleString()}</div>
+                        </div>
+                    </div>
+                </div>
+
                 {viewMode === 'detailed' && (
                     <div className="w-full space-y-8 animate-fade-in">
                         {ledgerHistoryItem && <HistoryModal item={ledgerHistoryItem} onClose={() => setLedgerHistoryItem(null)} />}

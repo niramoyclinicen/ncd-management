@@ -177,8 +177,15 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
     setErrorMessage('');
   }, [patients]);
 
+  const safePatients = useMemo(() => {
+    const map = new Map<string, Patient>();
+    (Array.isArray(patients) ? patients : []).forEach(p => {
+      if (p && p.pt_id) map.set(p.pt_id, p);
+    });
+    return Array.from(map.values());
+  }, [patients]);
+
   const filteredPatients = useMemo(() => {
-    const safePatients = (Array.isArray(patients) ? patients : []).filter(p => p && typeof p === 'object' && p.pt_id);
     if (!searchTerm.trim()) return safePatients;
     
     const term = searchTerm.toLowerCase().trim();
@@ -192,7 +199,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
         (patient.district || '').toLowerCase().includes(term)
       )
     );
-  }, [searchTerm, patients]);
+  }, [searchTerm, safePatients]);
 
   const uniqueNames = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).filter(p => p && typeof p === 'object').map(p => p?.pt_name).filter(Boolean))).slice(0, 100), [patients]);
   const uniqueAddresses = useMemo(() => Array.from(new Set((Array.isArray(patients) ? patients : []).filter(p => p && typeof p === 'object').map(p => p?.address).filter(Boolean))).slice(0, 50), [patients]);
@@ -408,7 +415,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
 
   const [showNameDropdown, setShowNameDropdown] = useState(false);
 
-  const inputBaseClasses = "py-1.5 px-3 mt-1 block w-full border border-sky-700/60 rounded-md shadow-sm text-sm font-semibold bg-slate-900 text-white placeholder-slate-400 focus:bg-slate-950 focus:ring-2 focus:ring-blue-400 focus:border-blue-400";
+  const inputBaseClasses = "py-2 px-3 mt-1 block w-full border border-sky-400/80 rounded-md shadow-sm text-sm font-semibold bg-[#0a192f] text-white placeholder-sky-200/50 focus:bg-slate-900 focus:ring-2 focus:ring-blue-400 focus:border-blue-400";
   const labelBaseClasses = "block text-sm font-bold text-sky-200";
   const actionButtonClasses = "px-4 py-2 text-sm font-bold rounded-md flex justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-sky-950 transition-colors min-w-[100px]";
 
@@ -477,31 +484,17 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                 </div>
             )}
             
-            {/* Header Area */}
+            {/* Header Area with Title on Left and Scan/Search on Right */}
             {!isEmbedded && (
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-sky-700/80">
-                    <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Patient Information</h2>
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-4 border-b border-sky-700/80">
+                    <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight shrink-0">Patient Information</h2>
                     
-                    {/* Quick Stats */}
-                    <div className="flex items-center gap-4 text-xs font-medium">
-                        {searchTerm && (
-                            <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-sky-700/60">
-                                <span className="text-slate-400 mr-2">Search Result:</span>
-                                <span className="text-emerald-400 font-bold">{filteredPatients.length.toLocaleString()}</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-            
-            {/* Mobile-friendly Search Box (Full width on mobile) */}
-            {!isEmbedded && (
-                <div className="w-full mb-6 block lg:hidden space-y-3">
-                    <div>
-                        <label className={labelBaseClasses}>📷 Scan Barcode</label>
+                    <div className="flex-1"></div>
+
+                    <div className="flex items-center gap-3">
                         <input 
                             type="text" 
-                            placeholder="Tap here and scan..." 
+                            placeholder="📷 Scan Barcode..." 
                             onChange={(e) => {
                                 const val = e.target.value.trim();
                                 if(val) {
@@ -511,21 +504,18 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                                         setSelectedPatientId(found.pt_id);
                                         setIsEditing(false);
                                         e.target.value = '';
-                                        window.scrollTo({top: 0, behavior: 'smooth'});
                                     }
                                 }
                             }} 
-                            className={`${inputBaseClasses} py-2 px-3 bg-blue-950/50 border-blue-500/50 placeholder-blue-300 text-blue-100`} 
+                            className="py-1.5 px-3 bg-blue-950/50 border border-blue-500/50 rounded-md text-xs text-blue-100 placeholder-blue-300 w-44" 
+                            title="Click here and scan barcode"
                         />
-                    </div>
-                    <div>
-                        <label className={labelBaseClasses}>Search Patient</label>
                         <input 
                             type="search" 
-                            placeholder="Search Name / ID / Mobile / Area" 
+                            placeholder="Search Name / ID / Mobile..." 
                             value={searchTerm} 
                             onChange={(e) => setSearchTerm(e.target.value)} 
-                            className={`${inputBaseClasses} py-2 px-3 bg-slate-950/50`} 
+                            className="py-1.5 px-3 bg-sky-950/80 border border-sky-700/60 rounded-md text-xs text-white placeholder-slate-400 w-56" 
                         />
                     </div>
                 </div>
@@ -545,36 +535,6 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                         <button type="button" onClick={() => { if(selectedPatientId) { const p = patients.find(x => x.pt_id === selectedPatientId); if(p) { setFormData(p); setIsEditing(true); } } }} disabled={!selectedPatientId} className={`${actionButtonClasses} text-slate-900 bg-amber-400 hover:bg-amber-500 disabled:opacity-30 disabled:bg-slate-700 disabled:text-slate-500`}>Edit</button>
                         <button type="button" onClick={() => setShowDeleteConfirm(true)} disabled={!selectedPatientId} className={`${actionButtonClasses} text-white bg-red-500 hover:bg-red-600 disabled:opacity-30 disabled:bg-slate-700 disabled:text-slate-500`}>Delete</button>
                     </div>
-
-                    <div className="hidden lg:flex w-auto gap-2">
-                        <div className="relative w-64">
-                            <input 
-                                type="text" 
-                                placeholder="📷 Scan Barcode..." 
-                                onChange={(e) => {
-                                    const val = e.target.value.trim();
-                                    if(val) {
-                                        const found = patients.find(p => p.pt_id === val);
-                                        if(found) {
-                                            setFormData(found);
-                                            setSelectedPatientId(found.pt_id);
-                                            setIsEditing(false);
-                                            e.target.value = ''; // clear after scan
-                                        }
-                                    }
-                                }} 
-                                className={`${inputBaseClasses} py-1.5 px-3 bg-blue-950/50 border-blue-500/50 placeholder-blue-300 text-blue-100 focus:ring-blue-400`} 
-                                title="Click here and scan barcode"
-                            />
-                        </div>
-                        <input 
-                            type="search" 
-                            placeholder="Search Name / ID / Mobile / Area" 
-                            value={searchTerm} 
-                            onChange={(e) => setSearchTerm(e.target.value)} 
-                            className={`${inputBaseClasses} py-1.5 px-3 w-64`} 
-                        />
-                    </div>
                 </div>
             )}
             
@@ -583,7 +543,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                     <div className="space-y-4">
                         {/* Excel-style Instant Match Patient Name Input */}
                         <div className="relative">
-                            <label className={labelBaseClasses}>Patient Name * (টাইপ করলেই এক্সেল টেবিল শো হবে)</label>
+                            <label className={labelBaseClasses}>Patient Name * (টাইপ করলেই অফ-হোয়াইট টেবিল শো হবে)</label>
                             <input 
                                 type="text" 
                                 name="pt_name" 
@@ -594,6 +554,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                                 }}
                                 onFocus={() => setShowNameDropdown(true)}
                                 required 
+                                autoComplete="off"
                                 className={`${inputBaseClasses} py-2 px-3`} 
                                 placeholder="নাম লিখে খুঁজুন বা নতুন নাম দিন..." 
                             />
@@ -601,41 +562,41 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                             {showNameDropdown && (
                                 <>
                                     <div className="fixed inset-0 z-40" onClick={() => setShowNameDropdown(false)} />
-                                    <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border-2 border-sky-600 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto custom-scrollbar">
-                                        <div className="p-2 bg-slate-950 border-b border-sky-800 flex items-center justify-between text-xs font-bold text-sky-300">
-                                            <span>এক্সেল শিট মোড: বিদ্যমান রোগী তালিকা (ক্লিক করে সিলেক্ট করুন)</span>
-                                            <button type="button" onClick={() => setShowNameDropdown(false)} className="text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-800">বন্ধ করুন ✕</button>
-                                        </div>
+                                    <div className="absolute left-0 right-0 top-full mt-1 bg-[#faf9f6] border-2 border-sky-500 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto custom-scrollbar text-slate-900">
                                         <table className="w-full text-left text-xs">
-                                            <thead className="bg-slate-950 text-slate-400 font-bold sticky top-0 border-b border-slate-800">
+                                            <thead className="bg-slate-200 text-slate-700 font-bold sticky top-0 border-b border-slate-300">
                                                 <tr>
                                                     <th className="p-2">ID</th>
                                                     <th className="p-2">Name</th>
                                                     <th className="p-2">Age</th>
+                                                    <th className="p-2">Gender</th>
+                                                    <th className="p-2">Care Of</th>
                                                     <th className="p-2">Mobile</th>
                                                     <th className="p-2">Address</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-800 font-medium">
-                                                {(Array.isArray(patients) ? patients : [])
+                                            <tbody className="divide-y divide-slate-200 font-medium">
+                                                {safePatients
                                                   .filter(p => p && p.pt_name && (!formData.pt_name || p.pt_name.toLowerCase().includes(formData.pt_name.toLowerCase()) || p.pt_id?.toLowerCase().includes(formData.pt_name.toLowerCase()) || p.mobile?.includes(formData.pt_name)))
                                                   .slice(0, 20)
-                                                  .map(pat => (
+                                                  .map((pat, pIdx) => (
                                                     <tr 
-                                                        key={pat.pt_id}
+                                                        key={`${pat.pt_id || pIdx}-${pIdx}`}
                                                         onClick={() => {
                                                             setFormData(pat);
                                                             setSelectedPatientId(pat.pt_id);
                                                             setIsEditing(false);
                                                             setShowNameDropdown(false);
                                                         }}
-                                                        className="hover:bg-sky-950/80 cursor-pointer transition-colors"
+                                                        className="hover:bg-sky-100 cursor-pointer transition-colors"
                                                     >
-                                                        <td className="p-2 font-mono text-sky-300 font-bold">{pat.pt_id}</td>
-                                                        <td className="p-2 font-bold text-white">{pat.pt_name}</td>
-                                                        <td className="p-2 text-amber-300">{pat.ageY ? `${pat.ageY}Y` : ''}</td>
-                                                        <td className="p-2 font-mono text-emerald-300">{pat.mobile}</td>
-                                                        <td className="p-2 text-slate-300 truncate max-w-[130px]">{pat.address}</td>
+                                                        <td className="p-2 font-mono text-blue-800 font-bold">{pat.pt_id}</td>
+                                                        <td className="p-2 font-bold text-slate-900">{pat.pt_name}</td>
+                                                        <td className="p-2 text-slate-700">{pat.ageY ? `${pat.ageY}Y` : ''}</td>
+                                                        <td className="p-2 text-slate-700">{pat.gender || ''}</td>
+                                                        <td className="p-2 text-slate-700">{pat.co_name ? `${pat.co_pref || 'S/O'} ${pat.co_name}` : ''}</td>
+                                                        <td className="p-2 font-mono text-emerald-800 font-semibold">{pat.mobile}</td>
+                                                        <td className="p-2 text-slate-600 truncate max-w-[120px]">{pat.address}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -761,9 +722,9 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                     {filteredPatients.length === 0 ? (
                         <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-400 text-sm font-semibold">No patients found.</td></tr>
                     ) : (
-                        (Array.isArray(filteredPatients) ? filteredPatients : []).filter(p => p && p.pt_id).slice(0, 100).map((patient) => (
+                        (Array.isArray(filteredPatients) ? filteredPatients : []).filter(p => p && p.pt_id).slice(0, 100).map((patient, pIdx) => (
                           <tr
-                            key={patient.pt_id}
+                            key={`${patient.pt_id || pIdx}-${pIdx}`}
                             onClick={() => { setFormData(patient); setSelectedPatientId(patient.pt_id); setIsEditing(false); window.scrollTo({top: 0, behavior: 'smooth'}); }}
                             className={`cursor-pointer transition-colors ${selectedPatientId === patient.pt_id ? 'bg-blue-900/40 border-l-2 border-l-blue-400' : 'hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 border-l-2 border-l-transparent'}`}
                           >
@@ -803,9 +764,9 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                 {filteredPatients.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 text-sm font-medium">No patients found.</div>
                 ) : (
-                    (Array.isArray(filteredPatients) ? filteredPatients : []).filter(p => p && p.pt_id).slice(0, 50).map((patient) => (
+                    (Array.isArray(filteredPatients) ? filteredPatients : []).filter(p => p && p.pt_id).slice(0, 50).map((patient, pIdx) => (
                         <div 
-                            key={patient.pt_id}
+                            key={`${patient.pt_id || pIdx}-${pIdx}`}
                             onClick={() => { setFormData(patient); setSelectedPatientId(patient.pt_id); setIsEditing(false); window.scrollTo({top: 0, behavior: 'smooth'}); }}
                             className={`p-4 cursor-pointer transition-colors ${selectedPatientId === patient.pt_id ? 'bg-blue-900/40 border-l-4 border-l-blue-400' : 'hover:bg-slate-800/80 border-l-4 border-l-transparent'}`}
                         >

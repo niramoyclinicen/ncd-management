@@ -37,7 +37,31 @@ export function useAppData() {
   });
 
   // Data States
-  const [patients, setPatients] = useState(mockPatients);
+  const dedupePatientsList = (list: any[]): Patient[] => {
+    if (!Array.isArray(list)) return [];
+    const map = new Map<string, Patient>();
+    list.forEach(p => {
+      if (!p) return;
+      const id = String(p.pt_id || p.patient_id || p.id || '').trim();
+      if (id) {
+        const existing = map.get(id);
+        if (existing) {
+          map.set(id, { ...existing, ...p, pt_id: existing.pt_id || p.pt_id || id });
+        } else {
+          map.set(id, { ...p, pt_id: p.pt_id || p.patient_id || id });
+        }
+      }
+    });
+    return Array.from(map.values());
+  };
+
+  const [patients, setPatientsRaw] = useState<Patient[]>(() => dedupePatientsList(mockPatients));
+  const setPatients: React.Dispatch<React.SetStateAction<Patient[]>> = useCallback((action) => {
+    setPatientsRaw(prev => {
+      const next = typeof action === 'function' ? (action as any)(prev) : action;
+      return dedupePatientsList(next);
+    });
+  }, []);
   const [doctors, setDoctors] = useState(mockDoctors);
   const [referrars, setReferrars] = useState(mockReferrars);
   const [tests, setTests] = useState(mockTests);

@@ -8,7 +8,7 @@ import ReferrerInfoPage from './ReferrerInfoPage';
 import ErrorBoundary from './ErrorBoundary';
 import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, SettingsIcon, UserPlusIcon, Armchair, Activity, SaveIcon, MoneyIcon, TrashIcon, PrinterIcon, EyeIcon, SearchIcon, PlusIcon, RefreshIcon, Database as DatabaseIcon, Plus, Save, Trash2, Loader2, Trash2Icon, AlertCircle, UsersIcon, EditIcon, ClipboardList as LayoutIcon } from './Icons';
 import { dbService } from '../dbService';
-import { CheckCircle2, AlertTriangle, Sparkles, Layers } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Sparkles, Layers, Calendar, Clock, Pill } from 'lucide-react';
 import DailyConsolidatedClinicEntryPage from './clinic/DailyConsolidatedClinicEntryPage';
 
 // Fixed Clinic Config
@@ -900,11 +900,29 @@ const DischargeRxMasterModal: React.FC<{
     admissions: AdmissionRecord[];
     patients: Patient[];
     doctors: Doctor[];
+    medicines: Medicine[];
     onClose: () => void;
-}> = ({ admissions, patients, doctors, onClose }) => {
+}> = ({ admissions, patients, doctors, medicines, onClose }) => {
     const [selectedAdmissionId, setSelectedAdmissionId] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
     const [activeView, setActiveView] = useState<'editor' | 'saved_letters'>('editor');
+
+    const [dischargeMeds, setDischargeMeds] = useState<Array<{ id: string; name: string; dosage: string; timing: string; duration: string }>>([
+        { id: '1', name: 'Cap. Cefixime 200mg', dosage: '১ টি করে দিনে ২ বার (১+০+১)', timing: 'ভরা পেটে', duration: '৭ দিন' },
+        { id: '2', name: 'Tab. Paracetamol 500mg', dosage: '১ টি করে দিনে ৩ বার (১+১+১)', timing: 'ব্যথা হলে খাবার পর', duration: '৫ দিন' }
+    ]);
+
+    const addDischargeMedRow = () => {
+        setDischargeMeds(prev => [...prev, { id: 'MED-' + Math.random().toString(36).substring(2, 9), name: '', dosage: '১ টি করে দিনে ২ বার', timing: 'খাবার পর', duration: '৫ দিন' }]);
+    };
+
+    const removeDischargeMedRow = (id: string) => {
+        setDischargeMeds(prev => prev.filter(m => m.id !== id));
+    };
+
+    const updateDischargeMedRow = (id: string, field: string, val: string) => {
+        setDischargeMeds(prev => prev.map(m => m.id === id ? { ...m, [field]: val } : m));
+    };
 
     // Templates State
     const [templates, setTemplates] = useState<DischargeMasterTemplate[]>(() => {
@@ -1254,7 +1272,7 @@ const DischargeRxMasterModal: React.FC<{
                             </div>
 
                             {/* White A4 Paper Sheet (MS Word Appearance) */}
-                            <div className="w-full max-w-[850px] bg-white text-slate-900 rounded shadow-2xl border border-slate-300 p-8 sm:p-12 min-h-[900px] relative font-serif select-text">
+                            <div className="w-full max-w-[850px] bg-white text-slate-900 rounded shadow-2xl border border-slate-300 p-8 sm:p-12 min-h-[900px] relative font-serif select-text space-y-4">
                                 {/* Letterhead */}
                                 <div className="text-center border-b-2 border-blue-900 pb-4 mb-6">
                                     <h1 className="text-2xl sm:text-3xl font-black text-blue-900 uppercase tracking-tight m-0">Niramoy Clinic & Diagnostic</h1>
@@ -1277,14 +1295,112 @@ const DischargeRxMasterModal: React.FC<{
                                     <div><span className="text-slate-500 font-bold block uppercase text-[10px]">Consultant</span> <b className="text-slate-900">{selectedAdmission?.doctor_name || 'Dr. Medical Officer'}</b></div>
                                 </div>
 
-                                {/* ContentEditable Body (Word-like editor area) */}
-                                <div 
-                                    ref={docEditorRef}
-                                    contentEditable
-                                    onInput={() => setDocumentHtml(docEditorRef.current?.innerHTML || '')}
-                                    className="min-h-[450px] outline-none text-slate-900 leading-relaxed text-[13.5px]"
-                                    style={{ minHeight: '450px' }}
-                                />
+                                {/* Section 1: Diagnosis & Procedure (Editable) */}
+                                <div>
+                                    <h3 style={{color:'#1e3a8a', borderBottom:'2px solid #1e3a8a', paddingBottom:'4px', marginTop:'10px', fontSize:'15px', fontWeight:'bold'}}>১. রোগ নির্ণয় ও অপারেশনের বিবরণ (Diagnosis & Procedure)</h3>
+                                    <div 
+                                        contentEditable
+                                        className="outline-none text-slate-900 leading-relaxed text-[13.5px] min-h-[60px]"
+                                        dangerouslySetInnerHTML={{ __html: selectedAdmission ? `<b>Clinical Indication:</b> ${selectedAdmission.indication || 'Indoor Medical Care'}<br/><b>Consultant:</b> Dr. ${selectedAdmission.doctor_name || 'RMO'}` : 'Diagnosis & Procedure details...' }}
+                                    />
+                                </div>
+
+                                {/* Section 2: Discharge Medications (Structured Interactive Table) */}
+                                <div className="my-4">
+                                    <div className="flex items-center justify-between border-b-2 border-blue-900 pb-1 mb-2">
+                                        <h3 style={{color:'#1e3a8a', fontSize:'15px', fontWeight:'bold', margin:0}}>২. ছুটিকালীন ঔষধ সেবন বিধি (Discharge Medications)</h3>
+                                        <button
+                                            type="button"
+                                            onClick={addDischargeMedRow}
+                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow cursor-pointer"
+                                        >
+                                            <PlusIcon size={12} />
+                                            <span>+ লাইন যোগ করুন</span>
+                                        </button>
+                                    </div>
+                                    <table className="w-full border-collapse text-xs border border-slate-300">
+                                        <thead>
+                                            <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800">
+                                                <th className="p-2 border border-slate-300 text-left">ঔষধের নাম (Medicine Name)</th>
+                                                <th className="p-2 border border-slate-300 text-left w-48">মাত্রা ও নিয়ম (Dosage)</th>
+                                                <th className="p-2 border border-slate-300 text-center w-28">সেবনের সময়</th>
+                                                <th className="p-2 border border-slate-300 text-center w-20">মেয়াদ</th>
+                                                <th className="p-2 border border-slate-300 text-center w-16">অ্যাকশন</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-300">
+                                            {dischargeMeds.map((med) => (
+                                                <tr key={med.id} className="hover:bg-slate-50">
+                                                    <td className="p-1 border border-slate-300">
+                                                        <SearchableSelect
+                                                            theme="light"
+                                                            label=""
+                                                            options={(Array.isArray(medicines) ? medicines : []).map(m => m && ({ id: m.id, name: `${m.tradeName || ''} (${m.genericName || ''})` }))}
+                                                            value={med.name}
+                                                            onChange={(id, name) => {
+                                                                const cleanName = name.split(' (')[0] || name;
+                                                                updateDischargeMedRow(med.id, 'name', cleanName);
+                                                            }}
+                                                            placeholder="ওষুধ সার্চ করুন..."
+                                                            allowCustom={true}
+                                                            inputHeightClass="h-8 bg-white border-slate-300 text-xs font-bold text-slate-900"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1 border border-slate-300">
+                                                        <input
+                                                            type="text"
+                                                            value={med.dosage}
+                                                            onChange={e => updateDischargeMedRow(med.id, 'dosage', e.target.value)}
+                                                            placeholder="যেমন: ১ টি করে দিনে ২ বার"
+                                                            className="w-full h-8 px-2 bg-white border border-slate-300 rounded text-xs text-slate-900 font-bold outline-none focus:ring-1 focus:ring-blue-500"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1 border border-slate-300">
+                                                        <input
+                                                            type="text"
+                                                            value={med.timing}
+                                                            onChange={e => updateDischargeMedRow(med.id, 'timing', e.target.value)}
+                                                            placeholder="ভরা পেটে"
+                                                            className="w-full h-8 px-2 bg-white border border-slate-300 rounded text-xs text-slate-900 font-bold text-center outline-none focus:ring-1 focus:ring-blue-500"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1 border border-slate-300">
+                                                        <input
+                                                            type="text"
+                                                            value={med.duration}
+                                                            onChange={e => updateDischargeMedRow(med.id, 'duration', e.target.value)}
+                                                            placeholder="৭ দিন"
+                                                            className="w-full h-8 px-1 bg-white border border-slate-300 rounded text-xs text-slate-900 font-bold text-center outline-none focus:ring-1 focus:ring-blue-500"
+                                                        />
+                                                    </td>
+                                                    <td className="p-1 border border-slate-300 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeDischargeMedRow(med.id)}
+                                                            className="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded text-[10px] font-bold uppercase transition-all cursor-pointer"
+                                                            title="কাট / ডিলিট করুন"
+                                                        >
+                                                            ডিলিট
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Section 3 & 4 (Editable) */}
+                                <div>
+                                    <h3 style={{color:'#1e3a8a', borderBottom:'2px solid #1e3a8a', paddingBottom:'4px', marginTop:'14px', fontSize:'15px', fontWeight:'bold'}}>৩. বিশেষ যত্ন ও উপদেশ (Care & Advice)</h3>
+                                    <div contentEditable className="outline-none text-slate-900 leading-relaxed text-[13.5px] min-h-[50px]">
+                                        সেলাইয়ের স্থান সম্পূর্ণ শুকনা ও পরিষ্কার রাখবেন। প্রথম ৬ মাস শিশুকে শুধুমাত্র বুকের দুধ পান করাবেন।
+                                    </div>
+
+                                    <h3 style={{color:'#1e3a8a', borderBottom:'2px solid #1e3a8a', paddingBottom:'4px', marginTop:'14px', fontSize:'15px', fontWeight:'bold'}}>৪. ফলো-আপ ও পরবর্তী সাক্ষাত (Follow-up)</h3>
+                                    <div contentEditable className="outline-none text-slate-900 leading-relaxed text-[13.5px] min-h-[40px]">
+                                        আগামী ৭ দিন পর সেলাই কাটা ও চেকআপের জন্য হাসপাতালে উপস্থিত হবেন।
+                                    </div>
+                                </div>
 
                                 {/* Signature Block */}
                                 <div className="mt-16 pt-8 border-t border-slate-300 flex justify-between items-center text-xs text-slate-700">
@@ -1428,14 +1544,60 @@ const AdmissionAndTreatmentPage: React.FC<{
     const [activeSubTab, setActiveSubTab] = useState<'orders' | 'rounds' | 'nurse' | 'demands'>('orders');
     const [searchTerm, setSearchTerm] = useState('');
 
+    // Standard Ward & Bed Definitions
+    const wardDefinitions = useMemo(() => [
+        { id: 'male_ward', name: 'পুরুষ ওয়ার্ড (০২ বেড)', beds: ['Male-Bed-01', 'Male-Bed-02'] },
+        { id: 'female_ward', name: 'মহিলা ওয়ার্ড (০৫ বেড)', beds: ['Female-Bed-01', 'Female-Bed-02', 'Female-Bed-03', 'Female-Bed-04', 'Female-Bed-05'] },
+        { id: 'cabin', name: 'ক্যাবিন (০৩ বেড)', beds: ['CAB-101', 'CAB-102', 'CAB-103'] }
+    ], []);
+
+    const allWardBeds = useMemo(() => wardDefinitions.flatMap(w => w.beds), [wardDefinitions]);
+
+    const getOccupiedPatient = (bedId: string) => {
+        const safeAdmissions = Array.isArray(admissions) ? admissions : [];
+        return safeAdmissions.find(a => 
+            a && 
+            !a.discharge_date && 
+            a.admission_id !== admissionData.admission_id && 
+            (a.bed_no === bedId || 
+             (bedId === 'CAB-101' && a.bed_no === 'Cabin-01') ||
+             (bedId === 'CAB-102' && a.bed_no === 'Cabin-02') ||
+             (bedId === 'CAB-103' && a.bed_no === 'Cabin-03') ||
+             (bedId === 'Cabin-01' && a.bed_no === 'CAB-101') ||
+             (bedId === 'Cabin-02' && a.bed_no === 'CAB-102') ||
+             (bedId === 'Cabin-03' && a.bed_no === 'CAB-103'))
+        );
+    };
+
+    const occupiedBedsCount = useMemo(() => {
+        return allWardBeds.filter(b => !!getOccupiedPatient(b)).length;
+    }, [allWardBeds, admissions, admissionData.admission_id]);
+
+    const availableBedsCount = allWardBeds.length - occupiedBedsCount;
+
     const filteredAdmissions = useMemo(() => {
         const safeAdmissions = Array.isArray(admissions) ? admissions : [];
-        return safeAdmissions.filter(a => a && !a.discharge_date && (
-            (a.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (a.admission_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (a.bed_no && a.bed_no.toLowerCase().includes(searchTerm.toLowerCase()))
-        ));
-    }, [admissions, searchTerm]);
+        const safePatients = Array.isArray(patients) ? patients : [];
+        const term = searchTerm.toLowerCase().trim();
+        if (!term) return safeAdmissions.filter(a => a && !a.discharge_date);
+
+        return safeAdmissions.filter(a => {
+            if (!a || a.discharge_date) return false;
+            const p = safePatients.find(pt => pt && (pt.pt_id === a.patient_id || pt.patient_id === a.patient_id || (pt.pt_name && a.patient_name && pt.pt_name.trim().toLowerCase() === a.patient_name.trim().toLowerCase())));
+            const pMobile = (a.patient_mobile || p?.mobile || '').toLowerCase();
+            const pAddress = [p?.address, p?.thana, p?.district].filter(Boolean).join(' ').toLowerCase();
+
+            return (
+                (a.patient_name || '').toLowerCase().includes(term) ||
+                (a.admission_id || '').toLowerCase().includes(term) ||
+                (a.bed_no && a.bed_no.toLowerCase().includes(term)) ||
+                (a.doctor_name || '').toLowerCase().includes(term) ||
+                (a.indication || '').toLowerCase().includes(term) ||
+                pMobile.includes(term) ||
+                pAddress.includes(term)
+            );
+        });
+    }, [admissions, patients, searchTerm]);
 
     const [currentOrder, setCurrentOrder] = useState<Partial<ClinicalOrderBlock>>({
         category: 'Conservative', diet: 'Regular', medications: [], note: '',
@@ -1487,6 +1649,7 @@ const AdmissionAndTreatmentPage: React.FC<{
     const [showPatientSearchModal, setShowPatientSearchModal] = useState(false);
     const [patientSearchFilters, setPatientSearchFilters] = useState({ name: '', mobile: '', address: '', thana: '', age: '' });
     const [barcodeInput, setBarcodeInput] = useState('');
+    const [showAdmissionPatientDropdown, setShowAdmissionPatientDropdown] = useState(false);
 
     const openAdvancedPatientSearch = (currentTerm: string) => {
         setPatientSearchFilters(prev => ({ ...prev, name: currentTerm }));
@@ -1518,8 +1681,14 @@ const AdmissionAndTreatmentPage: React.FC<{
     };
 
     const filteredPatientsForModal = useMemo(() => {
+        const seenIds = new Set<string>();
         return (Array.isArray(patients) ? patients : []).filter(p => {
           if (!p) return false;
+          const pid = String(p.pt_id || '').trim();
+          if (pid) {
+            if (seenIds.has(pid)) return false;
+            seenIds.add(pid);
+          }
           const searchName = (patientSearchFilters.name || '').toLowerCase();
           const searchMobile = (patientSearchFilters.mobile || '').toLowerCase();
           const searchAddress = (patientSearchFilters.address || '').toLowerCase();
@@ -1936,12 +2105,25 @@ const AdmissionAndTreatmentPage: React.FC<{
             {pageMode === 'admission' ? (
                 <div className="animate-fade-in space-y-8">
                     <div className="bg-slate-900/60 p-8 rounded-[2.5rem] border border-slate-700/50 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                        <div className="flex justify-between items-center mb-8 border-b border-slate-700/50 pb-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700/50 pb-6 gap-4">
                             <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
                                 <span className="p-2 bg-blue-500/20 rounded-xl text-blue-400"><ClinicIcon size={24} /></span>
                                 New Patient Admission
                             </h3>
-                            <div className="flex gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-sky-500/40">
+                                    <label htmlFor="barcode_scanner_adm" className="font-black text-[10px] text-sky-400 uppercase tracking-widest whitespace-nowrap">Scanner Mode:</label>
+                                    <input
+                                        type="text"
+                                        id="barcode_scanner_adm"
+                                        placeholder="Scan ID..."
+                                        value={barcodeInput}
+                                        onChange={(e) => setBarcodeInput(e.target.value)}
+                                        onKeyDown={handleBarcodeScan}
+                                        className="w-36 py-1 px-2 border border-sky-500/30 bg-slate-900 text-white rounded-lg text-xs font-mono focus:ring-1 focus:ring-sky-400 focus:outline-none placeholder:text-slate-500"
+                                        autoComplete="off"
+                                    />
+                                </div>
                                 <button onClick={handleGetNewId} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-slate-700 shadow-lg">Add New</button>
                                 <button onClick={handleSaveAdmission} className="bg-gradient-to-br from-blue-600 to-indigo-800 hover:from-blue-500 hover:to-indigo-700 text-white px-10 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/40 transition-all border border-blue-400/30">Save Admission</button>
                             </div>
@@ -1950,48 +2132,94 @@ const AdmissionAndTreatmentPage: React.FC<{
                             {/* Top Section - Source Info: Using a soft blue-slate background */}
                             <div className="bg-blue-900/20 p-6 rounded-3xl border border-blue-500/30 shadow-[inner_0_2px_10px_rgba(0,0,0,0.3)]">
                                 <div className="flex flex-col gap-6">
-                                    <div className="flex items-center gap-4 border-b border-blue-500/20 pb-4">
-                                        <label htmlFor="barcode_scanner_adm" className="font-black text-[9px] text-sky-400 uppercase tracking-widest whitespace-nowrap">Scanner Mode:</label>
-                                        <input
-                                            type="text"
-                                            id="barcode_scanner_adm"
-                                            placeholder="Scan Patient ID..."
-                                            value={barcodeInput}
-                                            onChange={(e) => setBarcodeInput(e.target.value)}
-                                            onKeyDown={handleBarcodeScan}
-                                            className="w-48 py-2 px-3 border border-sky-500/30 bg-slate-950 text-white rounded-lg text-[10px] font-mono focus:ring-1 focus:ring-sky-400 focus:outline-none placeholder:text-slate-700"
-                                            autoComplete="off"
-                                        />
-                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
-                                        <div className="col-span-1"><label className="text-[10px] font-black text-blue-300 uppercase ml-2 mb-1.5 block tracking-widest">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3.5 bg-slate-900 border border-blue-500/20 rounded-xl text-blue-400 font-mono font-black shadow-inner outline-none"/></div>
-                                        <div className="col-span-2">
-                                            <SearchableSelect 
-                                                label="Select Patient" 
-                                                theme="dark" 
-                                                options={(Array.isArray(patients) ? patients : []).filter(p => p).map(p=>({id: p.pt_id, name: p.pt_name, details: `${p.gender}, ${p.ageY}Y | Addr: ${p.address || 'N/A'}`}))} 
-                                                value={admissionData.patient_id} 
-                                                onChange={(id, name) => {
-                                                    const p = (Array.isArray(patients) ? patients : []).find(pt => pt && pt.pt_id === id);
-                                                    setAdmissionData(prev => ({
-                                                        ...prev, 
-                                                        patient_id: id, 
-                                                        patient_name: name, 
-                                                        patient_mobile: p?.mobile || prev.patient_mobile || '', 
-                                                        mobile_relation: p?.mobile_relation || prev.mobile_relation || 'Self'
-                                                    }));
-                                                }} 
-                                                onAddNew={() => openAdvancedPatientSearch('')} 
-                                                onEnter={(term) => openAdvancedPatientSearch(term)}
+                                        <div className="col-span-1"><label className="text-[10px] font-black text-blue-300 uppercase ml-2 mb-1.5 block tracking-widest">Adm ID</label><input value={admissionData.admission_id} disabled className="w-full p-3.5 bg-[#0a192f] border border-sky-400/80 rounded-xl text-blue-400 font-mono font-black shadow-inner outline-none"/></div>
+                                        <div className="col-span-2 relative">
+                                            <label className="text-[10px] font-black text-blue-300 uppercase ml-2 mb-1.5 block tracking-widest">Select Patient *</label>
+                                            <input 
+                                                type="text"
+                                                placeholder="রোগীর নাম বা আইডি দিয়ে খুঁজুন..."
+                                                value={admissionData.patient_name || ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setAdmissionData(prev => ({ ...prev, patient_name: val }));
+                                                    setShowAdmissionPatientDropdown(true);
+                                                }}
+                                                onFocus={() => setShowAdmissionPatientDropdown(true)}
+                                                className="w-full p-3.5 bg-[#0a192f] border border-sky-400/80 rounded-xl text-white font-bold outline-none shadow-inner"
+                                                autoComplete="off"
                                             />
+                                            {showAdmissionPatientDropdown && (
+                                                <>
+                                                    <div className="fixed inset-0 z-40" onClick={() => setShowAdmissionPatientDropdown(false)} />
+                                                    <div className="absolute left-0 right-0 top-full mt-1 bg-[#faf9f6] border-2 border-sky-500 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto custom-scrollbar text-slate-900">
+                                                        <table className="w-full text-left text-xs">
+                                                            <thead className="bg-slate-200 text-slate-700 font-bold sticky top-0 border-b border-slate-300">
+                                                                <tr>
+                                                                    <th className="p-2">ID</th>
+                                                                    <th className="p-2">Name</th>
+                                                                    <th className="p-2">Age</th>
+                                                                    <th className="p-2">Gender</th>
+                                                                    <th className="p-2">Care Of</th>
+                                                                    <th className="p-2">Mobile</th>
+                                                                    <th className="p-2">Address</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-200 font-medium">
+                                                                {(Array.isArray(patients) ? patients : [])
+                                                                  .filter(p => p && p.pt_name && (!admissionData.patient_name || p.pt_name.toLowerCase().includes(admissionData.patient_name.toLowerCase()) || p.pt_id?.toLowerCase().includes(admissionData.patient_name.toLowerCase()) || p.mobile?.includes(admissionData.patient_name)))
+                                                                  .filter((p, idx, arr) => !p.pt_id || arr.findIndex(x => x && x.pt_id === p.pt_id) === idx)
+                                                                  .slice(0, 20)
+                                                                  .map((pat, idx) => (
+                                                                    <tr 
+                                                                        key={`${pat.pt_id || 'pat'}-${idx}`}
+                                                                        onClick={() => {
+                                                                            setAdmissionData(prev => ({
+                                                                                ...prev,
+                                                                                patient_id: pat.pt_id,
+                                                                                patient_name: pat.pt_name,
+                                                                                patient_mobile: pat.mobile || '',
+                                                                                mobile_relation: 'Self'
+                                                                            }));
+                                                                            setShowAdmissionPatientDropdown(false);
+                                                                        }}
+                                                                        className="hover:bg-sky-100 cursor-pointer transition-colors"
+                                                                    >
+                                                                        <td className="p-2 font-mono text-blue-800 font-bold">{pat.pt_id}</td>
+                                                                        <td className="p-2 font-bold text-slate-900">{pat.pt_name}</td>
+                                                                        <td className="p-2 text-slate-700">{pat.ageY ? `${pat.ageY}Y` : ''}</td>
+                                                                        <td className="p-2 text-slate-700">{pat.gender || ''}</td>
+                                                                        <td className="p-2 text-slate-700">{pat.co_name ? `${pat.co_pref || 'S/O'} ${pat.co_name}` : ''}</td>
+                                                                        <td className="p-2 font-mono text-emerald-800 font-semibold">{pat.mobile}</td>
+                                                                        <td className="p-2 text-slate-600 truncate max-w-[120px]">{pat.address}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                         <div className="col-span-1">
                                             <label className="text-[10px] font-black text-rose-300 uppercase ml-2 mb-1.5 block tracking-widest">Mobile *</label>
-                                            <input value={admissionData.patient_mobile || ''} onChange={(e)=>setAdmissionData({...admissionData, patient_mobile: e.target.value})} placeholder="017..." className="w-full p-3.5 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl text-slate-200 font-bold outline-none transition-all shadow-inner"/>
+                                            <input 
+                                                value={admissionData.patient_mobile || ''} 
+                                                onChange={(e) => {
+                                                    const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                                    let formatted = digits;
+                                                    if (digits.length > 5) {
+                                                        formatted = `${digits.slice(0, 5)} ${digits.slice(5)}`;
+                                                    }
+                                                    setAdmissionData({...admissionData, patient_mobile: formatted});
+                                                }} 
+                                                placeholder="01712 765432" 
+                                                maxLength={12}
+                                                className="w-full p-3.5 bg-[#0a192f] border border-sky-400/80 rounded-xl text-white font-bold outline-none transition-all shadow-inner font-mono tracking-wider"
+                                            />
                                         </div>
                                         <div className="col-span-2">
                                             <label className="text-[10px] font-black text-rose-300 uppercase ml-2 mb-1.5 block tracking-widest">Relation *</label>
-                                            <select value={admissionData.mobile_relation || ''} onChange={(e)=>setAdmissionData({...admissionData, mobile_relation: e.target.value})} className="w-full p-3.5 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl text-slate-200 font-bold outline-none transition-all cursor-pointer shadow-inner">
+                                            <select value={admissionData.mobile_relation || ''} onChange={(e)=>setAdmissionData({...admissionData, mobile_relation: e.target.value})} className="w-full p-3.5 bg-[#0a192f] border border-sky-400/80 rounded-xl text-white font-bold outline-none transition-all cursor-pointer shadow-inner">
                                                 <option value="" className="bg-slate-900">Select...</option>
                                                 <option value="Self" className="bg-slate-900">Self (নিজ)</option>
                                                 <option value="Father" className="bg-slate-900">Father (পিতা)</option>
@@ -2009,33 +2237,46 @@ const AdmissionAndTreatmentPage: React.FC<{
                             {/* Bottom Section - Admission Details: Using a soft indigo-slate background */}
                             <div className="bg-indigo-900/20 p-6 rounded-3xl border border-indigo-500/30 shadow-[inner_0_2px_10px_rgba(0,0,0,0.3)]">
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <div><SearchableSelect label="Disease / Indication" theme="dark" options={(Array.isArray(indications) ? indications : []).filter(i => i).map(i=>({id: i.id, name: i.name}))} value={(Array.isArray(indications) ? indications : []).find(i => i && i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} /></div>
                                     <div>
-                                        <label className="text-[10px] font-black text-indigo-300 uppercase ml-2 mb-1 block tracking-widest">Bed No / Ward</label>
+                                        <SearchableSelect label="Disease / Indication" theme="dark" options={(Array.isArray(indications) ? indications : []).filter(i => i).map(i=>({id: i.id, name: i.name}))} value={(Array.isArray(indications) ? indications : []).find(i => i && i.name === admissionData.indication)?.id || ''} onChange={(_id, name)=>setAdmissionData({...admissionData, indication: name})} onAddNew={()=>setShowIndicationManager(true)} />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between items-center ml-2 mb-1">
+                                            <label className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Bed No / Ward</label>
+                                            {admissionData.bed_no && (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setAdmissionData({...admissionData, bed_no: ''})} 
+                                                    className="text-[9px] text-rose-300 hover:text-rose-100 font-bold underline"
+                                                >
+                                                    ক্লিয়ার
+                                                </button>
+                                            )}
+                                        </div>
                                         <select 
                                             value={admissionData.bed_no || ''} 
                                             onChange={e=>setAdmissionData({...admissionData, bed_no: e.target.value})} 
                                             className="w-full p-3.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 font-black outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
                                         >
-                                            <option value="" className="bg-slate-900">Select Bed...</option>
-                                            <optgroup label="পুরুষ ওয়ার্ড (০২ বেড)" className="bg-slate-900 text-slate-400 font-bold">
-                                                {['Male-Bed-01', 'Male-Bed-02'].map(b => {
-                                                    const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
-                                                    return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
-                                                })}
-                                            </optgroup>
-                                            <optgroup label="মহিলা ওয়ার্ড (০৫ বেড)" className="bg-slate-900 text-slate-400 font-bold">
-                                                {['Female-Bed-01', 'Female-Bed-02', 'Female-Bed-03', 'Female-Bed-04', 'Female-Bed-05'].map(b => {
-                                                    const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
-                                                    return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
-                                                })}
-                                            </optgroup>
-                                            <optgroup label="(০৩ বেড) ক্যাবিন" className="bg-slate-900 text-slate-400 font-bold">
-                                                {['CAB-101', 'CAB-102', 'CAB-103'].map(b => {
-                                                    const isOccupied = (Array.isArray(admissions) ? admissions : []).some(a => a && a.bed_no === b && !a.discharge_date);
-                                                    return <option key={b} value={b} disabled={isOccupied} className={`bg-slate-900 ${isOccupied ? 'text-rose-500' : 'text-slate-200'}`}>{b} {isOccupied ? '(OCCUPIED)' : ''}</option>;
-                                                })}
-                                            </optgroup>
+                                            <option value="" className="bg-slate-900 text-slate-400">Select Bed...</option>
+                                            {wardDefinitions.map(ward => (
+                                                <optgroup key={ward.id} label={ward.name} className="bg-slate-900 text-slate-400 font-bold">
+                                                    {ward.beds.map(b => {
+                                                        const occ = getOccupiedPatient(b);
+                                                        const isOccupied = !!occ;
+                                                        return (
+                                                            <option 
+                                                                key={b} 
+                                                                value={b} 
+                                                                disabled={isOccupied} 
+                                                                className={`bg-slate-900 ${isOccupied ? 'text-rose-400 font-normal italic' : 'text-emerald-400 font-bold'}`}
+                                                            >
+                                                                {isOccupied ? `🔴 ${b} (বুকড: ${occ.patient_name || 'Patient'})` : `🟢 ${b} (খালি / Available)`}
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </optgroup>
+                                            ))}
                                         </select>
                                     </div>
                                     <div><label className="text-[10px] font-black text-emerald-300 uppercase ml-2 mb-1 block tracking-widest">Contract Bill (৳)</label><input type="number" value={admissionData.contract_amount} onChange={e=>setAdmissionData({...admissionData, contract_amount: parseFloat(e.target.value)||0})} className="w-full p-3.5 bg-slate-900 border border-emerald-500/30 rounded-xl text-emerald-400 font-black text-lg shadow-inner outline-none focus:ring-2 focus:ring-emerald-500 transition-all" onFocus={e=>e.target.select()}/></div>
@@ -2046,49 +2287,131 @@ const AdmissionAndTreatmentPage: React.FC<{
 
                     </div>
 
-                    <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl overflow-hidden">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-800 pb-6 gap-4">
-                            <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3"><Activity className="text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]"/> Current Admitted Patients</h3>
+                    {/* Current Admitted Patients Section: Compact Height & Full Patient Details */}
+                    <div className="bg-[#faf9f6] p-5 sm:p-6 rounded-[2rem] border-2 border-sky-500/40 shadow-xl overflow-hidden text-slate-900">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b border-slate-300 pb-3 gap-3">
+                            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2">
+                                <Activity className="text-emerald-600 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]" size={20}/> 
+                                <span>Current Admitted Patients (বর্তমান ভর্তি রোগী: {filteredAdmissions.length} জন)</span>
+                            </h3>
                             <div className="flex flex-1 max-w-md w-full relative">
-                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                                 <input 
                                     type="text" 
-                                    placeholder="Search by Name, ID or Bed..." 
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-inner"
+                                    placeholder="Search by Name, Mobile, ID, Bed, Address, Doctor..." 
+                                    className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-inner"
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
                                 />
                             </div>
-                            <button onClick={handlePrintAdmissionList} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border border-slate-700"><PrinterIcon size={14}/> Print Active List</button>
+                            <button onClick={handlePrintAdmissionList} className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-3.5 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-1.5 border border-slate-300 shrink-0 shadow-sm">
+                                <PrinterIcon size={13}/> Print Active List
+                            </button>
                         </div>
-                        <div className="overflow-x-auto rounded-2xl border border-slate-800 shadow-inner bg-slate-950/50">
-                             <table className="w-full text-left border-collapse text-sm">
-                                <thead className="bg-slate-950 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800">
-                                    <tr><th className="p-5 w-12 text-center">SL</th><th className="p-5">Adm ID</th><th className="p-5">Patient Name</th><th className="p-5">Doctor</th><th className="p-5">Bed</th><th className="p-5">Indication</th><th className="p-5 text-center">Action</th></tr>
+                        <div className="overflow-x-auto rounded-xl border border-slate-300 shadow-inner bg-white">
+                             <table className="w-full text-left border-collapse text-xs">
+                                <thead className="bg-slate-200 text-[10px] uppercase font-black text-slate-700 tracking-widest border-b border-slate-300">
+                                    <tr>
+                                        <th className="py-2.5 px-2 w-10 text-center">SL</th>
+                                        <th className="py-2.5 px-3">Adm ID</th>
+                                        <th className="py-2.5 px-3">রোগীর বিবরণ (Name, Age, Mobile, Address)</th>
+                                        <th className="py-2.5 px-3">বেড / ওয়ার্ড</th>
+                                        <th className="py-2.5 px-3">কনসালটেন্ট ও রোগ</th>
+                                        <th className="py-2.5 px-3">ভর্তি তারিখ</th>
+                                        <th className="py-2.5 px-3 text-center">একশন (Action)</th>
+                                    </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-800/50">
-                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).map((adm, index) => (
-                                        <tr key={adm.admission_id} className="hover:bg-blue-900/20 transition-colors group">
-                                            <td className="p-5 text-center text-slate-600 font-mono text-xs">{index + 1}</td>
-                                            <td className="p-5 font-mono text-xs text-blue-400 font-black">{adm.admission_id}</td>
-                                            <td className="p-5 font-black text-slate-200 uppercase tracking-tight group-hover:text-white transition-colors">{adm.patient_name}</td>
-                                            <td className="p-5 font-bold text-slate-400">{adm.doctor_name}</td>
-                                            <td className="p-5 font-black text-amber-500 drop-shadow-[0_0_5px_rgba(245,158,11,0.3)]">{adm.bed_no || 'N/A'}</td>
-                                            <td className="p-5 text-slate-500 font-medium italic">{adm.indication}</td>
-                                            <td className="p-5 text-center flex gap-2 justify-center">
-                                                <button onClick={()=>handleSelectPatientForTreatment(adm)} className="bg-gradient-to-br from-emerald-600 to-teal-800 hover:from-emerald-500 hover:to-teal-700 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-900/40 transition-all border border-emerald-400/30">Treatment</button>
-                                                <button onClick={()=>handleEditAdmissionInfo(adm)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest shadow-lg transition-all border border-slate-700">Edit</button>
-                                                <button onClick={async ()=>{
-                                                    if(confirm(`Are you sure you want to CANCEL admission for ${adm.patient_name}? This will free the bed.`)) {
-                                                        await dbService.deleteAdmissionDirectly(adm);
-                                                        setAdmissions(prev => prev.filter(a => a.admission_id !== adm.admission_id));
-                                                        setSuccessMessage("Admission cancelled successfully.");
-                                                    }
-                                                }} className="bg-rose-900/30 hover:bg-rose-900/50 text-rose-400 px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest shadow-lg transition-all border border-rose-500/30">Cancel</button>
+                                <tbody className="divide-y divide-slate-200">
+                                    {filteredAdmissions.map((adm, index) => {
+                                        const safePatients = Array.isArray(patients) ? patients : [];
+                                        const pat = safePatients.find(p => p && (
+                                            p.pt_id === adm.patient_id || 
+                                            p.patient_id === adm.patient_id || 
+                                            (p.pt_name && adm.patient_name && p.pt_name.trim().toLowerCase() === adm.patient_name.trim().toLowerCase())
+                                        ));
+                                        const ageGenderStr = [pat?.ageY ? `${pat.ageY} বছর` : '', pat?.gender].filter(Boolean).join(' • ');
+                                        const mobileStr = adm.patient_mobile || pat?.mobile || '';
+                                        const addressText = [pat?.address, pat?.thana, pat?.district].filter(Boolean).join(', ');
+
+                                        return (
+                                            <tr key={adm.admission_id} className="hover:bg-sky-50/70 transition-colors group">
+                                                <td className="py-2 px-2 text-center text-slate-500 font-mono text-xs font-bold">{index + 1}</td>
+                                                <td className="py-2 px-3 font-mono text-xs text-blue-700 font-black whitespace-nowrap">{adm.admission_id}</td>
+                                                <td className="py-2 px-3">
+                                                    <div className="flex items-center gap-2 flex-wrap leading-tight">
+                                                        <span className="font-black text-slate-900 uppercase text-xs tracking-tight">{adm.patient_name}</span>
+                                                        {ageGenderStr && (
+                                                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                                                {ageGenderStr}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2.5 text-[11px] text-slate-600 mt-0.5 leading-none flex-wrap">
+                                                        {mobileStr ? (
+                                                            <span className="font-mono text-emerald-800 font-bold">
+                                                                📞 {mobileStr}
+                                                            </span>
+                                                        ) : null}
+                                                        {addressText ? (
+                                                            <span className="text-slate-600 truncate max-w-[260px]" title={addressText}>
+                                                                📍 {addressText}
+                                                            </span>
+                                                        ) : null}
+                                                        {!mobileStr && !addressText && (
+                                                            <span className="text-slate-400 italic text-[10px]">মোবাইল/ঠিকানা উল্লেখ নেই</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="py-2 px-3 whitespace-nowrap">
+                                                    <span className="px-2.5 py-1 rounded-md text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-sm">
+                                                        {adm.bed_no || 'N/A'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-2 px-3 leading-tight">
+                                                    <div className="font-bold text-slate-800 text-xs truncate max-w-[170px]" title={adm.doctor_name}>{adm.doctor_name || '---'}</div>
+                                                    <div className="text-[10px] text-slate-500 italic truncate max-w-[170px]" title={adm.indication}>{adm.indication || '---'}</div>
+                                                </td>
+                                                <td className="py-2 px-3 whitespace-nowrap font-mono text-[11px] text-slate-600 font-semibold">
+                                                    {adm.admission_date || '---'}
+                                                </td>
+                                                <td className="py-2 px-3 text-center whitespace-nowrap">
+                                                    <div className="flex items-center gap-1.5 justify-center">
+                                                        <button 
+                                                            onClick={()=>handleSelectPatientForTreatment(adm)} 
+                                                            className="bg-gradient-to-br from-emerald-600 to-teal-800 hover:from-emerald-500 hover:to-teal-700 text-white px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider shadow-sm transition-all border border-emerald-400/30"
+                                                        >
+                                                            Treatment
+                                                        </button>
+                                                        <button 
+                                                            onClick={()=>handleEditAdmissionInfo(adm)} 
+                                                            className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all border border-slate-300 shadow-sm"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button 
+                                                            onClick={async ()=>{
+                                                                if(confirm(`Are you sure you want to CANCEL admission for ${adm.patient_name}? This will free the bed.`)) {
+                                                                    await dbService.deleteAdmissionDirectly(adm);
+                                                                    setAdmissions(prev => prev.filter(a => a.admission_id !== adm.admission_id));
+                                                                    setSuccessMessage("Admission cancelled successfully.");
+                                                                }
+                                                            }} 
+                                                            className="bg-rose-100 hover:bg-rose-200 text-rose-700 px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all border border-rose-300 shadow-sm"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {filteredAdmissions.length === 0 && (
+                                        <tr>
+                                            <td colSpan={7} className="py-12 text-center text-slate-400 italic font-black uppercase opacity-60 text-base tracking-[0.2em]">
+                                                {searchTerm ? "No Matching Patients" : "No Active Inpatients"}
                                             </td>
                                         </tr>
-                                    ))}
-                                    {(Array.isArray(filteredAdmissions) ? filteredAdmissions : []).length === 0 && <tr><td colSpan={7} className="p-20 text-center text-slate-700 italic font-black uppercase opacity-20 text-xl tracking-[0.3em]">{searchTerm ? "No Matching Patients" : "No Active Inpatients"}</td></tr>}
+                                    )}
                                 </tbody>
                              </table>
                         </div>
@@ -2914,9 +3237,9 @@ const AdmissionAndTreatmentPage: React.FC<{
                         <div className="flex-1 overflow-y-auto p-4 no-scrollbar bg-slate-900/20">
                             {filteredPatientsForModal.length > 0 ? (
                                 <div className="grid grid-cols-1 gap-2">
-                                    {filteredPatientsForModal.map(p => (
+                                    {filteredPatientsForModal.map((p, idx) => (
                                         <div 
-                                            key={p.pt_id}
+                                            key={`${p.pt_id || 'pt'}-${idx}`}
                                             onClick={() => handlePatientSelectModal(p.pt_id, p.pt_name)}
                                             onDoubleClick={() => handlePatientSelectModal(p.pt_id, p.pt_name)}
                                             className="px-6 py-4 bg-slate-800/20 hover:bg-blue-600/10 border border-slate-800 hover:border-blue-500/50 rounded-2xl grid grid-cols-12 gap-5 items-center cursor-pointer transition-all group active:scale-[0.99]"
@@ -2992,16 +3315,11 @@ interface StandardRateItem {
     note: string;
 }
 
-const STANDARD_HOSPITAL_RATES: StandardRateItem[] = [
+const DEFAULT_HOSPITAL_RATES: StandardRateItem[] = [
     { id: 'adm_fee', name: 'Admission Fee', category: 'এডমিশন ও বেড', defaultRate: 500, isClinicFund: true, note: 'হাসপাতাল ভর্তি ফি' },
     { id: 'bed_rent', name: 'General Bed Rent (Per Day)', category: 'এডমিশন ও বেড', defaultRate: 400, isClinicFund: true, note: 'জেনারেল বেড ভাড়া' },
     { id: 'cabin_rent', name: 'Cabin Rent (Per Day)', category: 'এডমিশন ও বেড', defaultRate: 1200, isClinicFund: true, note: 'কেবিন ভাড়া' },
     { id: 'ot_charge', name: 'OT Charge / Operation Theatre', category: 'অপারেশন ও ওটি', defaultRate: 3500, isClinicFund: true, note: 'ওটি সার্ভিস ও ইন্সট্রুমেন্ট চার্জ' },
-    { id: 'surgeon_fee', name: 'Surgeon Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 6000, isClinicFund: false, note: 'চিফ সার্জন সম্মাননা' },
-    { id: 'anesthesia_fee', name: 'Anaesthetist Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 2500, isClinicFund: false, note: 'এনেসথেসিয়া স্পেশালিস্ট ফি' },
-    { id: 'asst_surgeon_fee', name: 'Assistant Surgeon Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 1500, isClinicFund: false, note: 'সহকারী সার্জন ফি' },
-    { id: 'doctor_visit', name: 'Doctor Visit / Round Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 500, isClinicFund: false, note: 'কনসালট্যান্ট রাউন্ড ভিজিট' },
-    { id: 'paediatrician_fee', name: 'Paediatrician / Neonatal Care', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 1000, isClinicFund: false, note: 'শিশু বিশেষজ্ঞ ফি' },
     { id: 'nursing_charge', name: 'Nursing & Patient Care Charge', category: 'নার্সিং ও সার্ভিস', defaultRate: 500, isClinicFund: true, note: 'নার্সিং ও সার্বক্ষণিক কেয়ার' },
     { id: 'oxygen_charge', name: 'Oxygen Charge', category: 'নার্সিং ও সার্ভিস', defaultRate: 300, isClinicFund: true, note: 'মেডিকেল অক্সিজেন সার্ভিস' },
     { id: 'nebulization_charge', name: 'Nebulization Charge', category: 'নার্সিং ও সার্ভিস', defaultRate: 100, isClinicFund: true, note: 'নেবুলাইজেশন চার্জ' },
@@ -3010,8 +3328,18 @@ const STANDARD_HOSPITAL_RATES: StandardRateItem[] = [
     { id: 'catheter_charge', name: 'Catheterization Charge', category: 'নার্সিং ও সার্ভিস', defaultRate: 300, isClinicFund: true, note: 'ক্যাথেটার চার্জ' },
     { id: 'nvd_charge', name: 'Normal Vaginal Delivery (NVD) Charge', category: 'প্রসব ও প্রসিডিউর', defaultRate: 4000, isClinicFund: true, note: 'লেবার রুম ও ডেলিভারি চার্জ' },
     { id: 'dc_charge', name: 'D&C / MVA Procedure Charge', category: 'প্রসব ও প্রসিডিউর', defaultRate: 3000, isClinicFund: true, note: 'ডিএন্ডসি চার্জ' },
-    { id: 'discharge_fee', name: 'Discharge Slip & File Charge', category: 'অন্যান্য', defaultRate: 200, isClinicFund: true, note: 'ডিসচার্জ ফাইল ও প্রসেসিং' }
+    { id: 'discharge_fee', name: 'Discharge Slip & File Charge', category: 'অন্যান্য', defaultRate: 200, isClinicFund: true, note: 'ডিসচার্জ ফাইল ও প্রসেসিং' },
+    // Staff Cost / Doctor Fees - Default unticked (isClinicFund: false)
+    { id: 'staff_cost', name: 'Staff Cost / স্টাফ কস্ট', category: 'স্টাফ ও অন্যান্য খরচ', defaultRate: 500, isClinicFund: false, note: 'স্টাফ খরচ ও বকশিশ (ক্লিনিক ফান্ডের টাকা নয়)' },
+    { id: 'ot_staff_cost', name: 'OT Staff Cost / ওটি স্টাফ কস্ট', category: 'স্টাফ ও অন্যান্য খরচ', defaultRate: 1000, isClinicFund: false, note: 'ওটি স্টাফ খরচ (ক্লিনিক ফান্ডে জমা হবে না)' },
+    { id: 'surgeon_fee', name: 'Surgeon Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 6000, isClinicFund: false, note: 'চিফ সার্জন সম্মাননা' },
+    { id: 'anesthesia_fee', name: 'Anaesthetist Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 2500, isClinicFund: false, note: 'এনেসথেসিয়া স্পেশালিস্ট ফি' },
+    { id: 'asst_surgeon_fee', name: 'Assistant Surgeon Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 1500, isClinicFund: false, note: 'সহকারী সার্জন ফি' },
+    { id: 'doctor_visit', name: 'Doctor Visit / Round Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 500, isClinicFund: false, note: 'কনসালট্যান্ট রাউন্ড ভিজিট' },
+    { id: 'paediatrician_fee', name: 'Paediatrician / Neonatal Care', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 1000, isClinicFund: false, note: 'শিশু বিশেষজ্ঞ ফি' }
 ];
+
+const STANDARD_HOSPITAL_RATES: StandardRateItem[] = DEFAULT_HOSPITAL_RATES;
 
 // 2. Indoor Invoice
 const IndoorInvoicePage: React.FC<{ 
@@ -3039,6 +3367,73 @@ const IndoorInvoicePage: React.FC<{
     const [rateSortBy, setRateSortBy] = useState<'name' | 'rateAsc' | 'rateDesc'>('name');
     const [targetRowIdForRate, setTargetRowIdForRate] = useState<number | null>(null);
     const [copiedRateText, setCopiedRateText] = useState<string | null>(null);
+    const [hospitalRates, setHospitalRates] = useState<StandardRateItem[]>(() => {
+        try {
+            const saved = localStorage.getItem('standard_hospital_rates');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (e) {
+            console.error("Error parsing standard hospital rates", e);
+        }
+        return DEFAULT_HOSPITAL_RATES;
+    });
+    const [isEditingRates, setIsEditingRates] = useState(false);
+    const [rateEditList, setRateEditList] = useState<StandardRateItem[]>([]);
+
+    const handleStartEditingRates = () => {
+        setRateEditList(JSON.parse(JSON.stringify(hospitalRates)));
+        setIsEditingRates(true);
+        setShowRateChart(true);
+    };
+
+    const handleSaveRateList = () => {
+        // Filter out empty items
+        const cleaned = rateEditList.filter(it => it.name.trim().length > 0);
+        if (cleaned.length === 0) {
+            alert('কমপক্ষে একটি সার্ভিসের নাম থাকতে হবে।');
+            return;
+        }
+        setHospitalRates(cleaned);
+        localStorage.setItem('standard_hospital_rates', JSON.stringify(cleaned));
+        setIsEditingRates(false);
+        setSuccessMessage('সার্ভিস ও রেট চার্ট তালিকা সফলভাবে সংরক্ষিত হয়েছে!');
+    };
+
+    const handleResetDefaultRates = () => {
+        if (window.confirm('আপনি কি রেট তালিকা পুনরায় মূল ডিফল্ট মানে রিসেট করতে চান?')) {
+            setHospitalRates(DEFAULT_HOSPITAL_RATES);
+            setRateEditList(JSON.parse(JSON.stringify(DEFAULT_HOSPITAL_RATES)));
+            localStorage.setItem('standard_hospital_rates', JSON.stringify(DEFAULT_HOSPITAL_RATES));
+            setSuccessMessage('মূল ডিফল্ট রেট চার্ট সফলভাবে পুনরুদ্ধার করা হয়েছে!');
+        }
+    };
+
+    const handleAddNewRateItem = () => {
+        const newItem: StandardRateItem = {
+            id: `custom_${Date.now()}`,
+            name: '',
+            category: 'সাধারণ সার্ভিস',
+            defaultRate: 0,
+            isClinicFund: false, // Default unticked for custom/cost items
+            note: ''
+        };
+        setRateEditList(prev => [newItem, ...prev]);
+    };
+
+    const handleRemoveRateItem = (index: number) => {
+        setRateEditList(prev => prev.filter((_, idx) => idx !== index));
+    };
+
+    const handleUpdateRateItemField = (index: number, field: keyof StandardRateItem, value: any) => {
+        setRateEditList(prev => prev.map((item, idx) => {
+            if (idx === index) {
+                return { ...item, [field]: value };
+            }
+            return item;
+        }));
+    };
     const [subCategories, setSubCategories] = useState<{id: string, name: string, mainCategory?: string}[]>(() => {
         try {
             return JSON.parse(localStorage.getItem('ncd_clinic_subcategories') || '[]');
@@ -3049,7 +3444,10 @@ const IndoorInvoicePage: React.FC<{
     });
     const [showSubCategoryManager, setShowSubCategoryManager] = useState(false);
     
-    // Persistent OT Details Library for Suggestions
+    // Floating Side-Attached Service Suggestions Popover State
+    const [suggestRowId, setSuggestRowId] = useState<number | null>(null);
+    const [suggestCoords, setSuggestCoords] = useState<{ top: number; left: number } | null>(null);
+    const suggestPopupRef = useRef<HTMLDivElement | null>(null);
     const [otDetailsLibrary, setOtDetailsLibrary] = useState<Record<string, string>>(() => {
         try {
             return JSON.parse(localStorage.getItem('ncd_ot_details_library') || '{}');
@@ -3496,13 +3894,27 @@ const IndoorInvoicePage: React.FC<{
 
         if (field === 'service_type') {
             const typeLower = (value || '').trim().toLowerCase();
-            const isNonClinic = (doctorServiceTypes || []).some(type => typeLower.includes(type.toLowerCase())) ||
-                                typeLower.includes('surgeon') || typeLower.includes('anaesthetist') ||
-                                typeLower.includes('doctor') || typeLower.includes('staff') || typeLower.includes('staff cost') || typeLower.includes('স্টাফ') || typeLower.includes('cost') || typeLower.includes('salary') ||
-                                typeLower.includes('medicine') || typeLower.includes('discharge');
-            const isClinicFund = !isNonClinic;
-            const rowIdx = updatedItems.findIndex(it => it.id === id);
-            if (rowIdx !== -1) updatedItems[rowIdx].isClinicFund = isClinicFund;
+            const matchedRate = hospitalRates.find(r => r.name.toLowerCase() === typeLower);
+            if (matchedRate) {
+                const rowIdx = updatedItems.findIndex(it => it.id === id);
+                if (rowIdx !== -1) {
+                    updatedItems[rowIdx].isClinicFund = !!matchedRate.isClinicFund;
+                    if (matchedRate.defaultRate > 0 && (!updatedItems[rowIdx].service_charge || updatedItems[rowIdx].service_charge === 0)) {
+                        updatedItems[rowIdx].service_charge = matchedRate.defaultRate;
+                        updatedItems[rowIdx].line_total = matchedRate.defaultRate * (updatedItems[rowIdx].quantity || 1);
+                        updatedItems[rowIdx].payable_amount = Math.max(0, updatedItems[rowIdx].line_total - (updatedItems[rowIdx].discount || 0));
+                    }
+                }
+            } else {
+                const isNonClinic = (doctorServiceTypes || []).some(type => typeLower.includes(type.toLowerCase())) ||
+                                    typeLower.includes('surgeon') || typeLower.includes('anaesthetist') ||
+                                    typeLower.includes('doctor') || typeLower.includes('staff') || typeLower.includes('staff cost') || 
+                                    typeLower.includes('স্টাফ') || typeLower.includes('তাপ') || typeLower.includes('cost') || 
+                                    typeLower.includes('salary') || typeLower.includes('medicine') || typeLower.includes('tips') || typeLower.includes('টিপস');
+                const isClinicFund = !isNonClinic;
+                const rowIdx = updatedItems.findIndex(it => it.id === id);
+                if (rowIdx !== -1) updatedItems[rowIdx].isClinicFund = isClinicFund;
+            }
         }
 
         const totals = calculateTotals(updatedItems, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
@@ -3532,14 +3944,14 @@ const IndoorInvoicePage: React.FC<{
                     const qty = it.quantity || 1;
                     const charge = rateItem.defaultRate;
                     const lineTotal = charge * qty;
-                    const payable = lineTotal - (it.discount || 0);
+                    const payable = Math.max(0, lineTotal - (it.discount || 0));
                     return {
                         ...it,
                         service_type: rateItem.name,
                         service_charge: charge,
                         line_total: lineTotal,
                         payable_amount: payable,
-                        isClinicFund: rateItem.isClinicFund,
+                        isClinicFund: !!rateItem.isClinicFund,
                         note: it.note ? `${it.note} (${rateItem.note})` : rateItem.note
                     };
                 }
@@ -3558,7 +3970,7 @@ const IndoorInvoicePage: React.FC<{
                 discount: 0,
                 payable_amount: rateItem.defaultRate,
                 note: rateItem.note,
-                isClinicFund: rateItem.isClinicFund
+                isClinicFund: !!rateItem.isClinicFund
             };
             const updated = [...items, newItem];
             const totals = calculateTotals(updated, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
@@ -3577,7 +3989,7 @@ const IndoorInvoicePage: React.FC<{
     };
 
     const filteredAndSortedRates = useMemo(() => {
-        return STANDARD_HOSPITAL_RATES.filter(r => {
+        return hospitalRates.filter(r => {
             const matchesCat = rateCategoryFilter === 'All' || r.category === rateCategoryFilter;
             const q = rateSearchTerm.toLowerCase();
             const matchesSearch = !q || r.name.toLowerCase().includes(q) || r.category.toLowerCase().includes(q) || r.note.toLowerCase().includes(q);
@@ -3587,7 +3999,130 @@ const IndoorInvoicePage: React.FC<{
             if (rateSortBy === 'rateDesc') return b.defaultRate - a.defaultRate;
             return a.name.localeCompare(b.name);
         });
-    }, [rateSearchTerm, rateCategoryFilter, rateSortBy]);
+    }, [hospitalRates, rateSearchTerm, rateCategoryFilter, rateSortBy]);
+
+    // Side-Attached Floating Suggestions Logic
+    const openServiceSuggestions = (rowId: number, targetEl: HTMLElement) => {
+        setSuggestRowId(rowId);
+        const rect = targetEl.getBoundingClientRect();
+        const popupHeight = 310;
+        const popupWidth = 320;
+        
+        // Attached to the side of the entry box
+        let left = rect.right + 8;
+        if (left + popupWidth > window.innerWidth - 10) {
+            // If near right window edge, position attached to the left of the entry box
+            left = Math.max(10, rect.left - popupWidth - 8);
+        }
+
+        // Vertically centered relative to entry box: "বক্সের উপরেও অংশ থাকবে নিচে অংশ থাকবে"
+        let top = rect.top + (rect.height / 2) - (popupHeight / 2);
+
+        // "আবার যদি স্ক্রিনের নিচের দিকে থাকে তাহলে বক্সটি সম্পূর্ণ উপরে থাকবে"
+        if (rect.bottom > window.innerHeight - 200 || top + popupHeight > window.innerHeight - 15) {
+            top = Math.max(15, rect.bottom - popupHeight);
+            if (top + popupHeight > window.innerHeight - 10) {
+                top = window.innerHeight - popupHeight - 10;
+            }
+        }
+
+        // Viewport top guard:
+        if (top < 15) {
+            top = 15;
+        }
+
+        setSuggestCoords({ top, left });
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (suggestPopupRef.current && !suggestPopupRef.current.contains(e.target as Node)) {
+                const isTrigger = (e.target as HTMLElement)?.closest?.('[data-suggest-trigger]');
+                if (!isTrigger) {
+                    setSuggestRowId(null);
+                    setSuggestCoords(null);
+                }
+            }
+        };
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setSuggestRowId(null);
+                setSuggestCoords(null);
+            }
+        };
+        const handleScroll = () => {
+            if (suggestRowId) {
+                setSuggestRowId(null);
+                setSuggestCoords(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('scroll', handleScroll, true);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('scroll', handleScroll, true);
+        };
+    }, [suggestRowId]);
+
+    const suggestedServices = useMemo(() => {
+        const activeItem = (formData.items || []).find(it => it.id === suggestRowId);
+        const q = (activeItem?.service_type || '').toLowerCase().trim();
+
+        const rateMatches = hospitalRates.filter(r => 
+            !q || r.name.toLowerCase().includes(q) || (r.note && r.note.toLowerCase().includes(q)) || (r.category && r.category.toLowerCase().includes(q))
+        );
+
+        const existingNames = new Set(hospitalRates.map(r => r.name.toLowerCase()));
+        const extraMatches = (Array.isArray(serviceTypesList) ? serviceTypesList : []).filter(s => 
+            !existingNames.has(s.toLowerCase()) && (!q || s.toLowerCase().includes(q))
+        ).map(s => {
+            const sLower = s.toLowerCase();
+            const isNonClinic = sLower.includes('staff') || sLower.includes('স্টাফ') || sLower.includes('cost') || sLower.includes('doctor') || sLower.includes('surgeon') || sLower.includes('tips') || sLower.includes('medicine') || sLower.includes('তাপ') || sLower.includes('anaes');
+            return {
+                id: `st_${s}`,
+                name: s,
+                category: 'সাধারণ সার্ভিস',
+                defaultRate: 0,
+                isClinicFund: !isNonClinic,
+                note: isNonClinic ? 'নন-ক্লিনিক খরচ' : 'ক্লিনিক সার্ভিস'
+            };
+        });
+
+        return [...rateMatches, ...extraMatches];
+    }, [suggestRowId, formData.items, hospitalRates]);
+
+    const handleSelectSuggestion = (suggested: any) => {
+        if (!suggestRowId) return;
+        const items = Array.isArray(formData.items) ? formData.items : [];
+        const updated = items.map(it => {
+            if (it.id === suggestRowId) {
+                const qty = it.quantity || 1;
+                const charge = suggested.defaultRate > 0 ? suggested.defaultRate : (it.service_charge || 0);
+                const discount = it.discount || 0;
+                const lineTotal = charge * qty;
+                const payable = Math.max(0, lineTotal - discount);
+                return {
+                    ...it,
+                    service_type: suggested.name,
+                    service_charge: charge,
+                    service_provider: suggested.isClinicFund ? 'Hospital' : (it.service_provider || 'Doctor / Specialist'),
+                    quantity: qty,
+                    line_total: lineTotal,
+                    discount: discount,
+                    payable_amount: payable,
+                    isClinicFund: suggested.isClinicFund === true,
+                    note: it.note ? it.note : (suggested.note || '')
+                };
+            }
+            return it;
+        });
+        const totals = calculateTotals(updated, 0, formData.paid_amount || 0, formData.special_discount_amount || 0);
+        setFormData(prev => ({ ...prev, items: updated, ...totals }));
+        setSuggestRowId(null);
+        setSuggestCoords(null);
+    };
 
     const handleSaveInvoice = (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -4243,17 +4778,17 @@ const IndoorInvoicePage: React.FC<{
     const commonInputClasses = "w-full p-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-700 font-medium";
 
     const SummaryCard = ({ title, bill, net, color }: any) => (
-        <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 text-center shadow-xl shadow-black/40 transition-all hover:scale-105 hover:border-slate-700 group relative overflow-hidden">
+        <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 shadow-xl shadow-black/40 transition-all hover:border-slate-700 group relative overflow-hidden">
             <div className={`absolute top-0 left-0 w-1 h-full ${color.replace('text-', 'bg-')}`}></div>
-            <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-[0.2em] mb-2 group-hover:text-slate-400 transition-colors">{title}</h4>
-            <div className="space-y-2">
-                <div className="flex justify-between items-center text-slate-500 text-[11px] font-bold">
-                    <span>Total Bill:</span>
-                    <span className="text-slate-300">{bill.toLocaleString()}</span>
+            <h4 className="text-slate-400 text-[10px] uppercase font-black tracking-widest mb-2 px-1">{title}</h4>
+            <div className="grid grid-cols-2 gap-2 bg-slate-950/60 p-2 rounded-xl border border-slate-800/80">
+                <div className="text-center border-r border-slate-800 pr-2">
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">Total Bill</div>
+                    <div className="text-xs font-mono font-bold text-slate-200 mt-0.5">{bill.toLocaleString()}</div>
                 </div>
-                <div className={`flex justify-between items-center ${color} text-xl font-black border-t border-slate-800/50 pt-2`}>
-                    <span className="text-[10px] uppercase text-slate-500 tracking-tighter">Hospital Net</span>
-                    <span>{net.toLocaleString()}</span>
+                <div className="text-center pl-2">
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">Hospital Net</div>
+                    <div className={`text-sm font-mono font-black ${color}`}>{net.toLocaleString()}</div>
                 </div>
             </div>
         </div>
@@ -4387,77 +4922,7 @@ const IndoorInvoicePage: React.FC<{
                 </div>
             )}
 
-            <div className="grid grid-cols-4 gap-4">
-                <SummaryCard title="Today Hospital Cash" bill={stats.today.totalBill} net={stats.today.hospitalNet} color="text-emerald-400" />
-                <SummaryCard title="Monthly Hospital Cash" bill={stats.month.totalBill} net={stats.month.hospitalNet} color="text-blue-400" />
-                <SummaryCard title="Yearly Hospital Cash" bill={stats.year.totalBill} net={stats.year.hospitalNet} color="text-purple-400" />
-                <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 text-center shadow-lg shadow-black/20 flex flex-col justify-center">
-                    <h4 className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Total Outstanding Due</h4>
-                    <p className="text-2xl font-black text-rose-500">{stats.totalDue.toLocaleString()}</p>
-                </div>
-            </div>
 
-            {/* Sub-Navigation: Switch between Form, Master Journal, or Both */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800 shadow-xl">
-                <div className="flex flex-wrap items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setInvoiceSubTab('form');
-                            setTimeout(() => {
-                                document.getElementById('indoor-invoice-form-section')?.scrollIntoView({ behavior: 'smooth' });
-                            }, 50);
-                        }}
-                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
-                            invoiceSubTab === 'form' 
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 border border-blue-400' 
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                        }`}
-                    >
-                        <PlusIcon size={16} /> ➕ নতুন ইনভয়েস ফর্ম
-                    </button>
-                    <button
-                        type="button"
-                        id="master-journal-nav-btn"
-                        onClick={() => {
-                            setInvoiceSubTab('journal');
-                            setTimeout(() => {
-                                document.getElementById('master-journal-section')?.scrollIntoView({ behavior: 'smooth' });
-                            }, 50);
-                        }}
-                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
-                            invoiceSubTab === 'journal' 
-                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/40 border border-blue-400' 
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                        }`}
-                    >
-                        <DatabaseIcon size={16} /> 📋 Master Journal: Saved Indoor Invoices ({indoorInvoices.length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setInvoiceSubTab('both')}
-                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
-                            invoiceSubTab === 'both' 
-                                ? 'bg-slate-800 text-cyan-400 border border-cyan-500/30 font-bold' 
-                                : 'text-slate-500 hover:text-slate-300'
-                        }`}
-                    >
-                        📑 উভয় ভিউ (Both)
-                    </button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    {duplicateCount > 0 && (
-                        <button
-                            type="button"
-                            onClick={handleDeduplicateInvoices}
-                            className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 animate-pulse cursor-pointer shadow"
-                        >
-                            🧹 ডুপ্লিকেট ইনভয়েস সরান ({duplicateCount})
-                        </button>
-                    )}
-                </div>
-            </div>
 
             {(invoiceSubTab === 'both' || invoiceSubTab === 'form') && (
                 <div id="indoor-invoice-form-section" className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl shadow-black/40 scroll-mt-6">
@@ -4574,13 +5039,13 @@ const IndoorInvoicePage: React.FC<{
                         <label className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5">Invoice Date</label>
                         <input 
                             type="date" 
-                            className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" 
+                            className="w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium h-[42px]" 
                             value={formData.invoice_date || ''} 
                             onChange={(e) => setFormData(prev => ({ ...prev, invoice_date: e.target.value }))}
                         />
                     </div>
                     <div className="flex items-end gap-2">
-                        <button onClick={handleGenerateId} className="bg-gradient-to-br from-blue-600 to-indigo-800 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-900/40 border border-blue-400/30 hover:from-blue-500 hover:to-indigo-700 transition-all h-[46px]">Generate ID</button>
+                        <button onClick={handleGenerateId} className="bg-gradient-to-br from-blue-600 to-indigo-800 text-white px-5 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-900/40 border border-blue-400/30 hover:from-blue-500 hover:to-indigo-700 transition-all h-[42px]">Generate ID</button>
                         {formData.daily_id && (
                             <button 
                                 onClick={() => { 
@@ -4589,7 +5054,7 @@ const IndoorInvoicePage: React.FC<{
                                     setSelectedInvoiceId(null); 
                                     setApplyPC(false);
                                 }} 
-                                className="bg-slate-800 hover:bg-slate-750 text-slate-400 px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border border-slate-700 h-[46px]"
+                                className="bg-slate-800 hover:bg-slate-750 text-slate-400 px-5 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border border-slate-700 h-[42px]"
                             >
                                 Clear Form
                             </button>
@@ -4597,7 +5062,7 @@ const IndoorInvoicePage: React.FC<{
                         {selectedInvoiceId && (
                             <button 
                                 onClick={handleNewVisit} 
-                                className="bg-gradient-to-br from-emerald-600 to-teal-800 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-900/40 border border-emerald-400/30 hover:from-emerald-500 hover:to-teal-700 transition-all h-[46px]"
+                                className="bg-gradient-to-br from-emerald-600 to-teal-800 text-white px-5 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-900/40 border border-emerald-400/30 hover:from-emerald-500 hover:to-teal-700 transition-all h-[42px]"
                             >
                                 New Visit
                             </button>
@@ -4635,88 +5100,145 @@ const IndoorInvoicePage: React.FC<{
                                 </button>
                             </div>
                         )}
-                        {/* Section 1: Details - Blue theme */}
-                        <div className="flex justify-between items-center mb-2">
-                            <h4 className="text-[10px] font-black text-blue-300 uppercase tracking-[0.3em] bg-blue-900/40 px-3 py-1 rounded-t-lg border-x border-t border-blue-700/50">Invoice Details & Timeline</h4>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 bg-blue-950/40 p-6 rounded-2xl rounded-tl-none border border-blue-700/30 shadow-[inner_0_2px_10px_rgba(0,0,0,0.4)]">
-                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Invoice ID</label><input type="text" value={formData.daily_id} disabled className="w-full p-3 bg-slate-900 border border-blue-900/30 rounded-xl text-blue-400 font-bold"/></div>
-                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Invoice Date</label><input type="date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Entry Date (System)</label><input type="text" value={formData.created_at ? new Date(formData.created_at).toLocaleString() : 'Not Saved Yet'} disabled className="w-full p-3 bg-slate-900/50 border border-slate-800 rounded-xl text-slate-500 text-[10px] font-bold"/></div>
-                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Admission Date</label><input type="date" name="admission_date" value={formData.admission_date} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Discharge Date</label><input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Patient Mobile</label><input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Patient Address</label><input type="text" name="patient_address" value={formData.patient_address || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"/></div>
-                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Patient DOB</label><input type="text" name="patient_dob" value={formData.patient_dob || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" placeholder="YYYY-MM-DD"/></div>
-                            <div className="flex flex-col justify-center items-center bg-slate-900 rounded-xl border border-slate-800 p-3">
-                                <label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-2">PC (Apply?)</label>
-                                <div className="flex gap-2 items-center">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setApplyPC(true)} 
-                                        className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${applyPC ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40 ring-2 ring-emerald-400' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                                    >
-                                        YES
-                                    </button>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => { setApplyPC(false); setFormData(prev => ({ ...prev, special_commission: 0, commission_paid: 0 })); }} 
-                                        className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${!applyPC ? 'bg-rose-600 text-white shadow-lg shadow-rose-900/40 ring-2 ring-rose-400' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                                    >
-                                        NO
-                                    </button>
-                                    {applyPC && (
-                                        <input 
-                                            type="number" 
-                                            value={formData.special_commission === 0 ? '' : formData.special_commission} 
-                                            onChange={e => setFormData(prev => ({...prev, special_commission: parseFloat(e.target.value) || 0}))} 
-                                            onFocus={e => e.target.select()}
-                                            className="w-24 p-2 bg-slate-950 border border-emerald-500/60 rounded-lg text-emerald-300 font-mono font-bold text-xs focus:ring-2 focus:ring-emerald-500 outline-none" 
-                                            placeholder="PC টাকা"
-                                        />
-                                    )}
+                        {/* Section 1: Details & Timeline - Seamless attached container */}
+                        <div className="rounded-2xl border-2 border-sky-500/40 bg-gradient-to-br from-slate-900 via-blue-950/30 to-slate-900 shadow-2xl overflow-hidden mb-6">
+                            {/* Eye-catching attached header banner */}
+                            <div className="bg-gradient-to-r from-sky-600/30 via-indigo-600/20 to-slate-900/90 px-4 sm:px-5 py-3 border-b border-sky-500/30 flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5">
+                                    <span className="p-1.5 bg-sky-500/20 text-sky-400 rounded-lg border border-sky-400/40 shadow-sm flex items-center justify-center">
+                                        <Calendar size={15} className="text-cyan-300" />
+                                    </span>
+                                    <div>
+                                        <h4 className="text-xs font-black text-cyan-200 uppercase tracking-[0.2em] flex items-center gap-2 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]">
+                                            Invoice Details & Timeline
+                                            <span className="text-[10px] font-bold text-sky-300/80 tracking-normal normal-case">| ইনভয়েস ডিটেইলস ও টাইমলাইন</span>
+                                        </h4>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="px-2.5 py-0.5 rounded-md bg-sky-950/80 border border-sky-500/40 text-[10px] font-mono font-bold text-sky-300">
+                                        ID: {formData.daily_id || 'Auto'}
+                                    </span>
                                 </div>
                             </div>
-                            <div><label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Category</label><select name="serviceCategory" value={formData.serviceCategory || ''} onChange={handleInputChange} className="w-full p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium">{(Array.isArray(serviceCategoriesList) ? serviceCategoriesList : []).map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}</select></div>
-                            <div>
-                                <SearchableSelect 
-                                    theme="dark" 
-                                    label="Sub_Category" 
-                                    options={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).filter(s => s && s.id && s.name).map(s => ({id: s.id, name: s.name}))} 
-                                    value={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).find(s => s && s.name === formData.subCategory)?.id || ''} 
-                                    onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
-                                    onAddNew={() => setShowSubCategoryManager(true)}
-                                    required={true}
-                                    inputHeightClass="h-[46px] bg-slate-900 border-slate-800"
-                                    allowCustom={true}
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <label className="block text-[10px] text-blue-400/70 font-black uppercase tracking-widest mb-1.5">Referrer</label>
-                                <SearchableSelect 
-                                    theme="dark" 
-                                    label="" 
-                                    options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r => ({ id: r.ref_id, name: r.ref_name, details: r.ref_degrees }))} 
-                                    value={formData.referrar_id || formData.referrar_name || ''} 
-                                    onChange={(id, name) => setFormData(prev => ({...prev, referrar_id: id, referrar_name: name}))} 
-                                    onAddNew={() => setShowNewReferrarForm(true)}
-                                    placeholder="Search or select referrer..." 
-                                    inputHeightClass="h-[46px] bg-slate-900 border-slate-800"
-                                    allowCustom={true}
-                                />
-                            </div>
-                            
-                            <div className="col-span-full bg-blue-900/10 p-4 rounded-2xl border border-blue-500/20 shadow-inner">
-                                <label className="text-[9px] font-black text-blue-300 uppercase tracking-[0.2em] flex items-center gap-2 mb-2">
-                                    <FileTextIcon size={12} /> OT Details & Clinical Notes
-                                </label>
-                                <textarea 
-                                    name="ot_details"
-                                    value={formData.ot_details || ''}
-                                    onChange={handleInputChange}
-                                    className="w-full h-16 bg-slate-950/50 border border-slate-700 rounded-xl p-3 text-slate-200 text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none shadow-inner"
-                                    placeholder="Enter OT report details, operation notes..."
-                                />
+
+                            {/* 3-Row Grid Layout */}
+                            <div className="p-4 sm:p-5 space-y-3">
+                                {/* Row 1: 6 columns (Dates, ID & Contact) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Invoice ID</label>
+                                        <input type="text" value={formData.daily_id} disabled className="w-full h-10 px-3 bg-slate-950/80 border border-sky-500/30 rounded-xl text-sky-300 font-mono font-bold text-xs" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Invoice Date</label>
+                                        <input type="date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Entry Date (System)</label>
+                                        <input type="text" value={formData.created_at ? new Date(formData.created_at).toLocaleString() : 'Not Saved Yet'} disabled className="w-full h-10 px-3 bg-slate-900/60 border border-slate-800 rounded-xl text-slate-400 text-[10px] font-medium" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Admission Date</label>
+                                        <input type="date" name="admission_date" value={formData.admission_date} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Discharge Date</label>
+                                        <input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Patient Mobile</label>
+                                        <input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" placeholder="017XX XXXXXX" />
+                                    </div>
+                                </div>
+
+                                {/* Row 2: 6 columns (Address, DOB, Category, Sub-Category, PC Apply & Referrer Side-by-Side!) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Patient Address</label>
+                                        <input type="text" name="patient_address" value={formData.patient_address || ''} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" placeholder="গ্রাম / থানা" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Patient DOB / Age</label>
+                                        <input type="text" name="patient_dob" value={formData.patient_dob || ''} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" placeholder="YYYY-MM-DD" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Category</label>
+                                        <select name="serviceCategory" value={formData.serviceCategory || ''} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all">
+                                            {(Array.isArray(serviceCategoriesList) ? serviceCategoriesList : []).map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <SearchableSelect 
+                                            theme="dark" 
+                                            label="Sub_Category" 
+                                            options={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).filter(s => s && s.id && s.name).map(s => ({id: s.id, name: s.name}))} 
+                                            value={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).find(s => s && s.name === formData.subCategory)?.id || ''} 
+                                            onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
+                                            onAddNew={() => setShowSubCategoryManager(true)}
+                                            required={true}
+                                            inputHeightClass="h-10 bg-slate-950 border-slate-700/80 rounded-xl text-xs"
+                                            allowCustom={true}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">PC (Apply?)</label>
+                                        <div className="flex items-center gap-1.5 h-10 px-2 bg-slate-950 border border-slate-700/80 rounded-xl">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setApplyPC(true)} 
+                                                className={`flex-1 py-1 rounded-lg text-[10px] font-black transition-all ${applyPC ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                                            >
+                                                YES
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => { setApplyPC(false); setFormData(prev => ({ ...prev, special_commission: 0, commission_paid: 0 })); }} 
+                                                className={`flex-1 py-1 rounded-lg text-[10px] font-black transition-all ${!applyPC ? 'bg-rose-600 text-white shadow-sm ring-1 ring-rose-400' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                                            >
+                                                NO
+                                            </button>
+                                            {applyPC && (
+                                                <input 
+                                                    type="number" 
+                                                    value={formData.special_commission === 0 ? '' : formData.special_commission} 
+                                                    onChange={e => setFormData(prev => ({...prev, special_commission: parseFloat(e.target.value) || 0}))} 
+                                                    onFocus={e => e.target.select()}
+                                                    className="w-16 p-1 bg-slate-900 border border-emerald-500/60 rounded-lg text-emerald-300 font-mono font-bold text-xs focus:ring-1 focus:ring-emerald-500 outline-none text-right" 
+                                                    placeholder="৳"
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Referrer</label>
+                                        <SearchableSelect 
+                                            theme="dark" 
+                                            label="" 
+                                            options={(Array.isArray(referrars) ? referrars : []).filter(r => r).map(r => ({ id: r.ref_id, name: r.ref_name, details: r.ref_degrees }))} 
+                                            value={formData.referrar_id || formData.referrar_name || ''} 
+                                            onChange={(id, name) => setFormData(prev => ({...prev, referrar_id: id, referrar_name: name}))} 
+                                            onAddNew={() => setShowNewReferrarForm(true)}
+                                            placeholder="Search Referrer..." 
+                                            inputHeightClass="h-10 bg-slate-950 border-slate-700/80 rounded-xl text-xs"
+                                            allowCustom={true}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Row 3: OT Details & Clinical Notes (Full width) */}
+                                <div className="bg-blue-900/10 p-3 rounded-xl border border-blue-500/20 shadow-inner">
+                                    <label className="text-[10px] font-bold text-sky-300 uppercase tracking-wider flex items-center gap-2 mb-1">
+                                        <FileTextIcon size={12} className="text-cyan-400" /> OT Details & Clinical Notes (অপারেশন ও ক্লিনিক্যাল বিবরণ)
+                                    </label>
+                                    <textarea 
+                                        name="ot_details"
+                                        value={formData.ot_details || ''}
+                                        onChange={handleInputChange}
+                                        className="w-full h-14 bg-slate-950/70 border border-slate-700/70 rounded-lg p-2.5 text-slate-100 text-xs focus:ring-1 focus:ring-sky-400 focus:border-sky-400 outline-none resize-none shadow-inner font-mono"
+                                        placeholder="Enter OT report details, operation notes..."
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -4732,11 +5254,23 @@ const IndoorInvoicePage: React.FC<{
                                         type="button" 
                                         onClick={() => {
                                             setTargetRowIdForRate(null);
+                                            setIsEditingRates(false);
                                             setShowRateChart(true);
                                         }} 
                                         className="bg-gradient-to-r from-teal-600 to-emerald-700 hover:from-teal-500 hover:to-emerald-600 text-white px-3.5 py-2 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-1.5 shadow-lg shadow-teal-950/40 border border-teal-400/40 cursor-pointer"
                                     >
-                                        📋 রেট চার্ট টেবিল (Rate Sheet)
+                                        📋 Rate Sheet
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => {
+                                            setTargetRowIdForRate(null);
+                                            handleStartEditingRates();
+                                        }} 
+                                        className="bg-gradient-to-r from-sky-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white px-3.5 py-2 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-1.5 shadow-lg shadow-sky-950/40 border border-sky-400/40 cursor-pointer"
+                                        title="রেট তালিকা ও ডিফল্ট টাকা এডিট করুন"
+                                    >
+                                        ⚙️ রেট চার্ট এডিট (Edit Rates)
                                     </button>
                                     <div className="w-64">
                                         <SearchableSelect 
@@ -4782,10 +5316,10 @@ const IndoorInvoicePage: React.FC<{
                                 <table className="w-full text-sm text-left text-slate-300">
                                     <thead className="bg-slate-950 text-slate-500 border-b border-slate-800">
                                         <tr>
-                                            <th className="p-4 font-black uppercase tracking-widest text-[10px]">Type / Item</th>
-                                            <th className="p-4 font-black uppercase tracking-widest text-[10px]">Provider</th>
-                                            <th className="p-4 font-black uppercase tracking-widest text-[10px] text-right">Charge</th>
-                                            <th className="p-4 font-black uppercase tracking-widest text-[10px] text-right">Qty</th>
+                                            <th className="p-4 font-black uppercase tracking-widest text-[10px] w-[26%] min-w-[200px]">Type / Item</th>
+                                            <th className="p-4 font-black uppercase tracking-widest text-[10px] w-[22%] min-w-[170px]">Provider</th>
+                                            <th className="p-4 font-black uppercase tracking-widest text-[10px] text-right w-24">Charge</th>
+                                            <th className="p-4 font-black uppercase tracking-widest text-[10px] text-right w-20">Qty</th>
                                             <th className="p-4 font-black uppercase tracking-widest text-[10px] text-right">Disc</th>
                                             <th className="p-4 font-black uppercase tracking-widest text-[10px] text-right">Payable</th>
                                             <th className="p-4 font-black uppercase tracking-widest text-[10px] text-center">A/C</th>
@@ -4796,19 +5330,19 @@ const IndoorInvoicePage: React.FC<{
                                     <tbody className="divide-y divide-slate-800">
                                         {(formData.items || []).map(item => (
                                             <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
-                                                <td className="p-2">
+                                                <td className="p-2 relative">
                                                     <div className="flex items-center gap-1">
                                                         <input 
-                                                            list={`service_type_${item.id}`} 
+                                                            data-suggest-trigger="true"
                                                             value={item.service_type} 
-                                                            onChange={e=>handleServiceChange(item.id,'service_type',e.target.value)} 
-                                                            onFocus={() => setTargetRowIdForRate(item.id)}
-                                                            onClick={() => {
-                                                                setTargetRowIdForRate(item.id);
-                                                                setShowRateChart(true);
-                                                            }}
+                                                            onChange={e => {
+                                                                handleServiceChange(item.id, 'service_type', e.target.value);
+                                                                openServiceSuggestions(item.id, e.currentTarget);
+                                                            }} 
+                                                            onClick={e => openServiceSuggestions(item.id, e.currentTarget)}
+                                                            onFocus={e => openServiceSuggestions(item.id, e.currentTarget)}
                                                             placeholder="Select or type service..."
-                                                            className="w-full bg-slate-950 border border-slate-800 text-slate-200 p-2 rounded-lg h-9 text-xs focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer" 
+                                                            className="w-full bg-slate-950 border border-slate-700/80 text-slate-100 p-2 rounded-lg h-9 text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-400 outline-none transition-all font-medium" 
                                                         />
                                                         <button 
                                                             type="button" 
@@ -4822,7 +5356,6 @@ const IndoorInvoicePage: React.FC<{
                                                             📋
                                                         </button>
                                                     </div>
-                                                    <datalist id={`service_type_${item.id}`}>{(Array.isArray(serviceTypesList) ? serviceTypesList : []).map(t=><option key={t} value={t} className="bg-slate-900"/>)}</datalist>
                                                 </td>
                                                 <td className="p-2">
                                                     <input list={`service_provider_${item.id}`} value={item.service_provider} onChange={e=>handleServiceChange(item.id,'service_provider',e.target.value)} className="w-full bg-slate-950 border border-slate-800 text-slate-200 p-2 rounded-lg h-9 text-xs focus:ring-2 focus:ring-blue-500 outline-none" />
@@ -4866,10 +5399,88 @@ const IndoorInvoicePage: React.FC<{
                             </div>
                         </div>
 
+                        {/* Floating Side-Attached Service Suggestions Popover */}
+                        {suggestRowId && suggestCoords && (
+                            <div 
+                                ref={suggestPopupRef}
+                                style={{
+                                    position: 'fixed',
+                                    top: `${suggestCoords.top}px`,
+                                    left: `${suggestCoords.left}px`,
+                                    zIndex: 9999
+                                }}
+                                className="w-80 bg-slate-900/95 backdrop-blur-md rounded-2xl border-2 border-sky-500/70 shadow-2xl shadow-black/80 flex flex-col overflow-hidden text-left animate-fade-in"
+                            >
+                                {/* Header */}
+                                <div className="bg-gradient-to-r from-sky-900/90 to-indigo-900/90 px-3.5 py-2.5 border-b border-sky-500/40 flex items-center justify-between text-xs font-black text-sky-200">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                                        সাজেস্টেড সার্ভিস ও রেট
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-sky-300 font-mono bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-400/30">
+                                            {suggestedServices.length} টি
+                                        </span>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => { setSuggestRowId(null); setSuggestCoords(null); }}
+                                            className="text-slate-400 hover:text-white text-base leading-none px-1 cursor-pointer"
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Suggestions List */}
+                                <div className="max-h-64 overflow-y-auto divide-y divide-slate-800/80 p-1">
+                                    {suggestedServices.length === 0 ? (
+                                        <div className="p-4 text-center text-xs text-slate-400">
+                                            কোন সার্ভিস মেলেনি। আপনি সরাসরি বক্সে লিখে ব্যবহার করতে পারেন।
+                                        </div>
+                                    ) : (
+                                        suggestedServices.map((s: any) => (
+                                            <button
+                                                key={s.id || s.name}
+                                                type="button"
+                                                onClick={() => handleSelectSuggestion(s)}
+                                                className="w-full text-left p-2.5 hover:bg-sky-950/70 transition-all rounded-xl flex items-center justify-between gap-2 group cursor-pointer"
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-xs font-bold text-slate-100 group-hover:text-cyan-300 transition-colors truncate">
+                                                        {s.name}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                                        <span className="text-slate-500 font-medium">{s.category || 'সার্ভিস'}</span>
+                                                        {s.note && <span>• {s.note}</span>}
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    {s.defaultRate > 0 && (
+                                                        <div className="text-xs font-mono font-black text-emerald-400">
+                                                            ৳{s.defaultRate}
+                                                        </div>
+                                                    )}
+                                                    <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${s.isClinicFund ? 'bg-sky-950 text-sky-300 border border-sky-500/30' : 'bg-purple-950 text-purple-300 border border-purple-500/30'}`}>
+                                                        {s.isClinicFund ? 'Hospital' : 'Doctor'}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+
+                                {/* Footer */}
+                                <div className="bg-slate-950/90 px-3 py-1.5 border-t border-slate-800 text-[9.5px] text-slate-400 flex justify-between items-center">
+                                    <span className="text-sky-400 font-medium">ক্লিক করে ইনসার্ট করুন</span>
+                                    <span className="text-[9px] text-slate-500 font-mono">Esc = বন্ধ</span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Standard Rates Helper Modal / Popup */}
                         {showRateChart && (
                             <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-3 backdrop-blur-sm animate-fade-in">
-                                <div className="bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-teal-500/40 overflow-hidden">
+                                <div className="bg-slate-900 rounded-3xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl border border-teal-500/40 overflow-hidden">
                                     {/* Modal Header */}
                                     <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center shrink-0">
                                         <div className="flex items-center gap-3">
@@ -4878,137 +5489,316 @@ const IndoorInvoicePage: React.FC<{
                                             </div>
                                             <div>
                                                 <h3 className="text-base font-black text-white uppercase tracking-tight flex items-center gap-2">
-                                                    স্ট্যান্ডার্ড ক্লিনিক চার্জ ও সার্ভিস রেট টেবিল
+                                                    {isEditingRates ? '⚙️ সার্ভিস ও স্ট্যান্ডার্ড রেট তালিকা এডিটর' : 'স্ট্যান্ডার্ড ক্লিনিক চার্জ ও সার্ভিস রেট টেবিল'}
                                                     <span className="text-[10px] bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded border border-teal-500/30">
-                                                        {targetRowIdForRate ? '🎯 নির্দিষ্ট রো-তে বসানো হবে' : '➕ নতুন রো হিসেবে যোগ হবে'}
+                                                        {isEditingRates ? 'এডিট মোড সক্রিয়' : (targetRowIdForRate ? '🎯 নির্দিষ্ট রো-তে বসানো হবে' : '➕ নতুন রো হিসেবে যোগ হবে')}
                                                     </span>
                                                 </h3>
-                                                <p className="text-[11px] text-slate-400 font-medium">ক্লিক করে সরাসরি ইনভয়েসে ইনসার্ট করুন অথবা কপি করুন</p>
+                                                <p className="text-[11px] text-slate-400 font-medium">
+                                                    {isEditingRates 
+                                                        ? 'এখানে আপনি এডমিশন ফি, বেড চার্জ ও অন্যান্য সার্ভিসের ফি এবং ক্লিনিক ফান্ড (A/C টিক) পরিবর্তন ও সংরক্ষণ করতে পারবেন' 
+                                                        : 'ক্লিক করে সরাসরি ইনভয়েসে ইনসার্ট করুন অথবা কপি করুন'}
+                                                </p>
                                             </div>
                                         </div>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setShowRateChart(false)} 
-                                            className="p-2 bg-rose-500/20 text-rose-300 rounded-xl hover:bg-rose-600 hover:text-white transition-all text-xl font-bold cursor-pointer"
-                                        >
-                                            &times;
-                                        </button>
-                                    </div>
-
-                                    {/* Search & Category Tabs */}
-                                    <div className="p-4 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
-                                        <div className="relative flex-1 min-w-[240px]">
-                                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                                            <input 
-                                                type="text" 
-                                                placeholder="সার্চ করুন (যেমন: admission, surgeon, bed, ot, oxygen, dressing)..." 
-                                                value={rateSearchTerm}
-                                                onChange={e => setRateSearchTerm(e.target.value)}
-                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white outline-none focus:border-teal-500 font-bold"
-                                            />
-                                        </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase">সর্টিং:</span>
-                                            <select 
-                                                value={rateSortBy} 
-                                                onChange={e => setRateSortBy(e.target.value as any)}
-                                                className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none font-bold"
-                                            >
-                                                <option value="name">নাম অনুযায়ী (A-Z)</option>
-                                                <option value="rateAsc">চার্জ (কম থেকে বেশি)</option>
-                                                <option value="rateDesc">চার্জ (বেশি থেকে কম)</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    {/* Category Filter Pills */}
-                                    <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800 flex flex-wrap gap-1.5 shrink-0">
-                                        {['All', 'এডমিশন ও বেড', 'অপারেশন ও ওটি', 'সার্জন ও স্পেশালিস্ট', 'নার্সিং ও সার্ভিস', 'প্রসব ও প্রসিডিউর', 'অন্যান্য'].map(cat => (
+                                            {isEditingRates ? (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setIsEditingRates(false)} 
+                                                    className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition-all cursor-pointer"
+                                                >
+                                                    👁️ সাধারণ ভিউ
+                                                </button>
+                                            ) : (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={handleStartEditingRates} 
+                                                    className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                                                >
+                                                    ✏️ রেট তালিকা এডিট করুন
+                                                </button>
+                                            )}
                                             <button 
-                                                key={cat} 
                                                 type="button" 
-                                                onClick={() => setRateCategoryFilter(cat)}
-                                                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${rateCategoryFilter === cat ? 'bg-teal-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                                                onClick={() => { setShowRateChart(false); setIsEditingRates(false); }} 
+                                                className="p-2 bg-rose-500/20 text-rose-300 rounded-xl hover:bg-rose-600 hover:text-white transition-all text-xl font-bold cursor-pointer"
                                             >
-                                                {cat === 'All' ? 'সব আইটেম' : cat}
+                                                &times;
                                             </button>
-                                        ))}
-                                    </div>
-
-                                    {/* Rates List Table */}
-                                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-950">
-                                        <div className="overflow-x-auto rounded-xl border border-slate-800">
-                                            <table className="w-full text-xs text-left text-slate-200 border-collapse">
-                                                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-black border-b border-slate-800 sticky top-0">
-                                                    <tr>
-                                                        <th className="p-3">আইটেম / সার্ভিসের নাম</th>
-                                                        <th className="p-3">ক্যাটাগরি</th>
-                                                        <th className="p-3 text-right">স্ট্যান্ডার্ড ফি</th>
-                                                        <th className="p-3 text-center">ফান্ড ধরন</th>
-                                                        <th className="p-3">বিবরণ / নোট</th>
-                                                        <th className="p-3 text-center">একশন</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-800">
-                                                    {filteredAndSortedRates.map(r => (
-                                                        <tr key={r.id} className="hover:bg-slate-900/60 transition-colors">
-                                                            <td className="p-3 font-bold text-white flex items-center gap-1.5">
-                                                                <span className="text-teal-400">❖</span> {r.name}
-                                                            </td>
-                                                            <td className="p-3 text-slate-400 text-[11px]">{r.category}</td>
-                                                            <td className="p-3 text-right font-black text-emerald-400 text-sm">৳{r.defaultRate.toLocaleString()}</td>
-                                                            <td className="p-3 text-center">
-                                                                {r.isClinicFund ? (
-                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">হাসপাতাল ফান্ড</span>
-                                                                ) : (
-                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">ডাক্তার / খরচ</span>
-                                                                )}
-                                                            </td>
-                                                            <td className="p-3 text-slate-400 text-[11px]">{r.note}</td>
-                                                            <td className="p-3 text-center">
-                                                                <div className="flex items-center justify-center gap-2">
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => handleCopyRate(r)}
-                                                                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
-                                                                        title="ক্লিপবোর্ডে কপি করুন"
-                                                                    >
-                                                                        {copiedRateText === r.id ? '✓ কপিড' : '📋 কপি'}
-                                                                    </button>
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => handleInsertRateIntoRow(r, targetRowIdForRate)}
-                                                                        className="px-3 py-1 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-lg text-[10px] font-black shadow transition-all cursor-pointer flex items-center gap-1"
-                                                                    >
-                                                                        {targetRowIdForRate ? '📝 এই ঘরে বসান' : '➕ যোগ করুন'}
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                    {filteredAndSortedRates.length === 0 && (
-                                                        <tr>
-                                                            <td colSpan={6} className="py-12 text-center text-slate-500">
-                                                                কোনো আইটেম পাওয়া যায়নি।
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
                                         </div>
                                     </div>
 
-                                    {/* Footer */}
-                                    <div className="p-3 bg-slate-950 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400 shrink-0">
-                                        <span>মোট আইটেম: <b>{filteredAndSortedRates.length}</b> টি</span>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setShowRateChart(false)}
-                                            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                                        >
-                                            বন্ধ করুন
-                                        </button>
-                                    </div>
+                                    {isEditingRates ? (
+                                        /* --- EDIT MODE INTERFACE --- */
+                                        <div className="flex-1 flex flex-col overflow-hidden bg-slate-950">
+                                            {/* Guidelines Banner */}
+                                            <div className="p-3.5 bg-blue-950/30 border-b border-blue-500/20 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                                                <div className="text-xs text-blue-200 max-w-2xl">
+                                                    <span className="font-bold text-cyan-300 flex items-center gap-1">
+                                                        💡 গুরুত্বপূর্ণ দিকনির্দেশনা (Clinic Fund A/C রুলস):
+                                                    </span>
+                                                    <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
+                                                        যে সেবাগুলোর টাকা সরাসরি ক্লিনিক একাউন্টে জমা হবে (যেমন: <b>এডমিশন ফি, বেড চার্জ, ওটি চার্জ, নার্সিং ইত্যাদি</b>) সেগুলোতে <b>"ক্লিনিক ফান্ড (A/C)" বক্সে টিক</b> থাকবে। আর <b>স্টাফ কস্ট (Staff Cost / বকশিশ / খাবার)</b> বা ডাক্তার ফি ইত্যাদিতে <b>টিক থাকবে না (আনটিক)</b>, কারণ এগুলো ক্লিনিক আয় নয়।
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={handleAddNewRateItem} 
+                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black shadow transition-all flex items-center gap-1 cursor-pointer"
+                                                    >
+                                                        ➕ নতুন সার্ভিস যোগ করুন
+                                                    </button>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={handleResetDefaultRates} 
+                                                        className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white rounded-xl text-xs font-bold border border-amber-500/30 transition-all cursor-pointer"
+                                                        title="মূল ডিফল্ট রেট তালিকা ফিরিয়ে আনুন"
+                                                    >
+                                                        🔄 ডিফল্ট রেটে রিসেট
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Editable Items Table */}
+                                            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                                                <div className="overflow-x-auto rounded-xl border border-slate-800 shadow-inner">
+                                                    <table className="w-full text-xs text-left text-slate-200 border-collapse">
+                                                        <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-black border-b border-slate-800 sticky top-0 z-10">
+                                                            <tr>
+                                                                <th className="p-3 w-10 text-center">#</th>
+                                                                <th className="p-3 min-w-[200px]">সার্ভিস / আইটেমের নাম</th>
+                                                                <th className="p-3 min-w-[150px]">ক্যাটাগরি</th>
+                                                                <th className="p-3 min-w-[120px] text-right">স্ট্যান্ডার্ড ফি (৳)</th>
+                                                                <th className="p-3 min-w-[160px] text-center">ক্লিনিক ফান্ড (A/C টিক)</th>
+                                                                <th className="p-3 min-w-[180px]">বিবরণ / নোট</th>
+                                                                <th className="p-3 w-14 text-center">মুছুন</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-800 bg-slate-950/60">
+                                                            {rateEditList.map((item, index) => (
+                                                                <tr key={item.id || index} className="hover:bg-slate-900/50 transition-colors">
+                                                                    <td className="p-2.5 text-center text-slate-500 font-mono text-[10px]">
+                                                                        {index + 1}
+                                                                    </td>
+                                                                    <td className="p-2.5">
+                                                                        <input 
+                                                                            type="text" 
+                                                                            value={item.name} 
+                                                                            onChange={e => handleUpdateRateItemField(index, 'name', e.target.value)} 
+                                                                            placeholder="সার্ভিসের নাম..." 
+                                                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold outline-none focus:border-teal-400"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-2.5">
+                                                                        <input 
+                                                                            type="text" 
+                                                                            value={item.category} 
+                                                                            onChange={e => handleUpdateRateItemField(index, 'category', e.target.value)} 
+                                                                            placeholder="ক্যাটাগরি..." 
+                                                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-teal-400"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-2.5 text-right">
+                                                                        <input 
+                                                                            type="number" 
+                                                                            value={item.defaultRate} 
+                                                                            onChange={e => handleUpdateRateItemField(index, 'defaultRate', parseFloat(e.target.value) || 0)} 
+                                                                            className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono font-bold text-right outline-none focus:border-teal-400"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-2.5 text-center">
+                                                                        <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                                                                            <input 
+                                                                                type="checkbox" 
+                                                                                checked={!!item.isClinicFund} 
+                                                                                onChange={e => handleUpdateRateItemField(index, 'isClinicFund', e.target.checked)} 
+                                                                                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-teal-500 focus:ring-teal-400 cursor-pointer"
+                                                                            />
+                                                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${item.isClinicFund ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30' : 'bg-rose-950 text-rose-300 border border-rose-500/30'}`}>
+                                                                                {item.isClinicFund ? '✓ ক্লিনিক আয়' : '✕ খরচ / আনটিক'}
+                                                                            </span>
+                                                                        </label>
+                                                                    </td>
+                                                                    <td className="p-2.5">
+                                                                        <input 
+                                                                            type="text" 
+                                                                            value={item.note} 
+                                                                            onChange={e => handleUpdateRateItemField(index, 'note', e.target.value)} 
+                                                                            placeholder="সংক্ষিপ্ত বিবরণ বা নোট..." 
+                                                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 outline-none focus:border-teal-400"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-2.5 text-center">
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => handleRemoveRateItem(index)} 
+                                                                            className="p-1.5 text-rose-400 hover:text-white hover:bg-rose-600 rounded-lg transition-all cursor-pointer"
+                                                                            title="এই আইটেমটি মুছুন"
+                                                                        >
+                                                                            <Trash2 size={15} />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            {/* Edit Mode Footer */}
+                                            <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-between items-center text-xs shrink-0">
+                                                <span className="text-slate-400">
+                                                    মোট তালিকাভুক্ত সার্ভিস: <b className="text-white">{rateEditList.length}</b> টি
+                                                </span>
+                                                <div className="flex items-center gap-3">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => setIsEditingRates(false)} 
+                                                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition-all cursor-pointer"
+                                                    >
+                                                        বাতিল
+                                                    </button>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={handleSaveRateList} 
+                                                        className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black uppercase tracking-wider shadow-lg shadow-emerald-950/50 flex items-center gap-1.5 transition-all cursor-pointer"
+                                                    >
+                                                        💾 পরিবর্তনসমূহ সংরক্ষণ করুন (Save All)
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        /* --- VIEW & INSERT MODE INTERFACE --- */
+                                        <>
+                                            {/* Search & Category Tabs */}
+                                            <div className="p-4 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                                                <div className="relative flex-1 min-w-[240px]">
+                                                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="সার্চ করুন (যেমন: admission, surgeon, bed, ot, oxygen, dressing, staff)..." 
+                                                        value={rateSearchTerm}
+                                                        onChange={e => setRateSearchTerm(e.target.value)}
+                                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white outline-none focus:border-teal-500 font-bold"
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] text-slate-400 font-bold uppercase">সর্টিং:</span>
+                                                    <select 
+                                                        value={rateSortBy} 
+                                                        onChange={e => setRateSortBy(e.target.value as any)}
+                                                        className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none font-bold"
+                                                    >
+                                                        <option value="name">নাম অনুযায়ী (A-Z)</option>
+                                                        <option value="rateAsc">চার্জ (কম থেকে বেশি)</option>
+                                                        <option value="rateDesc">চার্জ (বেশি থেকে কম)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            {/* Category Filter Pills */}
+                                            <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800 flex flex-wrap gap-1.5 shrink-0">
+                                                {['All', 'এডমিশন ও বেড', 'অপারেশন ও ওটি', 'সার্জন ও স্পেশালিস্ট', 'স্টাফ ও অন্যান্য খরচ', 'নার্সিং ও সার্ভিস', 'প্রসব ও প্রসিডিউর', 'অন্যান্য'].map(cat => (
+                                                    <button 
+                                                        key={cat} 
+                                                        type="button" 
+                                                        onClick={() => setRateCategoryFilter(cat)}
+                                                        className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${rateCategoryFilter === cat ? 'bg-teal-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                                                    >
+                                                        {cat === 'All' ? 'সব আইটেম' : cat}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {/* Rates List Table */}
+                                            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-950">
+                                                <div className="overflow-x-auto rounded-xl border border-slate-800">
+                                                    <table className="w-full text-xs text-left text-slate-200 border-collapse">
+                                                        <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-black border-b border-slate-800 sticky top-0">
+                                                            <tr>
+                                                                <th className="p-3">আইটেম / সার্ভিসের নাম</th>
+                                                                <th className="p-3">ক্যাটাগরি</th>
+                                                                <th className="p-3 text-right">স্ট্যান্ডার্ড ফি</th>
+                                                                <th className="p-3 text-center">ফান্ড ধরন (A/C)</th>
+                                                                <th className="p-3">বিবরণ / নোট</th>
+                                                                <th className="p-3 text-center">একশন</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-800">
+                                                            {filteredAndSortedRates.map(r => (
+                                                                <tr key={r.id} className="hover:bg-slate-900/60 transition-colors">
+                                                                    <td className="p-3 font-bold text-white flex items-center gap-1.5">
+                                                                        <span className="text-teal-400">❖</span> {r.name}
+                                                                    </td>
+                                                                    <td className="p-3 text-slate-400 text-[11px]">{r.category}</td>
+                                                                    <td className="p-3 text-right font-black text-emerald-400 text-sm">৳{r.defaultRate.toLocaleString()}</td>
+                                                                    <td className="p-3 text-center">
+                                                                        {r.isClinicFund ? (
+                                                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">✓ হাসপাতাল ফান্ড</span>
+                                                                        ) : (
+                                                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">✕ স্টাফ / খরচ (আনটিক)</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="p-3 text-slate-400 text-[11px]">{r.note}</td>
+                                                                    <td className="p-3 text-center">
+                                                                        <div className="flex items-center justify-center gap-2">
+                                                                            <button 
+                                                                                type="button" 
+                                                                                onClick={() => handleCopyRate(r)}
+                                                                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
+                                                                                title="ক্লিপবোর্ডে কপি করুন"
+                                                                            >
+                                                                                {copiedRateText === r.id ? '✓ কপিড' : '📋 কপি'}
+                                                                            </button>
+                                                                            <button 
+                                                                                type="button" 
+                                                                                onClick={() => handleInsertRateIntoRow(r, targetRowIdForRate)}
+                                                                                className="px-3 py-1 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-lg text-[10px] font-black shadow transition-all cursor-pointer flex items-center gap-1"
+                                                                            >
+                                                                                {targetRowIdForRate ? '📝 এই ঘরে বসান' : '➕ যোগ করুন'}
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                            {filteredAndSortedRates.length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan={6} className="py-12 text-center text-slate-500">
+                                                                        কোনো আইটেম পাওয়া যায়নি।
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            {/* Footer */}
+                                            <div className="p-3 bg-slate-950 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400 shrink-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span>মোট আইটেম: <b>{filteredAndSortedRates.length}</b> টি</span>
+                                                    <span className="text-slate-600">|</span>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={handleStartEditingRates} 
+                                                        className="text-sky-400 hover:underline font-bold"
+                                                    >
+                                                        ✏️ রেট তালিকা পরিবর্তন / নতুন আইটেম যোগ করুন
+                                                    </button>
+                                                </div>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setShowRateChart(false)}
+                                                    className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                                >
+                                                    বন্ধ করুন
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -5271,10 +6061,10 @@ const IndoorInvoicePage: React.FC<{
                         </div>
                     </div>
 
-                    <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left text-slate-300 border-collapse">
-                                <thead className="bg-slate-950 text-slate-400 sticky top-0 z-10 border-b border-slate-800">
+                    <div className="bg-[#faf9f6] rounded-[2.5rem] border-2 border-sky-500/40 shadow-2xl overflow-hidden text-slate-900 p-6 sm:p-8">
+                        <div className="overflow-x-auto rounded-2xl border border-slate-300 shadow-inner bg-white">
+                            <table className="w-full text-sm text-left text-slate-800 border-collapse">
+                                <thead className="bg-slate-200 text-slate-700 sticky top-0 z-10 border-b border-slate-300">
                                     <tr>
                                         <th className="p-3.5 text-center w-12 font-black uppercase text-[10px] tracking-wider">SL</th>
                                         <th className="p-3.5 w-24 font-black uppercase text-[10px] tracking-wider">ID</th>
@@ -5296,50 +6086,50 @@ const IndoorInvoicePage: React.FC<{
                                         <th colSpan={2}></th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-800/80 bg-slate-900">
+                                <tbody className="divide-y divide-slate-200 bg-white">
                                     {filteredInvoices.map((inv, index) => (
-                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer odd:bg-slate-900 even:bg-slate-850/40 hover:bg-blue-950/40 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-900/30 border-l-4 border-blue-500' : ''} ${inv.status === 'Returned' ? 'bg-rose-950/30' : inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-40 grayscale line-through' : ''}`}>
-                                            <td className="p-3.5 text-center text-slate-500 font-mono text-xs">{index + 1}</td>
-                                            <td className="p-3.5 font-black text-xs text-blue-400 font-mono">{inv.daily_id}</td>
-                                            <td className="p-3.5 text-xs">
-                                                <div className="font-bold text-slate-200" title="ভর্তি তারিখ">Adm: {inv.admission_date || inv.invoice_date}</div>
+                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-sky-50/70 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-50 border-l-4 border-blue-600' : ''} ${inv.status === 'Returned' ? 'bg-rose-50/50' : inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-40 grayscale line-through' : ''}`}>
+                                            <td className="py-2 px-3 text-center text-slate-500 font-mono text-xs font-bold">{index + 1}</td>
+                                            <td className="py-2 px-3 font-black text-xs text-blue-700 font-mono">{inv.daily_id}</td>
+                                            <td className="py-2 px-3 text-xs leading-tight">
+                                                <div className="font-bold text-slate-800" title="ভর্তি তারিখ">Adm: {inv.admission_date || inv.invoice_date}</div>
                                                 {inv.invoice_date && inv.invoice_date !== inv.admission_date && (
-                                                    <div className="text-[10px] text-slate-400">Inv: {inv.invoice_date}</div>
+                                                    <div className="text-[10px] text-slate-500">Inv: {inv.invoice_date}</div>
                                                 )}
                                                 {inv.discharge_date && (
-                                                    <div className="text-[10px] text-emerald-400 font-semibold">Disch: {inv.discharge_date}</div>
+                                                    <div className="text-[10px] text-emerald-700 font-semibold">Disch: {inv.discharge_date}</div>
                                                 )}
                                             </td>
-                                            <td className="p-3.5">
-                                                <div className="font-black uppercase text-white tracking-wide text-sm">{inv.patient_name}</div>
-                                                <div className="text-[10px] text-slate-400 mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 font-mono">ID: {inv.patient_id}</span>
-                                                    <span className="bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded">Indication: {inv.indication}</span>
+                                            <td className="py-2 px-3">
+                                                <div className="font-black uppercase text-slate-900 tracking-tight text-xs">{inv.patient_name}</div>
+                                                <div className="text-[10px] text-slate-600 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 items-center">
+                                                    <span className="bg-slate-100 px-1.5 py-0.2 rounded text-slate-700 font-mono font-bold">ID: {inv.patient_id}</span>
+                                                    <span className="bg-blue-50 text-blue-800 px-1.5 py-0.2 rounded font-medium">Indication: {inv.indication}</span>
                                                     {(() => {
                                                         const safePatients = Array.isArray(patients) ? patients : [];
                                                         const p = safePatients.find(pt => pt && pt.pt_id === inv.patient_id);
                                                         return p ? (
                                                             <>
-                                                                <span className="text-slate-400">Age: {p.ageY}Y</span>
-                                                                <span className="text-slate-400">Addr: {p.address}</span>
-                                                                <span className="text-slate-400">Mob: {p.mobile}</span>
+                                                                <span className="text-slate-600">Age: {p.ageY}Y</span>
+                                                                <span className="text-slate-600">Addr: {p.address}</span>
+                                                                <span className="text-emerald-800 font-bold">Mob: {p.mobile}</span>
                                                             </>
                                                         ) : null;
                                                     })()}
                                                 </div>
                                             </td>
-                                            <td className="p-3.5 text-right font-bold font-mono text-slate-200">{Number(inv.total_bill || 0).toFixed(2)}</td>
-                                            <td className="p-3.5 text-right text-emerald-400 font-black font-mono">{Number(inv.paid_amount || 0).toFixed(2)}</td>
-                                            <td className="p-3.5 text-right text-rose-400 font-black font-mono">{Number(inv.due_bill || 0).toFixed(2)}</td>
-                                            <td className="p-3.5 text-right text-cyan-400 font-bold font-mono">
+                                            <td className="py-2 px-3 text-right font-bold font-mono text-slate-800">{Number(inv.total_bill || 0).toFixed(2)}</td>
+                                            <td className="py-2 px-3 text-right text-emerald-700 font-black font-mono">{Number(inv.paid_amount || 0).toFixed(2)}</td>
+                                            <td className="py-2 px-3 text-right text-rose-700 font-black font-mono">{Number(inv.due_bill || 0).toFixed(2)}</td>
+                                            <td className="py-2 px-3 text-right text-cyan-800 font-bold font-mono">
                                                 {(() => {
                                                     if (inv.status === 'Cancelled' || inv.status === 'Deleted') return '0.00';
                                                     const net = calculateInvoiceClinicNet(inv);
                                                     return net.toFixed(2);
                                                 })()}
                                             </td>
-                                            <td className="p-3.5 text-center"><span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-700 text-slate-300':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
-                                            <td className="p-3.5 text-center space-x-2 whitespace-nowrap" onClick={e=>e.stopPropagation()}>
+                                            <td className="py-2 px-3 text-center"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-600 text-white':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
+                                            <td className="py-2 px-3 text-center space-x-2 whitespace-nowrap" onClick={e=>e.stopPropagation()}>
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleLoadInvoice(inv); }} 
                                                     className="inline-flex items-center gap-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-3 py-1.5 rounded-lg text-xs font-black border border-amber-500/40 shadow transition-all cursor-pointer"
@@ -5713,78 +6503,62 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
                 {(Array.isArray(wards) ? wards : []).map(ward => ward && (
                     <div key={ward.id} className="animate-fade-in">
                         <div className="flex items-center gap-4 mb-6">
-                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                            <h4 className="text-sm font-black text-cyan-300 uppercase tracking-wider flex items-center gap-2 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]">
+                                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"></span>
                                 {ward.name}
                             </h4>
-                            <div className="h-px bg-slate-800 flex-1"></div>
+                            <div className="h-px bg-cyan-500/30 flex-1"></div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                             {(Array.isArray(ward.beds) ? ward.beds : []).map(bedId => {
                                 const admission = getBedStatus(bedId);
                                 const isOccupied = !!admission;
                                 return (
-                                    <div key={bedId} className={`relative p-5 rounded-[2rem] border transition-all duration-500 flex flex-col justify-between min-h-[220px] shadow-2xl overflow-hidden group ${isOccupied ? 'bg-gradient-to-br from-rose-700 via-rose-800 to-rose-950 border-rose-500/40 shadow-rose-950/60 ring-1 ring-rose-500/20' : 'bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900 border-emerald-400/40 shadow-emerald-950/60 ring-1 ring-emerald-400/20'}`}>
-                                        {/* Glossy Overlay */}
-                                        <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none opacity-50 group-hover:opacity-80 transition-opacity"></div>
-                                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-all duration-700"></div>
-                                        
+                                    <div key={bedId} className={`relative p-4 rounded-xl border transition-all duration-300 flex flex-col justify-between min-h-[110px] sm:min-h-[120px] shadow-md overflow-hidden group ${isOccupied ? 'bg-slate-900 border-rose-500/60 shadow-rose-950/30' : 'bg-slate-900 border-emerald-500/60 shadow-emerald-950/30'}`}>
                                         <div className="flex justify-between items-start relative z-10">
                                             <div className="flex flex-col">
-                                                <span className="text-xl font-black text-white drop-shadow-lg tracking-tighter">{bedId}</span>
-                                                <span className="text-[9px] text-white/70 font-black uppercase tracking-widest">{ward.name}</span>
+                                                <span className={`text-lg font-black tracking-tighter ${isOccupied ? 'text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]' : 'text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]'}`}>{bedId}</span>
+                                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{ward.name}</span>
                                             </div>
                                             {isOccupied ? (
                                                 <button 
                                                     onClick={() => handleFreeBed(bedId)} 
-                                                    className="p-2 bg-black/30 hover:bg-rose-600 text-white rounded-xl transition-all shadow-lg backdrop-blur-md border border-white/20 hover:scale-110 cursor-pointer" 
+                                                    className="p-1.5 bg-rose-950 hover:bg-rose-600 text-rose-300 hover:text-white rounded-lg transition-all border border-rose-500/40 cursor-pointer text-xs" 
                                                     title="ম্যানুয়ালি বেড খালি করুন"
                                                 >
-                                                    <TrashIcon size={14}/>
+                                                    <TrashIcon size={12}/>
                                                 </button>
                                             ) : (
-                                                <Armchair className="w-7 h-7 text-white/30 drop-shadow-sm group-hover:text-white/60 transition-colors"/>
+                                                <Armchair className="w-5 h-5 text-emerald-400/60 drop-shadow-[0_0_5px_rgba(16,185,129,0.4)]"/>
                                             )}
                                         </div>
                                         
                                         {isOccupied ? (
-                                            <div className="mt-2 relative z-10 flex flex-col justify-between flex-1">
+                                            <div className="mt-1 relative z-10 flex flex-col justify-between flex-1">
                                                 <div>
-                                                    <div className="text-base text-white font-black truncate drop-shadow-md" title={admission.patient_name}>
+                                                    <div className="text-sm text-white font-black truncate drop-shadow-[0_0_5px_rgba(255,255,255,0.4)]" title={admission.patient_name}>
                                                         {admission.patient_name}
                                                     </div>
-                                                    <div className="text-[11px] text-rose-200 font-bold truncate tracking-wider uppercase mt-0.5">
+                                                    <div className="text-[10px] text-rose-300 font-mono font-bold truncate">
                                                         ID: {admission.admission_id}
-                                                    </div>
-                                                    {admission.doctor_name && (
-                                                        <div className="text-[10px] text-rose-200/80 font-medium truncate mt-0.5">
-                                                            Dr: {admission.doctor_name}
-                                                        </div>
-                                                    )}
-                                                    <div className="mt-2 flex items-center gap-2">
-                                                        <div className="h-2 w-2 rounded-full bg-rose-400 animate-pulse"></div>
-                                                        <span className="text-[9px] text-white font-black bg-black/30 px-2.5 py-0.5 rounded-lg border border-white/10 uppercase tracking-widest">Occupied</span>
                                                     </div>
                                                 </div>
 
-                                                {/* Prominent Manual Bed Release Button */}
                                                 <button
                                                     type="button"
                                                     onClick={() => handleFreeBed(bedId)}
-                                                    className="w-full mt-3 py-2 px-3 bg-black/40 hover:bg-rose-600 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border border-white/20 transition-all shadow-md cursor-pointer hover:shadow-lg backdrop-blur-sm"
+                                                    className="w-full mt-2 py-1 px-2 bg-rose-950/80 hover:bg-rose-600 active:scale-95 text-rose-200 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 border border-rose-500/40 transition-all cursor-pointer shadow"
                                                 >
-                                                    🔓 বেড রিলিজ করুন
+                                                    🔓 রিলিজ
                                                 </button>
                                             </div>
                                         ) : (
-                                            <div className="mt-auto relative z-10">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <div className="h-2 w-2 rounded-full bg-emerald-400"></div>
-                                                    <span className="text-[10px] text-emerald-100 font-black uppercase tracking-widest opacity-80">Ready for use</span>
+                                            <div className="mt-auto relative z-10 flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                                                    <span className="text-[10px] text-emerald-400 font-black uppercase tracking-widest drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]">Available</span>
                                                 </div>
-                                                <div className="text-xs text-white font-black bg-white/15 px-4 py-2 rounded-xl border border-white/20 uppercase tracking-[0.2em] shadow-inner text-center backdrop-blur-sm group-hover:bg-white/25 transition-all">
-                                                    Available (খালি)
-                                                </div>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase">খালি</span>
                                             </div>
                                         )}
                                     </div>
@@ -5936,7 +6710,7 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                     </div>
                 </div>
             </div>
-            {showRxMaster && <DischargeRxMasterModal admissions={admissions} patients={patients} doctors={doctors} onClose={() => setShowRxMaster(false)} />}
+            {showRxMaster && <DischargeRxMasterModal admissions={admissions} patients={patients} doctors={doctors} medicines={medicines} onClose={() => setShowRxMaster(false)} />}
         </div>
     );
 };

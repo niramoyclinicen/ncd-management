@@ -879,16 +879,8 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
                     </button>
                   </div>
 
-                  {/* Reset & Add buttons */}
+                  {/* Reset button */}
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleAddShiftRow}
-                      className="px-3.5 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold flex items-center gap-2 transition-all"
-                    >
-                      <PlusIcon className="w-4 h-4" />
-                      <span>+ নতুন শিফট / সারি যোগ করুন</span>
-                    </button>
                     <button
                       type="button"
                       onClick={handleResetSheet}
@@ -1010,9 +1002,14 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
                       ক্লিনিক কালেকশন ও সেবা ডাটা শিট ({shiftRows.length} টি সারি)
                     </h3>
                   </div>
-                  <div className="text-[11px] text-slate-400 font-medium">
-                    💡 খাতভিত্তিক অ্যামাউন্ট লিখলে স্বয়ংক্রিয়ভাবে মোট গ্রস ও নিট হিসাব হবে
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddShiftRow}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                  >
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    <span>নতুন শিফট / সারি যোগ করুন</span>
+                  </button>
                 </div>
 
                 <div className="bg-white border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm">
@@ -1250,7 +1247,7 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
 
                 {/* Save Bar */}
                 <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800">
-                  <div className="text-xs text-slate-400">
+                  <div className="flex items-center gap-4 flex-wrap text-xs text-slate-400">
                     {entryMode === 'monthly' ? (
                       <span className="text-purple-300 font-bold">
                         📅 নির্ধারিত মাস: {BENGALI_MONTHS[selectedMonth]?.bn} {selectedYear}
@@ -1260,6 +1257,14 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
                         📅 নির্ধারিত তারিখ: {selectedDate}
                       </span>
                     )}
+                    <button
+                      type="button"
+                      onClick={handleAddShiftRow}
+                      className="px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                    >
+                      <PlusIcon className="w-3.5 h-3.5" />
+                      <span>নতুন শিফট / সারি যোগ করুন</span>
+                    </button>
                   </div>
                   <div className="flex items-center gap-3">
                     <button

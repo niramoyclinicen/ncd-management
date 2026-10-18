@@ -127,11 +127,11 @@ const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLo
       {location.pathname !== '/' && (
         <button
           onClick={() => setIsQuickNavOpen(true)}
-          className="fixed bottom-5 left-5 z-[99997] bg-slate-900/90 text-sky-400 p-3 rounded-full border border-sky-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.6)] backdrop-blur-md hover:bg-sky-600 hover:text-white transition-all group flex items-center gap-2"
-          title="Quick Switch Module"
+          className="fixed bottom-5 left-5 z-[99997] text-sky-400 hover:text-white transition-all group flex items-center gap-2 cursor-pointer p-2 bg-transparent border-0 shadow-none outline-none"
+          title="Switch Module"
         >
-          <Menu size={20} />
-          <span className="text-xs font-bold uppercase tracking-wider hidden group-hover:inline-block pr-1">Switch Module</span>
+          <Menu size={26} className="drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] text-sky-400 hover:text-sky-300 transition-colors" />
+          <span className="text-xs font-bold uppercase tracking-wider hidden group-hover:inline-block bg-slate-900/95 text-white px-3 py-1.5 rounded-xl border border-sky-500/40 shadow-xl backdrop-blur-md">Switch Module</span>
         </button>
       )}
 

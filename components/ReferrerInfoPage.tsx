@@ -89,6 +89,8 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
         }
     };
 
+    const [isSaving, setIsSaving] = useState(false);
+
     const handleSaveReferrar = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.ref_id || !formData.ref_name) {
@@ -102,6 +104,8 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
             return;
         }
 
+        setIsSaving(true);
+        setSuccessMessage('রেফারার সংরক্ষণ করা হচ্ছে...');
         let newReferrars;
         if (isEditing) {
             newReferrars = referrars.map(r => r.ref_id === formData.ref_id ? formData : r);
@@ -111,22 +115,30 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
 
         if (performBlockingSync) {
             const success = await performBlockingSync({ referrars: newReferrars });
-            if (!success) return;
+            if (!success) {
+                setIsSaving(false);
+                setSuccessMessage('সিঙ্ক ত্রুটি: ক্লাউডে সেভ হয়নি। আবার চেষ্টা করুন।');
+                return;
+            }
         }
 
         setReferrars(newReferrars);
+        setIsSaving(false);
+        setSuccessMessage('সফলভাবে রেফারার সেভ হয়েছে ও ক্লাউডে সংরক্ষিত হয়েছে!');
         
         if (onSaveAndSelect) {
             onSaveAndSelect(formData.ref_id, formData.ref_name);
         }
-        setSuccessMessage('ডাটা সেভ হয়েছে');
-        if (onClose) onClose();
+        if (onClose) {
+            setTimeout(() => onClose(), 600);
+        }
     };
 
-    const inputBaseClasses = "py-2 px-3 mt-1 block w-full border border-sky-700/80 rounded-md bg-slate-800 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-400 outline-none font-medium";
+    const inputBaseClasses = "py-2 px-3 mt-1 block w-full border border-sky-700/80 rounded-md bg-slate-900 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-400 outline-none font-medium";
 
     return (
         <div className={`bg-slate-900 p-6 rounded-xl ${isEmbedded ? '' : 'min-h-screen'}`}>
+            {successMessage && <div className="fixed bottom-5 right-5 z-[9999] bg-emerald-600 border border-emerald-400 text-white px-6 py-3 rounded-lg shadow-2xl font-black text-sm">{successMessage}</div>}
             <div className="flex justify-between items-center mb-6 border-b border-sky-700/80 pb-4">
                 <div className="flex items-center gap-3">
                     <h2 className="text-xl font-bold text-white uppercase">Referrer Profile</h2>
@@ -159,11 +171,11 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
                 </div>
                 <div>
                     <label className="text-xs font-bold text-sky-300 uppercase">Gender</label>
-                    <select name="ref_gender" value={formData.ref_gender} onChange={handleInputChange} className={inputBaseClasses}>
-                        <option value="">Select Gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
+                    <select name="ref_gender" value={formData.ref_gender} onChange={handleInputChange} className={`${inputBaseClasses} bg-slate-900 text-white`}>
+                        <option value="" className="bg-slate-900 text-white">Select Gender</option>
+                        <option value="Male" className="bg-slate-900 text-white">Male</option>
+                        <option value="Female" className="bg-slate-900 text-white">Female</option>
+                        <option value="Other" className="bg-slate-900 text-white">Other</option>
                     </select>
                 </div>
                 <div>
@@ -176,8 +188,8 @@ const ReferrarInfoPage: React.FC<ReferrarInfoPageProps> = ({
                 </div>
 
                 <div className="md:col-span-2 flex gap-4 mt-6">
-                    <button type="submit" className={`flex-1 ${isEditing ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'} py-3 text-sm font-bold text-white uppercase tracking-widest rounded-lg transition-all active:scale-95 shadow-lg`}>
-                        {isEditing ? 'Update Referrer' : 'Save Referrer'}
+                    <button type="submit" disabled={isSaving} className={`flex-1 ${isEditing ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'} py-3 text-sm font-bold text-white uppercase tracking-widest rounded-lg transition-all active:scale-95 shadow-lg disabled:opacity-50`}>
+                        {isSaving ? 'সংরক্ষণ হচ্ছে...' : (isEditing ? 'Update Referrer' : 'Save Referrer')}
                     </button>
                     {isEditing && (
                         <button 

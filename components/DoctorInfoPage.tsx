@@ -83,10 +83,14 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({
     }
   }, [isEmbedded, isEditing, formData.doctor_id, handleGetNewId]);
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSaveDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.doctor_id || !formData.doctor_name) return alert('ID and Name required.');
     
+    setIsSaving(true);
+    setSuccessMessage('ডাক্তার সংরক্ষণ করা হচ্ছে...');
     let newDoctors;
     if (isEditing) {
       newDoctors = doctors.map(d => d.doctor_id === formData.doctor_id ? formData : d);
@@ -96,25 +100,32 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({
 
     if (performBlockingSync) {
       const success = await performBlockingSync({ doctors: newDoctors });
-      if (!success) return;
+      if (!success) {
+        setIsSaving(false);
+        setSuccessMessage('সিঙ্ক ত্রুটি: ক্লাউডে সেভ হয়নি। আবার চেষ্টা করুন।');
+        return;
+      }
     }
 
     setDoctors(newDoctors);
-    setSuccessMessage('ডাটা সেভ হয়েছে');
+    setSuccessMessage('সফলভাবে ডাক্তার সেভ হয়েছে ও ক্লাউডে সংরক্ষিত হয়েছে!');
+    setIsSaving(false);
     if (isEmbedded && onSaveAndSelect) onSaveAndSelect(formData.doctor_id, formData.doctor_name);
     setFormData(emptyDoctor);
     setSelectedDoctorId(null);
     setIsEditing(false);
-    if (onClose && isEmbedded) onClose();
+    if (onClose && isEmbedded) {
+      setTimeout(() => onClose(), 600);
+    }
   };
 
-  const inputBaseClasses = "py-2 px-3 mt-1 block w-full border border-sky-700/80 rounded-md shadow-sm text-base font-semibold bg-slate-850/90 text-white placeholder-slate-400 focus:bg-slate-800 focus:ring-2 focus:ring-blue-400 focus:border-blue-400";
+  const inputBaseClasses = "py-2 px-3 mt-1 block w-full border border-sky-700/80 rounded-md shadow-sm text-base font-semibold bg-slate-900 text-white placeholder-slate-400 focus:bg-slate-800 focus:ring-2 focus:ring-blue-400 focus:border-blue-400";
   const labelBaseClasses = "block text-sm font-bold text-sky-200";
   const actionButtonClasses = "px-4 py-2 text-sm font-bold rounded-md flex justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-sky-950 transition-colors min-w-[100px]";
 
   return (
     <div className={`bg-slate-900 text-slate-100 rounded-xl px-4 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
-        {successMessage && <div className="fixed bottom-5 right-5 z-[9999] bg-green-900/95 border border-green-500 text-green-100 px-6 py-3 rounded-lg shadow-2xl font-bold">{successMessage}</div>}
+        {successMessage && <div className="fixed bottom-5 right-5 z-[9999] bg-emerald-600 border border-emerald-400 text-white px-6 py-3 rounded-lg shadow-2xl font-black text-sm">{successMessage}</div>}
       
       <div className={`bg-sky-950/70 rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-700 mt-4' : 'border border-sky-700/80'}`}>
         {!isEmbedded && <h2 className="text-2xl font-bold text-white mb-6 border-b border-sky-700/80 pb-4">Doctor Information</h2>}
@@ -123,7 +134,7 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({
               <label className="font-bold text-sky-200 whitespace-nowrap">Dr. Id:</label>
               <input type="text" disabled value={formData.doctor_id} className="w-48 border border-sky-700 rounded-md shadow-sm text-base font-mono font-bold px-3 py-2 bg-slate-900 text-sky-300 cursor-not-allowed" />
               <button type="button" onClick={handleGetNewId} className={`${actionButtonClasses} text-white bg-blue-600 hover:bg-blue-700`}>Add New</button>
-              <button type="submit" form="doctor-form" className={`${actionButtonClasses} text-white bg-emerald-600 hover:bg-emerald-700`}>Save</button>
+              <button type="submit" form="doctor-form" disabled={isSaving} className={`${actionButtonClasses} text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50`}>{isSaving ? 'সংরক্ষণ হচ্ছে...' : 'Save'}</button>
               <button type="button" onClick={() => { if(selectedDoctorId) { const d = doctors.find(x => x.doctor_id === selectedDoctorId); if(d) { setFormData(d); setIsEditing(true); } } }} disabled={!selectedDoctorId} className={`${actionButtonClasses} text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50`}>Edit</button>
               <button type="button" onClick={() => { if(selectedDoctorId && confirm('Delete?')) setDoctors(prev => prev.filter(x => x.doctor_id !== selectedDoctorId)); }} disabled={!selectedDoctorId} className={`${actionButtonClasses} text-white bg-red-600 hover:bg-red-700 disabled:opacity-50`}>Delete</button>
           </div>
@@ -137,7 +148,14 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({
         <form id="doctor-form" onSubmit={handleSaveDoctor}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
             <div><label className={labelBaseClasses}>Doctor Name</label><input type="text" name="doctor_name" value={formData.doctor_name} onChange={handleInputChange} required className={inputBaseClasses} /></div>
-            <div><label className={labelBaseClasses}>Gender</label><select name="gender" value={formData.gender} onChange={handleInputChange} className={inputBaseClasses}><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+            <div>
+              <label className={labelBaseClasses}>Gender</label>
+              <select name="gender" value={formData.gender} onChange={handleInputChange} className={`${inputBaseClasses} bg-slate-900 text-white`}>
+                <option value="" className="bg-slate-900 text-white">Select</option>
+                <option value="Male" className="bg-slate-900 text-white">Male</option>
+                <option value="Female" className="bg-slate-900 text-white">Female</option>
+              </select>
+            </div>
             <div><label className={labelBaseClasses}>Degree (multi-line allowed)</label><textarea name="degree" value={formData.degree} onChange={handleInputChange} className={inputBaseClasses} placeholder="e.g. MBBS, FCPS\nMD (Medicine)" rows={2} /></div>
             <div><label className={labelBaseClasses}>Mobile</label><input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXX-XXXXXX" className={inputBaseClasses} /></div>
             <div className="md:col-span-2 flex items-center gap-4 mt-2 bg-sky-900/30 p-4 rounded-lg border border-sky-800">

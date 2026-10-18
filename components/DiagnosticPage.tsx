@@ -477,9 +477,6 @@ const DiagnosticPage: React.FC<DiagnosticPageProps> = ({
 
         <div className="p-3 border-t border-slate-800 bg-slate-900/50 mt-auto">
            <div className="flex items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isLabReporter ? 'bg-blue-900 text-blue-300' : 'bg-cyan-900 text-cyan-300'}`}>
-                {isLabReporter ? 'LR' : 'AD'}
-              </div>
               {isSidebarOpen && (
                 <div className="ml-3 overflow-hidden">
                    <p className="text-sm font-medium text-slate-200 truncate">{isLabReporter ? 'Lab Reporter' : 'Admin'}</p>

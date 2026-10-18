@@ -2993,40 +2993,7 @@ export const dbService = {
   savePurchaseInvoiceDirectly: async (inv: any) => {
     try {
       if (!supabase) return { success: false, error: 'Supabase not connected' };
-      const now = new Date().toISOString();
-
-      // 1. ALWAYS save to ncd_state master archive
-      try {
-        if (!cachedLegacyState) {
-          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-          if (data && data.length > 0) {
-            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
-          }
-        }
-        if (!cachedLegacyState) cachedLegacyState = {};
-        const existing = Array.isArray(cachedLegacyState.purchaseInvoices) ? cachedLegacyState.purchaseInvoices : [];
-        cachedLegacyState.purchaseInvoices = mergeEntityList(existing, [inv], ['invoice_id', 'invoiceId', 'id']);
-        cachedLegacyState.last_updated_at = now;
-
-        await supabase.from('ncd_state').upsert({
-          id: cachedLegacyRecordId || MASTER_RECORD_ID,
-          data: cachedLegacyState,
-          updated_at: now
-        }, { onConflict: 'id' });
-        console.log("[dbService] Saved purchase invoice to ncd_state master:", inv.invoiceId || inv.invoice_id);
-      } catch (sbErr) {
-        console.warn("[dbService] ncd_state purchase save notice:", sbErr);
-      }
-
-      // 2. ALSO attempt sync to modular table purchase_invoices
-      try {
-        await dbService.syncPurchaseInvoicesToModularTable([inv]);
-      } catch (modErr) {
-        console.warn("[dbService] Modular purchase save notice:", modErr);
-      }
-
+      await dbService.syncPurchaseInvoicesToModularTable([inv]);
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] savePurchaseInvoiceDirectly notice:", e);
@@ -3037,40 +3004,7 @@ export const dbService = {
   saveSalesInvoiceDirectly: async (inv: any) => {
     try {
       if (!supabase) return { success: false, error: 'Supabase not connected' };
-      const now = new Date().toISOString();
-
-      // 1. ALWAYS save to ncd_state master archive
-      try {
-        if (!cachedLegacyState) {
-          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-          if (data && data.length > 0) {
-            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
-          }
-        }
-        if (!cachedLegacyState) cachedLegacyState = {};
-        const existing = Array.isArray(cachedLegacyState.salesInvoices) ? cachedLegacyState.salesInvoices : [];
-        cachedLegacyState.salesInvoices = mergeEntityList(existing, [inv], ['invoice_id', 'invoiceId', 'id']);
-        cachedLegacyState.last_updated_at = now;
-
-        await supabase.from('ncd_state').upsert({
-          id: cachedLegacyRecordId || MASTER_RECORD_ID,
-          data: cachedLegacyState,
-          updated_at: now
-        }, { onConflict: 'id' });
-        console.log("[dbService] Saved sales invoice to ncd_state master:", inv.invoiceId || inv.invoice_id);
-      } catch (sbErr) {
-        console.warn("[dbService] ncd_state sales save notice:", sbErr);
-      }
-
-      // 2. ALSO sync to modular table sales_invoices
-      try {
-        await dbService.syncSalesInvoicesToModularTable([inv]);
-      } catch (modErr) {
-        console.warn("[dbService] Modular sales save notice:", modErr);
-      }
-
+      await dbService.syncSalesInvoicesToModularTable([inv]);
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] saveSalesInvoiceDirectly notice:", e);
@@ -3171,193 +3105,20 @@ export const dbService = {
   saveIndoorInvoiceDirectly: async (inv: any) => {
     try {
       if (!inv) return { success: false, error: 'No invoice provided' };
-      const now = new Date().toISOString();
-
-      const invDailyId = String(inv.daily_id || '').trim();
-      const invInvoiceId = String(inv.invoice_id || '').trim();
-      const invId = String((inv as any).id || '').trim();
-      const invAdmId = String(inv.admission_id || '').trim();
-      const invPtId = String(inv.patient_id || '').trim();
-      const recDate = getRecordDate(inv) || normalizeDate(inv.invoice_date || inv.admission_date) || now.split('T')[0];
-      const isModern = isMultiTableDate(recDate); // August 2026 onwards (>= 2026-08-01)
-      const isHistorical = isLegacyDate(recDate); // January 2026 to July 2026 (< 2026-08-01)
-
-      // 0. Immediately persist to localStorage offline cache
-      try {
-        let cached: any = {};
-        try {
-          const raw = localStorage.getItem('ncd_offline_cache_v1');
-          if (raw) cached = JSON.parse(raw);
-        } catch {}
-        if (!cached || typeof cached !== 'object') cached = {};
-        const localList = Array.isArray(cached.indoorInvoices) ? cached.indoorInvoices : [];
-        cached.indoorInvoices = mergeEntityList(localList, [inv], ['daily_id', 'invoice_id', 'id']);
-        cached.last_updated_at = now;
-        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
-      } catch (e) {}
-
       if (!supabase) return { success: true };
-
-      let masterSuccess = false;
-      let modularSuccess = false;
-
-      // 1. Single Table (ncd_state): Save and update all invoices (primary for Jan-Jul 2026, fallback for all)
-      try {
-        if (!cachedLegacyState) {
-          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-          if (data && data.length > 0) {
-            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
-          }
-        }
-        if (!cachedLegacyState) cachedLegacyState = {};
-        const existing = Array.isArray(cachedLegacyState.indoorInvoices) 
-          ? cachedLegacyState.indoorInvoices 
-          : (Array.isArray(cachedLegacyState.indoor_invoices) ? cachedLegacyState.indoor_invoices : (Array.isArray(cachedLegacyState.clinicInvoices) ? cachedLegacyState.clinicInvoices : []));
-
-        const isMatch = (x: any) => {
-          if (!x) return false;
-          const xDailyId = String(x.daily_id || '').trim();
-          const xInvoiceId = String(x.invoice_id || '').trim();
-          const xId = String(x.id || '').trim();
-          const xAdmId = String(x.admission_id || '').trim();
-          const xPtId = String(x.patient_id || '').trim();
-
-          if (invId && xId && invId === xId) return true;
-          if (invDailyId && xDailyId && invDailyId === xDailyId) return true;
-          if (invInvoiceId && xInvoiceId && invInvoiceId === xInvoiceId) return true;
-          if (invDailyId && xInvoiceId && invDailyId === xInvoiceId) return true;
-          if (invInvoiceId && xDailyId && invInvoiceId === xDailyId) return true;
-          if (invAdmId && xAdmId && invAdmId === xAdmId && invPtId && xPtId && invPtId === xPtId) return true;
-          return false;
-        };
-
-        let updated = false;
-        const newArr = existing.map((x: any) => {
-          if (isMatch(x)) {
-            updated = true;
-            return { ...x, ...inv, last_modified: now };
-          }
-          return x;
-        });
-        if (!updated) {
-          newArr.push({ ...inv, created_at: inv.created_at || now, last_modified: now });
-        }
-        cachedLegacyState.indoorInvoices = newArr;
-        cachedLegacyState.indoor_invoices = newArr;
-        cachedLegacyState.clinicInvoices = newArr;
-        cachedLegacyState.last_updated_at = now;
-
-        const { error: ncdErr } = await supabase.from('ncd_state').upsert({
-          id: cachedLegacyRecordId || MASTER_RECORD_ID,
-          data: cachedLegacyState,
-          updated_at: now
-        }, { onConflict: 'id' });
-        if (!ncdErr) {
-          masterSuccess = true;
-          console.log(`[dbService] Saved indoor invoice to ncd_state (Single Table): ${invDailyId || invInvoiceId}`);
-        } else {
-          console.warn("[dbService] ncd_state indoor save error:", ncdErr.message);
-        }
-      } catch (sbErr) {
-        console.warn("[dbService] ncd_state indoor save notice:", sbErr);
-      }
-
-      // 2. Multi-Table (indoor_invoices table): For August 2026 onwards (>= 2026-08-01), save & update in modular table
-      if (isModern) {
-        try {
-          const modRes = await dbService.syncIndoorInvoicesToModularTable([inv]);
-          if (modRes) {
-            modularSuccess = true;
-            console.log(`[dbService] Synced modern indoor invoice to multi-table (indoor_invoices): ${invDailyId || invInvoiceId}`);
-          } else {
-            console.warn("[dbService] Modular indoor save returned false");
-          }
-        } catch (modErr) {
-          console.warn("[dbService] Modular indoor save notice:", modErr);
-        }
-      } else {
-        modularSuccess = true;
-      }
-
-      if (masterSuccess || modularSuccess || supabase) {
-        return { success: true };
-      }
-      return { success: false, error: 'অনলাইন ডাটাবেজে ইনভয়েস সেভ হয়নি। সংযোগ চেক করুন।' };
+      await dbService.syncIndoorInvoicesToModularTable([inv]);
+      return { success: true };
     } catch (e: any) {
       console.warn("[dbService] saveIndoorInvoiceDirectly notice:", e);
-      if (supabase) return { success: true };
-      return { success: false, error: e?.message };
+      return { success: true, warning: e?.message };
     }
   },
 
   saveAdmissionDirectly: async (adm: any) => {
     try {
       if (!adm) return { success: false, error: 'No admission provided' };
-      const now = new Date().toISOString();
-      const admId = String(adm.admission_id || adm.id || '').trim();
-
-      // 0. Immediately persist to localStorage offline cache
-      try {
-        let cached: any = {};
-        try {
-          const raw = localStorage.getItem('ncd_offline_cache_v1');
-          if (raw) cached = JSON.parse(raw);
-        } catch {}
-        if (!cached || typeof cached !== 'object') cached = {};
-        const localList = Array.isArray(cached.admissions) ? cached.admissions : [];
-        cached.admissions = mergeEntityList(localList, [adm], ['admission_id', 'id']);
-        cached.last_updated_at = now;
-        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
-      } catch (e) {}
-
       if (!supabase) return { success: true };
-
-      // 1. ALWAYS persist to ncd_state master archive
-      try {
-        if (!cachedLegacyState) {
-          const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-          if (data && data.length > 0) {
-            const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-            cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-            cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
-          }
-        }
-        if (!cachedLegacyState) cachedLegacyState = {};
-        const existing = Array.isArray(cachedLegacyState.admissions) ? cachedLegacyState.admissions : [];
-        
-        let updated = false;
-        const newArr = existing.map((x: any) => {
-          const xId = String(x.admission_id || x.id || '').trim();
-          if (admId && xId && admId === xId) {
-            updated = true;
-            return { ...x, ...adm, last_modified: now };
-          }
-          return x;
-        });
-        if (!updated) {
-          newArr.push({ ...adm, last_modified: now });
-        }
-        cachedLegacyState.admissions = newArr;
-        cachedLegacyState.last_updated_at = now;
-
-        await supabase.from('ncd_state').upsert({
-          id: cachedLegacyRecordId || MASTER_RECORD_ID,
-          data: cachedLegacyState,
-          updated_at: now
-        }, { onConflict: 'id' });
-      } catch (sbErr) {
-        console.warn("[dbService] ncd_state admission save notice:", sbErr);
-      }
-
-      // 2. ALSO sync to modular table 'admissions' in background
-      try {
-        await dbService.syncAdmissionsToModularTable([adm]);
-      } catch (modErr) {
-        console.warn("[dbService] Modular admission save notice:", modErr);
-      }
-
+      await dbService.syncAdmissionsToModularTable([adm]);
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] saveAdmissionDirectly notice:", e);
@@ -3368,47 +3129,12 @@ export const dbService = {
   deleteAdmissionDirectly: async (admOrId: any, admDate?: string) => {
     try {
       if (!supabase || !admOrId) return { success: true };
-      const now = new Date().toISOString();
       const targetId = typeof admOrId === 'string' ? admOrId.trim() : String(admOrId?.admission_id || admOrId?.id || '').trim();
-      const recDate = typeof admOrId === 'object' ? getRecordDate(admOrId) : (admDate ? normalizeDate(admDate) : '');
-      const isHistorical = isLegacyDate(recDate);
-
-      // Historical delete
-      if (isHistorical || !recDate) {
-        try {
-          if (!cachedLegacyState) {
-            const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-            if (data && data.length > 0) {
-              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
-            }
-          }
-          if (cachedLegacyState && Array.isArray(cachedLegacyState.admissions)) {
-            cachedLegacyState.admissions = cachedLegacyState.admissions.filter((x: any) => {
-              const xId = String(x.admission_id || x.id || '').trim();
-              return xId !== targetId;
-            });
-            cachedLegacyState.last_updated_at = now;
-
-            await supabase.from('ncd_state').upsert({
-              id: cachedLegacyRecordId || MASTER_RECORD_ID,
-              data: cachedLegacyState,
-              updated_at: now
-            }, { onConflict: 'id' });
-          }
-        } catch (delErr) {
-          console.warn("[dbService] ncd_state delete admission notice:", delErr);
-        }
-      }
-
-      // Modular table delete
       try {
         await supabase.from('admissions').delete().or(`admission_id.eq.${targetId},id.eq.${targetId}`);
       } catch (modDelErr) {
         console.warn("[dbService] modular admission delete notice:", modDelErr);
       }
-
       return { success: true };
     } catch (e) {
       console.warn("[dbService] deleteAdmissionDirectly notice:", e);
@@ -3419,68 +3145,10 @@ export const dbService = {
   deleteIndoorInvoiceDirectly: async (inv: any) => {
     try {
       if (!supabase || !inv) return { success: true };
-      const now = new Date().toISOString();
       const targetDailyId = String(inv.daily_id || '').trim();
       const targetId = String((inv as any).id || '').trim();
       const targetInvoiceId = String(inv.invoice_id || '').trim();
-      const targetAdmissionId = String(inv.admission_id || '').trim();
-      const targetPatientId = String(inv.patient_id || '').trim();
-      const targetDate = String(inv.invoice_date || inv.admission_date || '').trim();
-      const targetBill = Number(inv.total_bill || 0);
-
-      const recDate = getRecordDate(inv);
-      const isHistorical = isLegacyDate(recDate);
-
-      // 1. If historical date (< 2026-08-01): Delete from ncd_state master record
-      if (isHistorical || !recDate) {
-        try {
-          if (!cachedLegacyState) {
-            const { data } = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-            if (data && data.length > 0) {
-              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
-            }
-          }
-          if (cachedLegacyState && Array.isArray(cachedLegacyState.indoorInvoices)) {
-            let matchedOne = false;
-            cachedLegacyState.indoorInvoices = cachedLegacyState.indoorInvoices.filter((x: any) => {
-              const xDailyId = String(x.daily_id || '').trim();
-              const xId = String(x.id || '').trim();
-              const xInvoiceId = String(x.invoice_id || '').trim();
-              
-              if (targetId && xId && targetId === xId) return false;
-              if (targetDailyId && xDailyId && targetDailyId === xDailyId) {
-                if (!matchedOne) { matchedOne = true; return false; }
-                return false;
-              }
-              if (targetInvoiceId && xInvoiceId && targetInvoiceId === xInvoiceId) return false;
-
-              if (targetAdmissionId && x.admission_id && targetAdmissionId === String(x.admission_id).trim()) {
-                if (targetPatientId === String(x.patient_id || '').trim() && targetDate === String(x.invoice_date || '').trim()) {
-                  if (Math.abs(Number(x.total_bill || 0) - targetBill) < 0.01) {
-                    if (!matchedOne) { matchedOne = true; return false; }
-                    return false;
-                  }
-                }
-              }
-              return true;
-            });
-            cachedLegacyState.last_updated_at = now;
-
-            await supabase.from('ncd_state').upsert({
-              id: cachedLegacyRecordId || MASTER_RECORD_ID,
-              data: cachedLegacyState,
-              updated_at: now
-            }, { onConflict: 'id' });
-            console.log(`[dbService] Deleted historical indoor invoice from ncd_state: ${targetDailyId || targetId}`);
-          }
-        } catch (delErr) {
-          console.warn("[dbService] ncd_state delete indoor notice:", delErr);
-        }
-      }
-
-      // 2. Delete from modular table 'indoor_invoices'
+      
       try {
         const orConditions = [];
         if (targetId) orConditions.push(`id.eq.${targetId}`);
@@ -3493,16 +3161,26 @@ export const dbService = {
         
         if (orConditions.length > 0) {
           await supabase.from('indoor_invoices').delete().or(orConditions.join(','));
-          console.log(`[dbService] Deleted indoor invoice from modular table: ${targetDailyId || targetId}`);
         }
       } catch (modDelErr) {
         console.warn("[dbService] modular indoor delete notice:", modDelErr);
       }
-
       return { success: true };
     } catch (e) {
       console.warn("[dbService] deleteIndoorInvoiceDirectly notice:", e);
       return { success: true };
+    }
+  },
+
+  saveLabInvoiceDirectly: async (inv: any) => {
+    try {
+      if (!inv) return { success: false, error: 'No invoice provided' };
+      if (!supabase) return { success: true };
+      await dbService.syncLabInvoicesToModularTable([inv]);
+      return { success: true };
+    } catch (e: any) {
+      console.warn("[dbService] saveLabInvoiceDirectly notice:", e);
+      return { success: true, warning: e?.message };
     }
   },
 

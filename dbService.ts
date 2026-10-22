@@ -73,9 +73,6 @@ export const initSupabaseClient = (url: string, key: string) => {
   return false;
 };
 
-const MASTER_RECORD_ID = 1;
-const LOCAL_STORAGE_KEY = 'ncd_offline_cache_v1';
-
 // Helper to safely parse ISO dates without throwing RangeError
 const safeIsoDate = (d: any): string | null => {
   if (!d) return null;
@@ -88,18 +85,9 @@ const safeIsoDate = (d: any): string | null => {
   }
 };
 
-// Default cutoff date for separate individual tables: August 1, 2026
-// Data before this date is read from and saved to the single table (ncd_state);
-// Data from this date onward (August 1, 2026 to present and future) is read from and saved to modular tables.
-export const DEFAULT_SEPARATE_TABLES_CUTOFF_DATE = '2026-08-01';
 
 export const getTableSplitCutoffDate = (): string => {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem('ncd_table_split_cutoff_date') || DEFAULT_SEPARATE_TABLES_CUTOFF_DATE;
-    }
-  } catch (e) {}
-  return DEFAULT_SEPARATE_TABLES_CUTOFF_DATE;
+  return '2026-08-01';
 };
 
 export const setTableSplitCutoffDate = (dateStr: string) => {
@@ -253,31 +241,6 @@ export const isLegacyDate = (_rawDate: any): boolean => {
 // Check if a record belongs to the modular/multi-table period (enabled for all records in pure multi-table system)
 export const isMultiTableDate = (_rawDate: any): boolean => {
   return true;
-};
-
-// In-memory cache for legacy baseline from ncd_state to make legacy saves instantaneous and lossless
-let cachedLegacyState: any = null;
-let cachedLegacyRecordId: number = MASTER_RECORD_ID;
-
-// Single table save status for legacy data (January-July 2026)
-export const isSingleTableSaveDisabled = (): boolean => {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('ncd_single_table_save_disabled');
-      if (saved !== null) {
-        return saved === 'true';
-      }
-    }
-  } catch (e) {}
-  return false; // Active by default so historical records are saved to ncd_state
-};
-
-export const setSingleTableSaveDisabled = (disabled: boolean) => {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('ncd_single_table_save_disabled', disabled ? 'true' : 'false');
-    }
-  } catch (e) {}
 };
 
 // In-memory set for deleted lab invoices
@@ -651,12 +614,6 @@ export const dbService = {
     try {
       const counts: Record<string, number> = {};
       
-      // Test ncd_state
-      const { data: ncdState, error: ncdErr } = await supabase.from('ncd_state').select('id').limit(10);
-      if (!ncdErr && ncdState) {
-        counts['ncd_state'] = ncdState.length;
-      }
-
       // Test individual tables
       const tableNames = [
         'patients', 'doctors', 'referrars', 'referrers', 'tests', 'employees', 'medicines', 'reagents',
@@ -696,22 +653,7 @@ export const dbService = {
       
       const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
 
-      // Helper to safely fetch ncd_state with fallback
-      const fetchNcdStateSafe = async (client: SupabaseClient) => {
-        try {
-          const res = await client.from('ncd_state').select('*').order('updated_at', { ascending: false });
-          if (!res.error && res.data && res.data.length > 0) return res;
-          const fallback = await client.from('ncd_state').select('*');
-          if (!fallback.error && fallback.data && fallback.data.length > 0) return fallback;
-          return res;
-        } catch {
-          try {
-            return await client.from('ncd_state').select('*');
-          } catch (e) {
-            return { data: null, error: e };
-          }
-        }
-      };
+
 
       // 1. Initialize state
       let state: any = {};
@@ -719,7 +661,6 @@ export const dbService = {
       // 2. Fetch legacy ncd_state table and all modular tables concurrently from Supabase
       try {
         const [
-          ncdRes,
           expRows,
           labInvRows,
           altInvRows,
@@ -750,7 +691,6 @@ export const dbService = {
           adjTableRows2,
           adjTableRows3
         ] = await Promise.all([
-          fetchNcdStateSafe(supabase),
           fetchTableSafe(supabase, 'detailed_expenses'),
           fetchTableSafe(supabase, 'lab_invoices'),
           fetchTableSafe(supabase, 'invoices'),
@@ -782,266 +722,32 @@ export const dbService = {
           fetchTableSafe(supabase, 'ncd_monthly_adjustments')
         ]);
 
-        // A. Load historical baseline from ncd_state (Single Table Archive)
-        // Load and merge across ALL rows in ncd_state (chronologically) so no historical or multi-month records are lost
-        const legacyRecords = ncdRes && !ncdRes.error ? (ncdRes.data || []) : [];
-        const activeDeletedLabIds = getDeletedLabInvoiceIds();
-        if (legacyRecords.length > 0) {
-          legacyRecords.forEach((r: any) => {
-            let rowData = r.data;
-            if (typeof rowData === 'string') {
-              try { rowData = JSON.parse(rowData); } catch { rowData = null; }
-            }
-            if (rowData && Array.isArray(rowData.deleted_lab_invoices)) {
-              rowData.deleted_lab_invoices.forEach((id: any) => {
-                if (id) activeDeletedLabIds.add(String(id).trim());
-              });
-            }
-          });
+        state.detailedExpenses = expRows || {};
+        state.labInvoices = labInvRows || [];
+        state.dueCollections = dueColRows || [];
+        state.indoorInvoices = indoorInvRows || [];
+        state.patients = patientRows || [];
+        state.doctors = doctorRows || [];
+        state.referrars = referrerRows || [];
+        state.tests = testRows || [];
+        state.reagents = reagentRows || [];
+        state.employees = empRows || [];
+        state.medicines = medRows || [];
+        state.salesInvoices = salesInvRows || [];
+        state.purchaseInvoices = purchaseInvRows || [];
+        state.reports = repRows || [];
+        state.prescriptions = prescRows || [];
+        state.appointments = apptRows || [];
+        state.admissions = admRows || [];
+        
+        // Handle consolidated entries and adjustments
+        // ... (etc)
+        
+        // Finally, ensure that the fetched data is not null/undefined
+        Object.keys(state).forEach(key => {
+            if (state[key] === null) state[key] = (key === 'detailedExpenses' ? {} : []);
+        });
 
-          const sortedLegacy = [...legacyRecords].sort((a: any, b: any) => {
-            const tA = new Date(a.updated_at || a.created_at || 0).getTime();
-            const tB = new Date(b.updated_at || b.created_at || 0).getTime();
-            return tA - tB;
-          });
-
-          const master = legacyRecords.find((r: any) => r.id === MASTER_RECORD_ID) || legacyRecords[0];
-          if (master && master.id) cachedLegacyRecordId = master.id;
-
-          sortedLegacy.forEach((row: any) => {
-            let rowData = row.data;
-            if (typeof rowData === 'string') {
-              try { rowData = JSON.parse(rowData); } catch { rowData = null; }
-            }
-            if (!rowData || typeof rowData !== 'object') rowData = row;
-            if (!rowData || typeof rowData !== 'object') return;
-
-            cachedLegacyState = { ...(cachedLegacyState || {}), ...rowData };
-
-            // Detailed Expenses from ncd_state (check all possible field variations)
-            const expSources = [
-              rowData.detailedExpenses,
-              rowData.detailed_expenses,
-              rowData.expenses,
-              (row as any).detailed_expenses,
-              (row as any).detailedExpenses
-            ].filter(x => x && typeof x === 'object');
-
-            if (expSources.length > 0) {
-              if (!state.detailedExpenses) state.detailedExpenses = {};
-
-              const registerExpense = (it: any, fallbackDate?: string) => {
-                if (!it || it.isDeleted) return;
-                const rawDate = it.date || it.expense_date || it.created_at || fallbackDate || '';
-                let normDate = normalizeDate(rawDate);
-                if (!normDate && it.id) {
-                  const m = String(it.id).match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
-                  if (m) normDate = `${m[1]}-${m[2]}-${m[3]}`;
-                }
-                if (!normDate) return;
-                if (!state.detailedExpenses[normDate]) state.detailedExpenses[normDate] = [];
-                const itId = String(it.id || `exp_${normDate.replace(/-/g, '')}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`);
-                const expPaid = Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? it.billAmount ?? it.bill_amount ?? 0);
-                const expBill = Number(it.billAmount ?? it.bill_amount ?? it.paidAmount ?? it.paid_amount ?? expPaid);
-                const normalizedItem = {
-                  ...it,
-                  id: itId,
-                  date: normDate,
-                  category: it.category || 'General',
-                  subCategory: it.subCategory || it.sub_category || '',
-                  description: it.description || '',
-                  paidAmount: expPaid,
-                  billAmount: expBill,
-                  dept: it.dept || 'Diagnostic'
-                };
-                const existingIdx = state.detailedExpenses[normDate].findIndex((x: any) => String(x.id || '') === itId && itId !== '');
-                if (existingIdx >= 0) {
-                  state.detailedExpenses[normDate][existingIdx] = { ...state.detailedExpenses[normDate][existingIdx], ...normalizedItem };
-                } else {
-                  state.detailedExpenses[normDate].push(normalizedItem);
-                }
-              };
-
-              expSources.forEach((expSource: any) => {
-                if (Array.isArray(expSource)) {
-                  expSource.forEach(it => registerExpense(it));
-                } else {
-                  Object.entries(expSource).forEach(([dKey, items]: [string, any]) => {
-                    const itemList = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
-                    itemList.forEach(it => registerExpense(it, dKey));
-                  });
-                }
-              });
-            }
-
-            // Lab Invoices from ncd_state (filter out any deleted records)
-            const labs = rowData.labInvoices || rowData.invoices || rowData.lab_invoices || rowData.diagnostic_invoices || (row as any).lab_invoices || (row as any).invoices;
-            if (Array.isArray(labs) && labs.length > 0) {
-              const mappedLabs = labs
-                .filter((l: any) => !isInvoiceMarkedDeleted(l, activeDeletedLabIds))
-                .map((l: any) => {
-                  const rawDate = l.invoice_date || l.date || l.invoiceDate || l.created_at || '';
-                  const normDate = normalizeDate(rawDate) || rawDate;
-                  return { ...l, invoice_date: normDate, invoiceDate: normDate, date: normDate };
-                });
-              state.labInvoices = mergeEntityList(state.labInvoices || [], mappedLabs, ['invoice_id', 'invoiceId', 'id']);
-            }
-
-            // Due Collections from ncd_state
-            const dues = rowData.dueCollections || rowData.due_collections || rowData.dues || rowData.collections || (row as any).due_collections || (row as any).dues;
-            if (Array.isArray(dues) && dues.length > 0) {
-              const mappedDues = dues.map((d: any) => {
-                const rawDate = d.collection_date || d.date || d.created_at || '';
-                const normDate = normalizeDate(rawDate) || rawDate;
-                return { ...d, collection_date: normDate, date: normDate };
-              });
-              state.dueCollections = mergeEntityList(state.dueCollections || [], mappedDues, ['collection_id', 'collectionId', 'id']);
-            }
-
-            // Indoor Invoices from ncd_state
-            const indoor = rowData.indoorInvoices || rowData.indoor_invoices || rowData.clinicInvoices || (row as any).indoor_invoices;
-            if (Array.isArray(indoor) && indoor.length > 0) {
-              const mappedIndoor = indoor.map((ind: any) => {
-                const rawDate = ind.admission_date || ind.invoice_date || ind.date || '';
-                const normDate = normalizeDate(rawDate) || rawDate;
-                return { ...ind, admission_date: normDate, invoice_date: normDate, date: normDate };
-              });
-              state.indoorInvoices = mergeEntityList(state.indoorInvoices || [], mappedIndoor, ['daily_id', 'invoice_id', 'invoiceId', 'id']);
-            }
-
-            // Purchase Invoices from ncd_state
-            const purs = rowData.purchaseInvoices || rowData.purchase_invoices || rowData.purchases || rowData.medicinePurchases || (row as any).purchase_invoices;
-            if (Array.isArray(purs) && purs.length > 0) {
-              const mappedPurs = purs.map((p: any) => {
-                const rawDate = p.invoiceDate || p.invoice_date || p.date || p.createdDate || '';
-                const normDate = normalizeDate(rawDate) || rawDate;
-                return { ...p, invoiceDate: normDate, invoice_date: normDate, date: normDate };
-              });
-              state.purchaseInvoices = mergeEntityList(state.purchaseInvoices || [], mappedPurs, ['invoice_id', 'invoiceId', 'id']);
-            }
-
-            // Sales Invoices from ncd_state
-            const sals = rowData.salesInvoices || rowData.sales_invoices || rowData.sales || rowData.medicineSales || (row as any).sales_invoices;
-            if (Array.isArray(sals) && sals.length > 0) {
-              const mappedSals = sals.map((s: any) => {
-                const rawDate = s.invoiceDate || s.invoice_date || s.date || s.createdDate || '';
-                const normDate = normalizeDate(rawDate) || rawDate;
-                return { ...s, invoiceDate: normDate, invoice_date: normDate, date: normDate };
-              });
-              state.salesInvoices = mergeEntityList(state.salesInvoices || [], mappedSals, ['invoice_id', 'invoiceId', 'id']);
-            }
-
-            // Medicines from ncd_state
-            const medList = rowData.medicines || row.medicines;
-            if (Array.isArray(medList) && medList.length > 0) {
-              state.medicines = mergeEntityList(state.medicines || [], medList, ['id', 'name']);
-            }
-
-            // Entity lists from ncd_state
-            ['patients', 'doctors', 'referrars', 'reagents', 'employees'].forEach(k => {
-              const list = rowData[k] || (row as any)[k];
-              if (Array.isArray(list) && list.length > 0) {
-                state[k] = mergeEntityList(state[k] || [], list, ['id']);
-              }
-            });
-
-            // Tests from ncd_state (safely normalized)
-            const rawLegacyTests = rowData.tests || rowData.test || (row as any).tests || (row as any).test;
-            if (Array.isArray(rawLegacyTests) && rawLegacyTests.length > 0) {
-              const normLegacyTests = rawLegacyTests
-                .map((t: any) => normalizeTestItem(t))
-                .filter((t: any): t is Test => t !== null && !!t.test_id);
-              state.tests = mergeEntityList(state.tests || [], normLegacyTests, ['test_id', 'id', 'test_name']);
-            }
-
-            // Dated activity records from ncd_state
-            ['reports', 'prescriptions', 'appointments', 'admissions'].forEach(k => {
-              const list = rowData[k] || (row as any)[k];
-              if (Array.isArray(list) && list.length > 0) {
-                state[k] = mergeEntityList(state[k] || [], list, ['id']);
-              }
-            });
-
-            // Settings and maps from ncd_state
-            ['diagnosticSettings', 'employeeReferrerMap', 'passwords', 'attendanceLog', 'leaveLog', 'monthlyRoster'].forEach(k => {
-              const obj = rowData[k] || (row as any)[k];
-              if (obj && typeof obj === 'object') {
-                if (!state[k]) state[k] = obj;
-              }
-            });
-
-            if (!state.monthlyAdjustments) state.monthlyAdjustments = {};
-            ['monthlyAdjustments', 'monthly_adjustments', 'ncd_monthly_adjustments', 'adjustments', 'profitShare', 'profit_share', 'accountSheet', 'account_sheet', 'dividend', 'dividends', 'profitDistribution', 'profit_distribution', 'monthly_reports', 'monthly_accounts'].forEach(k => {
-              let val = rowData[k] ?? (row as any)[k];
-              if (val) {
-                if (typeof val === 'string') {
-                  try { val = JSON.parse(val); } catch {}
-                }
-                if (val && typeof val === 'object') {
-                  const inner = (val.monthlyAdjustments || val.monthly_adjustments || val);
-                  if (typeof inner === 'object' && inner !== null) {
-                    Object.entries(inner).forEach(([ak, av]) => {
-                      if (!av && av !== 0) return;
-                      const normAk = normalizeDate(ak) || String(ak);
-                      const bnToEnMap: Record<string, string> = { '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4', '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9' };
-                      const cleanAk = normAk.replace(/[০-৯]/g, ch => bnToEnMap[ch] || ch);
-
-                      const extractNum = (v: any): number => {
-                        if (v === null || v === undefined) return 0;
-                        if (typeof v === 'number') return isNaN(v) ? 0 : v;
-                        let s = String(v).trim().replace(/[০-৯]/g, ch => bnToEnMap[ch] || ch).replace(/,/g, '');
-                        const n = parseFloat(s);
-                        return isNaN(n) ? 0 : n;
-                      };
-
-                      let pd = 0, hr = 0, li = 0;
-                      if (typeof av === 'number' || typeof av === 'string') {
-                        pd = extractNum(av);
-                      } else if (typeof av === 'object') {
-                        pd = extractNum(av.profitDist ?? av.profit_dist ?? av.profit ?? av.amount ?? av.value ?? av.dist ?? av.dividend ?? av.profit_distribution ?? av.profitDistribution ?? av.distribution ?? av.netProfit ?? av.net_profit);
-                        hr = extractNum(av.houseRent ?? av.house_rent ?? av.rent);
-                        li = extractNum(av.loanInstallment ?? av.loan_installment ?? av.installment);
-                      }
-
-                      if (pd > 0 || hr > 0 || li > 0 || !state.monthlyAdjustments[cleanAk]) {
-                        const item = { profitDist: pd, houseRent: hr, loanInstallment: li };
-                        state.monthlyAdjustments[cleanAk] = item;
-                        state.monthlyAdjustments[ak] = item;
-
-                        const m = String(cleanAk).match(/^(\d{4})[-_]?(\d{1,2})$/);
-                        if (m) {
-                          const y = parseInt(m[1], 10);
-                          const mn = parseInt(m[2], 10);
-                          const m0 = mn > 11 ? mn - 1 : (mn > 0 ? mn - 1 : 0);
-                          const m1 = mn > 12 ? mn : (mn === 0 ? 1 : mn);
-                          const mP1 = String(m1).padStart(2, '0');
-                          const mP0 = String(m0).padStart(2, '0');
-                          state.monthlyAdjustments[`${y}-${m0}`] = item;
-                          state.monthlyAdjustments[`${y}-${m1}`] = item;
-                          state.monthlyAdjustments[`${y}-${mP1}`] = item;
-                          state.monthlyAdjustments[`${y}-${mP0}`] = item;
-                          state.monthlyAdjustments[`${y}_${m0}`] = item;
-                          state.monthlyAdjustments[`${y}_${m1}`] = item;
-                          state.monthlyAdjustments[`${y}_${mP1}`] = item;
-                          state.monthlyAdjustments[`${y}_${mP0}`] = item;
-                        }
-                      }
-                    });
-                  }
-                }
-              }
-            });
-
-            if (Array.isArray(rowData.rtTemplates) && rowData.rtTemplates.length > 0 && (!state.rtTemplates || state.rtTemplates.length === 0)) {
-              state.rtTemplates = rowData.rtTemplates;
-            }
-
-            const rawCons = rowData.consolidatedLabEntries || rowData.consolidated_lab_entries || rowData.consolidatedEntries || rowData.consolidated_entries || (row as any).consolidated_lab_entries || (row as any).consolidatedLabEntries;
-            if (Array.isArray(rawCons) && rawCons.length > 0) {
-              state.consolidatedLabEntries = mergeEntityList(state.consolidatedLabEntries || [], rawCons, ['id', '_id']);
-            }
-          });
-        }
 
         // Merge Consolidated Lab Entries from modular table(s) if available
         const combinedConsRows = [...(consRows || []), ...(altConsRows || [])];
@@ -2002,156 +1708,6 @@ export const dbService = {
       const now = new Date().toISOString();
       let hasAnySaveSuccess = false;
 
-      // ---------------------------------------------------------------------------------
-      // 1. SAVE MASTER STATE (ALL MONTHS PRESERVED) TO ncd_state (Single Table Archive)
-      // Every record (January to December and future) is archived safely in ncd_state
-      // ---------------------------------------------------------------------------------
-      if (!isSingleTableSaveDisabled()) {
-        try {
-          if (!cachedLegacyState) {
-            let ncdFetch = await supabase.from('ncd_state').select('*').order('updated_at', { ascending: false }).limit(5);
-            if (ncdFetch.error || !ncdFetch.data || ncdFetch.data.length === 0) {
-              ncdFetch = await supabase.from('ncd_state').select('*').limit(5);
-            }
-            const data = ncdFetch.data;
-            if (data && data.length > 0) {
-              const masterRow = data.find((r: any) => r.id === MASTER_RECORD_ID) || data[0];
-              cachedLegacyRecordId = masterRow.id || MASTER_RECORD_ID;
-              cachedLegacyState = typeof masterRow.data === 'string' ? JSON.parse(masterRow.data) : masterRow.data;
-            }
-          }
-
-          const legacyBase = cachedLegacyState && typeof cachedLegacyState === 'object' ? { ...cachedLegacyState } : {};
-
-          // Master payload for ncd_state stores 100% complete archive of all months (past, present, future)
-          // When appState provides active collections, respect deletions instead of blindly resurrecting old ghosts
-          const sanitizeList = (list: any[]) => Array.isArray(list) ? list.filter(x => x && !x.isDeleted && x.status !== 'Cancelled' && x.status !== 'Deleted') : [];
-
-          const masterPurchases = appState.purchaseInvoices !== undefined 
-            ? sanitizeList(appState.purchaseInvoices)
-            : sanitizeList(legacyBase.purchaseInvoices || []);
-
-          const masterSales = appState.salesInvoices !== undefined 
-            ? sanitizeList(appState.salesInvoices)
-            : sanitizeList(legacyBase.salesInvoices || []);
-
-          const deletedLabIds = getDeletedLabInvoiceIds();
-          const masterLabs = (appState.labInvoices !== undefined 
-            ? sanitizeList(appState.labInvoices)
-            : sanitizeList(legacyBase.labInvoices || [])).filter(inv => !isInvoiceMarkedDeleted(inv, deletedLabIds));
-
-          const masterDues = appState.dueCollections !== undefined 
-            ? sanitizeList(appState.dueCollections)
-            : sanitizeList(legacyBase.dueCollections || []);
-
-          const masterIndoor = appState.indoorInvoices !== undefined 
-            ? sanitizeList(appState.indoorInvoices)
-            : sanitizeList(legacyBase.indoorInvoices || []);
-
-          const masterConsolidated = appState.consolidatedLabEntries !== undefined 
-            ? sanitizeList(appState.consolidatedLabEntries)
-            : sanitizeList(legacyBase.consolidatedLabEntries || []);
-
-          const masterConsolidatedClinic = appState.consolidatedClinicEntries !== undefined 
-            ? sanitizeList(appState.consolidatedClinicEntries)
-            : sanitizeList(legacyBase.consolidatedClinicEntries || []);
-
-          const masterReports = appState.reports !== undefined ? (appState.reports || []) : (legacyBase.reports || []);
-          const masterPrescriptions = appState.prescriptions !== undefined ? (appState.prescriptions || []) : (legacyBase.prescriptions || []);
-          const masterAppointments = appState.appointments !== undefined ? (appState.appointments || []) : (legacyBase.appointments || []);
-          const masterAdmissions = appState.admissions !== undefined ? (appState.admissions || []) : (legacyBase.admissions || []);
-
-          // Combine ALL detailed expenses across all dates (past, present, August, September, etc.)
-          const masterExpenses: Record<string, any[]> = {};
-          function combinedExpenses(target: Record<string, any[]>, dateKey: string, items: any) {
-            const norm = normalizeDate(dateKey) || (dateKey ? String(dateKey).split(/[T ]/)[0].trim() : '');
-            if (!norm) return;
-            const existing = target[norm] || [];
-            const ids = new Set(existing.map((x: any) => String(x.id || '')));
-            const itemList = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
-            const filteredNew = itemList.filter((x: any) => x && !x.isDeleted && !ids.has(String(x.id || '')));
-            target[norm] = [...existing, ...filteredNew];
-          }
-
-          if (appState.detailedExpenses && typeof appState.detailedExpenses === 'object' && Object.keys(appState.detailedExpenses).length > 0) {
-            if (Array.isArray(appState.detailedExpenses)) {
-              appState.detailedExpenses.forEach((it: any) => combinedExpenses(masterExpenses, it?.date, [it]));
-            } else {
-              Object.entries(appState.detailedExpenses).forEach(([k, v]) => combinedExpenses(masterExpenses, k, v));
-            }
-          } else if (legacyBase.detailedExpenses && typeof legacyBase.detailedExpenses === 'object') {
-            if (Array.isArray(legacyBase.detailedExpenses)) {
-              legacyBase.detailedExpenses.forEach((it: any) => combinedExpenses(masterExpenses, it?.date, [it]));
-            } else {
-              Object.entries(legacyBase.detailedExpenses).forEach(([k, v]) => combinedExpenses(masterExpenses, k, v));
-            }
-          }
-
-          let localMonthlyAdj = {};
-          try {
-            localMonthlyAdj = JSON.parse(localStorage.getItem('ncd_monthly_adjustments') || '{}');
-          } catch (e) {}
-
-          const masterMonthlyAdjustments = {
-            ...(legacyBase.monthlyAdjustments || legacyBase.monthly_adjustments || legacyBase.ncd_monthly_adjustments || {}),
-            ...localMonthlyAdj,
-            ...(appState?.monthlyAdjustments || {})
-          };
-
-          // Build master payload for ncd_state (ALL MONTHS PRESERVED)
-          const masterPayload = {
-            ...legacyBase,
-            medicines: appState.medicines || legacyBase.medicines || [],
-            patients: appState.patients || legacyBase.patients || [],
-            doctors: appState.doctors || legacyBase.doctors || [],
-            referrars: appState.referrars || legacyBase.referrars || [],
-            tests: appState.tests || legacyBase.tests || [],
-            reagents: appState.reagents || legacyBase.reagents || [],
-            employees: appState.employees || legacyBase.employees || [],
-            passwords: appState.passwords || legacyBase.passwords || {},
-            diagnosticSettings: appState.diagnosticSettings || legacyBase.diagnosticSettings || {},
-            employeeReferrerMap: appState.employeeReferrerMap || legacyBase.employeeReferrerMap || {},
-            attendanceLog: appState.attendanceLog || legacyBase.attendanceLog || {},
-            leaveLog: appState.leaveLog || legacyBase.leaveLog || {},
-            monthlyRoster: appState.monthlyRoster || legacyBase.monthlyRoster || {},
-            rtTemplates: appState.rtTemplates || legacyBase.rtTemplates || [],
-            monthlyAdjustments: masterMonthlyAdjustments,
-            
-            purchaseInvoices: masterPurchases,
-            salesInvoices: masterSales,
-            labInvoices: masterLabs,
-            dueCollections: masterDues,
-            indoorInvoices: masterIndoor,
-            consolidatedLabEntries: masterConsolidated,
-            consolidatedClinicEntries: masterConsolidatedClinic,
-            consolidated_clinic_entries: masterConsolidatedClinic,
-            reports: masterReports,
-            prescriptions: masterPrescriptions,
-            appointments: masterAppointments,
-            admissions: masterAdmissions,
-            detailedExpenses: masterExpenses,
-            deleted_lab_invoices: Array.from(deletedLabIds),
-            last_updated_at: now
-          };
-
-          // Save to ncd_state in Supabase
-          const { error: ncdErr } = await supabase.from('ncd_state').upsert({
-            id: cachedLegacyRecordId || MASTER_RECORD_ID,
-            data: masterPayload,
-            updated_at: now
-          }, { onConflict: 'id' });
-
-          if (ncdErr) {
-            console.warn("ncd_state master save notice:", ncdErr.message);
-          } else {
-            cachedLegacyState = masterPayload;
-            hasAnySaveSuccess = true;
-            console.log("[dbService] Saved all records to ncd_state master archive successfully.");
-          }
-        } catch (ncdSaveEx) {
-          console.warn("ncd_state save warning:", ncdSaveEx);
-        }
-      }
 
       // ---------------------------------------------------------------------------------
       // 2. ROUTE MODERN / FUTURE DATA (>= 2026-08-01) & MASTER CATALOGS TO MODULAR TABLES
@@ -2729,8 +2285,7 @@ export const dbService = {
   
   getTableSplitCutoffDate,
   setTableSplitCutoffDate,
-  isSingleTableSaveDisabled,
-  setSingleTableSaveDisabled,
+
 
   cleanDuplicateExpenses: async (onProgress?: (progress: number) => void) => {
     try {

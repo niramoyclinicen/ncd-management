@@ -115,7 +115,7 @@ export function useAppData() {
       let finalDataToLoad = loadedData;
       
       if (loadedData && !loadedData._error) {
-        // ALWAYS treat loadedData from cloud (which queries ncd_state + all modular tables) as master
+        // ALWAYS treat loadedData from cloud (which queries all modular tables) as master
         // If localData has any additional offline records, merge them in non-destructively
         if (localData && typeof localData === 'object') {
           if (localData.detailedExpenses && typeof localData.detailedExpenses === 'object') {
@@ -405,120 +405,81 @@ export function useAppData() {
     setIsManualSyncing(true);
     setManualSyncError(null);
     
-    // Merge overrides with current state if any, otherwise use current state
+    // 1. Build the updated state by merging current state variables AND overrides
+    const currentState = {
+        patients, doctors, referrars, tests, reagents, labInvoices, 
+        dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs,
+        purchaseInvoices, salesInvoices, admissions, indoorInvoices,
+        detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster,
+        monthlyAdjustments, diagnosticSettings, employeeReferrerMap,
+        consolidatedLabEntries, consolidatedClinicEntries, passwords
+    };
+    
+    const now = new Date().toISOString();
+    const stateToSync = { 
+        ...currentState, 
+        ...overrides, 
+        last_updated_at: now 
+    };
+
+    // 2. Perform sync tasks (e.g. syncLabInvoicesToModularTable)
     if (overrides?.labInvoices) {
-      setLabInvoices(overrides.labInvoices);
-      try {
-        await dbService.syncLabInvoicesToModularTable(overrides.labInvoices);
-      } catch (e) {
-        console.error("Error syncing Lab Invoices:", e);
-      }
-    }
-    if (overrides?.dueCollections) {
-      setDueCollections(overrides.dueCollections);
-    }
-    if (overrides?.detailedExpenses) {
-      setDetailedExpenses(overrides.detailedExpenses);
-    }
-    if (overrides?.referrars) {
-      setReferrars(overrides.referrars);
+        try {
+            await dbService.syncLabInvoicesToModularTable(overrides.labInvoices);
+        } catch (e) {
+            console.error("Error syncing Lab Invoices:", e);
+        }
     }
     if (overrides?.tests) {
-      setTests(overrides.tests);
-      try {
-        dbService.syncTestsToModularTable(overrides.tests);
-      } catch (e) {}
+        try {
+            dbService.syncTestsToModularTable(overrides.tests);
+        } catch (e) {}
     }
-    if (overrides?.reports) {
-      setReports(overrides.reports);
-    }
-    if (overrides?.prescriptions) {
-      setPrescriptions(overrides.prescriptions);
-    }
-    if (overrides?.appointments) {
-      setAppointments(overrides.appointments);
-    }
-    if (overrides?.reagents) {
-      setReagents(overrides.reagents);
-    }
-    if (overrides?.consolidatedLabEntries) {
-      setConsolidatedLabEntries(overrides.consolidatedLabEntries);
-    }
-    if (overrides?.consolidatedClinicEntries) {
-      setConsolidatedClinicEntries(overrides.consolidatedClinicEntries);
-    }
-    if (overrides?.admissions) {
-      setAdmissions(overrides.admissions);
-    }
-    if (overrides?.indoorInvoices) {
-      setIndoorInvoices(overrides.indoorInvoices);
-    }
-    if (overrides?.patients) {
-      setPatients(overrides.patients);
-    }
-    if (overrides?.doctors) {
-      setDoctors(overrides.doctors);
-    }
-    if (overrides?.employees) {
-      setEmployees(overrides.employees);
-    }
-    if (overrides?.medicines) {
-      setMedicines(overrides.medicines);
-    }
-    if (overrides?.purchaseInvoices) {
-      setPurchaseInvoices(overrides.purchaseInvoices);
-    }
-    if (overrides?.salesInvoices) {
-      setSalesInvoices(overrides.salesInvoices);
-    }
-    if (overrides?.diagnosticSettings) {
-      setDiagnosticSettings(overrides.diagnosticSettings);
-    }
-    if (overrides?.attendanceLog) {
-      setAttendanceLog(overrides.attendanceLog);
-    }
-    if (overrides?.leaveLog) {
-      setLeaveLog(overrides.leaveLog);
-    }
-    if (overrides?.monthlyRoster) {
-      setMonthlyRoster(overrides.monthlyRoster);
-    }
-    if (overrides?.monthlyAdjustments) {
-      setMonthlyAdjustments(overrides.monthlyAdjustments);
-      try {
-        localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(overrides.monthlyAdjustments));
-      } catch (e) {}
-    }
-    if (overrides?.rtTemplates) {
-      setRtTemplates(overrides.rtTemplates);
-    }
-    if (overrides?.passwords) {
-      setPasswords(overrides.passwords);
-    }
-    const now = new Date().toISOString();
-    setLastSavedAt(now);
-    lastSavedAtRef.current = now;
-    const stateToSync = getCurrentState({ ...overrides, last_updated_at: now });
-    
-    // Always backup to local storage immediately so data is never lost offline
-    try {
-      localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync));
-    } catch (e) {
-      console.warn("Local cache save notice:", e);
-    }
-    
+
+    // 3. Save to cloud
     try {
       console.log(`[Sync] Starting blocking sync. Overrides:`, overrides ? Object.keys(overrides) : 'None');
       const result = await dbService.saveToCloud(stateToSync);
+      
+      // 4. Update React state AFTER the cloud save is attempted
+      if (overrides?.labInvoices) setLabInvoices(overrides.labInvoices);
+      if (overrides?.dueCollections) setDueCollections(overrides.dueCollections);
+      if (overrides?.detailedExpenses) setDetailedExpenses(overrides.detailedExpenses);
+      if (overrides?.referrars) setReferrars(overrides.referrars);
+      if (overrides?.tests) setTests(overrides.tests);
+      if (overrides?.reports) setReports(overrides.reports);
+      if (overrides?.prescriptions) setPrescriptions(overrides.prescriptions);
+      if (overrides?.appointments) setAppointments(overrides.appointments);
+      if (overrides?.reagents) setReagents(overrides.reagents);
+      if (overrides?.consolidatedLabEntries) setConsolidatedLabEntries(overrides.consolidatedLabEntries);
+      if (overrides?.consolidatedClinicEntries) setConsolidatedClinicEntries(overrides.consolidatedClinicEntries);
+      if (overrides?.admissions) setAdmissions(overrides.admissions);
+      if (overrides?.indoorInvoices) setIndoorInvoices(overrides.indoorInvoices);
+      if (overrides?.patients) setPatients(overrides.patients);
+      if (overrides?.doctors) setDoctors(overrides.doctors);
+      if (overrides?.employees) setEmployees(overrides.employees);
+      if (overrides?.medicines) setMedicines(overrides.medicines);
+      if (overrides?.purchaseInvoices) setPurchaseInvoices(overrides.purchaseInvoices);
+      if (overrides?.salesInvoices) setSalesInvoices(overrides.salesInvoices);
+      if (overrides?.diagnosticSettings) setDiagnosticSettings(overrides.diagnosticSettings);
+      if (overrides?.attendanceLog) setAttendanceLog(overrides.attendanceLog);
+      if (overrides?.leaveLog) setLeaveLog(overrides.leaveLog);
+      if (overrides?.monthlyRoster) setMonthlyRoster(overrides.monthlyRoster);
+      if (overrides?.monthlyAdjustments) {
+        setMonthlyAdjustments(overrides.monthlyAdjustments);
+        try { localStorage.setItem('ncd_monthly_adjustments', JSON.stringify(overrides.monthlyAdjustments)); } catch (e) {}
+      }
+      if (overrides?.rtTemplates) setRtTemplates(overrides.rtTemplates);
+      if (overrides?.passwords) setPasswords(overrides.passwords);
+
+      setLastSavedAt(now);
+      lastSavedAtRef.current = now;
+      
+      // Always backup to local storage immediately
+      try { localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync)); } catch (e) { console.warn("Local cache save notice:", e); }
+      
       if (result.success) {
         console.log(`[Sync] Success!`);
-        
-        try {
-          localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync));
-        } catch (e) {
-          console.warn("Local backup notice:", e);
-        }
-        
         setIsManualSyncing(false);
         setSyncError(false);
         setLastManualSyncTime(Date.now());
@@ -536,7 +497,8 @@ export function useAppData() {
       setSyncError(false);
       return true;
     }
-  }, [getCurrentState]);
+  }, [patients, doctors, referrars, tests, reagents, labInvoices, dueCollections, reports, rtTemplates, employees, medicines, clinicalDrugs, purchaseInvoices, salesInvoices, admissions, indoorInvoices, detailedExpenses, prescriptions, appointments, attendanceLog, leaveLog, monthlyRoster, monthlyAdjustments, diagnosticSettings, employeeReferrerMap, consolidatedLabEntries, consolidatedClinicEntries, passwords]);
+
 
   // --- DATA SYNCING ---
   useEffect(() => {

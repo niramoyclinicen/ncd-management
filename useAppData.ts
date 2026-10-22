@@ -519,7 +519,10 @@ export function useAppData() {
         }
 
         if (syncPromises.length > 0) {
-          await Promise.all(syncPromises);
+          const results = await Promise.all(syncPromises);
+          if (results.some(r => r === false)) {
+            syncSuccess = false;
+          }
         }
       } else {
         // Explicit manual full sync (e.g. from Settings button)

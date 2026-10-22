@@ -364,22 +364,32 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
       newPatients = [updatedPatient, ...safePatients.filter(p => p && p.pt_id !== targetPtId)];
     }
 
-    // Immediately update local state so invoice form gets the new patient without lag
-    setPatients(newPatients);
-    setSuccessMessage('পেশেন্ট সফলভাবে সেভ হয়েছে!');
-
-    // Trigger parent selection callback immediately
-    if (isEmbedded && onSaveAndSelect) {
-      onSaveAndSelect(targetPtId, updatedPatient.pt_name);
-    }
-
-    // Persist to cloud in background / with blocking sync
+    // Persist to cloud with blocking sync first to ensure data is safely stored in Supabase
+    let cloudSuccess = true;
     if (performBlockingSync) {
       try {
-        await performBlockingSync({ patients: newPatients });
+        const res = await performBlockingSync({ patients: newPatients });
+        if (res === false) {
+          cloudSuccess = false;
+        }
       } catch (err) {
         console.error("Patient save sync error:", err);
+        cloudSuccess = false;
       }
+    }
+
+    if (!cloudSuccess && dbService.isSupabaseConnected()) {
+      setErrorMessage('ক্লাউড ডাটাবেজে পেশেন্ট সেভ ব্যর্থ হয়েছে। দয়া করে ইন্টারনেট ও Supabase টেবিল কানেকশন চেক করুন।');
+      return;
+    }
+
+    // Immediately update local state
+    setPatients(newPatients);
+    setSuccessMessage('পেশেন্ট সফলভাবে ক্লাউডে সেভ হয়েছে!');
+
+    // Trigger parent selection callback
+    if (isEmbedded && onSaveAndSelect) {
+      onSaveAndSelect(targetPtId, updatedPatient.pt_name);
     }
 
     const nextId = generateUniquePatientId(newPatients);

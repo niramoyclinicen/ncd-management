@@ -403,7 +403,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
     setLoading(true);
     try {
-      // Direct write ensures instant persistence in database (ncd_state for < 2026-08-01, or purchase_invoices for >= 2026-08-01)
+      // Direct write ensures instant persistence in dedicated modular purchase_invoices table
       try {
         await dbService.savePurchaseInvoiceDirectly(newInv);
       } catch (dbErr) {
@@ -549,7 +549,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
     setLoading(true);
     try {
-      // Direct write ensures instant persistence in database (ncd_state for < 2026-08-01, or sales_invoices for >= 2026-08-01)
+      // Direct write ensures instant persistence in dedicated modular sales_invoices table
       try {
         await dbService.saveSalesInvoiceDirectly(newSalesInv);
       } catch (dbErr) {
@@ -1082,7 +1082,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               createdDate: purchaseFormData.createdDate || new Date().toISOString()
           };
 
-          // 1. Direct database persistence (writes to both ncd_state and modular purchase_invoices table)
+          // 1. Direct database persistence (writes directly to modular purchase_invoices table)
           try {
               await dbService.savePurchaseInvoiceDirectly(savedInvoice);
           } catch (dbErr) {

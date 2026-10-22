@@ -163,7 +163,13 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   const [showFullSqlScript, setShowFullSqlScript] = useState(false);
   const [copiedFullSql, setCopiedFullSql] = useState(false);
   const [showDropNcdStateGuidance, setShowDropNcdStateGuidance] = useState(false);
-  const [isSingleTableDisabled, setIsSingleTableDisabled] = useState(() => dbService.isSingleTableSaveDisabled());
+  const [isSingleTableDisabled, setIsSingleTableDisabled] = useState(() => {
+    try {
+      return typeof dbService.isSingleTableSaveDisabled === 'function' ? dbService.isSingleTableSaveDisabled() : true;
+    } catch {
+      return true;
+    }
+  });
 
   // Dedicated Expense Transfer State
   const [isTransferringExpenses, setIsTransferringExpenses] = useState(false);

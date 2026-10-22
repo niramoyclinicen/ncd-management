@@ -1849,7 +1849,7 @@ const AdmissionAndTreatmentPage: React.FC<{
             console.warn("Local storage cache write notice:", e);
         }
 
-        // 2. Persist to Supabase Cloud directly based on date routing (Jan-Jul 2026 to ncd_state, Aug 2026+ to admissions table)
+        // 2. Persist to Supabase Cloud directly to modular admissions table
         try {
             await dbService.saveAdmissionDirectly(targetRecord);
         } catch (err) {
@@ -4229,7 +4229,7 @@ const IndoorInvoicePage: React.FC<{
                 newInvoicesArr.push(newInvoice);
             }
 
-            // 1. Direct database save according to January-July 2026 (ncd_state) vs August 2026+ (indoor_invoices)
+            // 1. Direct database save to modular indoor_invoices table
             const saveRes = await dbService.saveIndoorInvoiceDirectly(finalInvoice);
             if (saveRes && saveRes.success === false) {
                 alert("অনলাইনে ইনভয়েস সেভ হয়নি! " + (saveRes.error || "দয়া করে ইন্টারনেট ও ডাটাবেজ কানেকশন চেক করুন।"));

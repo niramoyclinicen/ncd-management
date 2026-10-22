@@ -792,36 +792,34 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
           });
       }
 
-      // 1. Direct database save respecting July 2026 (ncd_state) vs August 2026+ (lab_invoices)
+      // 1. Direct database save to modular lab_invoices table
       try {
         await dbService.saveLabInvoiceDirectly(invoiceToSave);
       } catch (directErr) {
         console.warn("Direct lab invoice save warning:", directErr);
       }
 
-      // 2. If performBlockingSync is available, use it to ensure cloud save
-      if (performBlockingSync) {
+      // 2. Persist reagent deductions if applicable
+      if (reagentsChanged) {
         try {
-          const syncPayload: any = { labInvoices: newInvoices };
-          if (reagentsChanged) syncPayload.reagents = updatedReagents;
-          const success = await performBlockingSync(syncPayload);
-          
-          if (success) {
-            setInvoices(newInvoices);
-            if (reagentsChanged && setReagents) setReagents(updatedReagents);
-            setSuccessMessage('ডাটা সফলভাবে সেভ হয়েছে');
-            resetForm();
-            setPendingFilmSelections(null);
-          } else {
-            console.error("Cloud save failed reported by performBlockingSync");
-            alert("ইন্টারনেট সংযোগ সমস্যা বা সার্ভার ত্রুটির কারণে ডাটা সেভ হয়নি। আবার চেষ্টা করুন।");
-          }
-        } catch (err) {
-          console.error("Critical error in performBlockingSync:", err);
-          alert("ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। ডাটা সেভ করা যায়নি।");
+          await dbService.syncReagentsToModularTable(updatedReagents);
+        } catch (rErr) {
+          console.warn("Reagents sync notice:", rErr);
         }
-      } else {
-        alert("সিস্টেম ত্রুটি: ক্লাউড সিঙ্ক উপলব্ধ নেই।");
+      }
+
+      // 3. Immediately update UI state
+      setInvoices(newInvoices);
+      if (reagentsChanged && setReagents) setReagents(updatedReagents);
+      setSuccessMessage('ডাটা সফলভাবে সেভ হয়েছে');
+      resetForm();
+      setPendingFilmSelections(null);
+
+      // 4. Background non-blocking sync to keep global cache aligned
+      if (performBlockingSync) {
+        const syncPayload: any = { labInvoices: newInvoices };
+        if (reagentsChanged) syncPayload.reagents = updatedReagents;
+        performBlockingSync(syncPayload).catch(err => console.warn("Background sync notice:", err));
       }
     } catch (err) {
       console.error("Save error:", err);

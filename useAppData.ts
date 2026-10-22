@@ -181,7 +181,28 @@ export function useAppData() {
         }
 
         if (Object.keys(finalDataToLoad).length > 0) {
-          updateLocalState(finalDataToLoad, true);
+          try {
+            updateLocalState(finalDataToLoad, true);
+          } catch (e) {
+            console.error("[useAppData] Critical error in updateLocalState, resetting to pristine state:", e);
+            updateLocalState({
+              detailedExpenses: {},
+              indoorInvoices: [],
+              labInvoices: [],
+              dueCollections: [],
+              admissions: [],
+              purchaseInvoices: [],
+              salesInvoices: [],
+              patients: [],
+              doctors: [],
+              referrars: [],
+              tests: [],
+              reagents: [],
+              medicines: [],
+              consolidatedLabEntries: [],
+              consolidatedClinicEntries: []
+            }, true);
+          }
         }
         setIsDataLoaded(true);
         setConnectionError(false);
@@ -218,6 +239,7 @@ export function useAppData() {
     };
 
     const updateLocalState = (data: any, isInitialLoad = false) => {
+      console.log("[useAppData] updateLocalState called, data keys:", data ? Object.keys(data) : 'null');
       if (!data) return;
       
       // If the data from cloud is same or older than our last local save, ignore to prevent echo loops (unless initial load)
@@ -362,7 +384,11 @@ export function useAppData() {
       if (newData && Object.keys(newData).length > 0) {
         const fullState = await dbService.loadFromCloud();
         if (fullState && !fullState._error) {
-          updateLocalState(fullState);
+          try {
+            updateLocalState(fullState);
+          } catch (e) {
+            console.error("[useAppData] Error in real-time updateLocalState:", e);
+          }
         }
       }
     });
@@ -425,26 +451,83 @@ export function useAppData() {
         last_updated_at: now 
     };
 
-    // 2. Perform sync tasks (e.g. syncLabInvoicesToModularTable)
-    if (overrides?.labInvoices) {
-        try {
-            await dbService.syncLabInvoicesToModularTable(overrides.labInvoices);
-        } catch (e) {
-            console.error("Error syncing Lab Invoices:", e);
-        }
-    }
-    if (overrides?.tests) {
-        try {
-            dbService.syncTestsToModularTable(overrides.tests);
-        } catch (e) {}
-    }
-
-    // 3. Save to cloud
+    // 2. Granular Modular Table Sync (Fast, targeted, pure multi-table)
+    let syncSuccess = true;
     try {
-      console.log(`[Sync] Starting blocking sync. Overrides:`, overrides ? Object.keys(overrides) : 'None');
-      const result = await dbService.saveToCloud(stateToSync);
-      
-      // 4. Update React state AFTER the cloud save is attempted
+      if (overrides && Object.keys(overrides).length > 0) {
+        const syncPromises: Promise<any>[] = [];
+
+        if (overrides.labInvoices) {
+          syncPromises.push(dbService.syncLabInvoicesToModularTable(overrides.labInvoices));
+        }
+        if (overrides.reagents) {
+          syncPromises.push(dbService.syncReagentsToModularTable(overrides.reagents));
+        }
+        if (overrides.dueCollections) {
+          syncPromises.push(dbService.syncDueCollectionsToModularTable(overrides.dueCollections));
+        }
+        if (overrides.indoorInvoices) {
+          syncPromises.push(dbService.syncIndoorInvoicesToModularTable(overrides.indoorInvoices));
+        }
+        if (overrides.admissions) {
+          syncPromises.push(dbService.syncAdmissionsToModularTable(overrides.admissions));
+        }
+        if (overrides.purchaseInvoices) {
+          syncPromises.push(dbService.syncPurchaseInvoicesToModularTable(overrides.purchaseInvoices));
+        }
+        if (overrides.salesInvoices) {
+          syncPromises.push(dbService.syncSalesInvoicesToModularTable(overrides.salesInvoices));
+        }
+        if (overrides.medicines) {
+          syncPromises.push(dbService.syncMedicinesToModularTable(overrides.medicines));
+        }
+        if (overrides.detailedExpenses) {
+          syncPromises.push(dbService.syncDetailedExpensesToModularTable(overrides.detailedExpenses));
+        }
+        if (overrides.patients) {
+          syncPromises.push(dbService.syncPatientsToModularTable(overrides.patients));
+        }
+        if (overrides.doctors) {
+          syncPromises.push(dbService.syncDoctorsToModularTable(overrides.doctors));
+        }
+        if (overrides.referrars) {
+          syncPromises.push(dbService.syncReferrarsToModularTable(overrides.referrars));
+        }
+        if (overrides.tests) {
+          syncPromises.push(dbService.syncTestsToModularTable(overrides.tests));
+        }
+        if (overrides.employees) {
+          syncPromises.push(dbService.syncEmployeesToModularTable(overrides.employees));
+        }
+        if (overrides.appointments) {
+          syncPromises.push(dbService.syncAppointmentsToModularTable(overrides.appointments));
+        }
+        if (overrides.prescriptions) {
+          syncPromises.push(dbService.syncPrescriptionsToModularTable(overrides.prescriptions));
+        }
+        if (overrides.reports) {
+          syncPromises.push(dbService.syncReportsToModularTable(overrides.reports));
+        }
+        if (overrides.consolidatedLabEntries) {
+          syncPromises.push(dbService.syncConsolidatedLabEntriesToModularTable(overrides.consolidatedLabEntries));
+        }
+        if (overrides.consolidatedClinicEntries) {
+          syncPromises.push(dbService.syncConsolidatedClinicEntriesToModularTable(overrides.consolidatedClinicEntries));
+        }
+        if (overrides.monthlyAdjustments) {
+          syncPromises.push(dbService.syncAdjustmentsToModularTable(overrides.monthlyAdjustments));
+        }
+
+        if (syncPromises.length > 0) {
+          await Promise.all(syncPromises);
+        }
+      } else {
+        // Explicit manual full sync (e.g. from Settings button)
+        const result = await dbService.saveToCloud(stateToSync);
+        if (!result.success) syncSuccess = false;
+      }
+
+      // 3. Update React state immediately
       if (overrides?.labInvoices) setLabInvoices(overrides.labInvoices);
       if (overrides?.dueCollections) setDueCollections(overrides.dueCollections);
       if (overrides?.detailedExpenses) setDetailedExpenses(overrides.detailedExpenses);
@@ -477,23 +560,14 @@ export function useAppData() {
 
       setLastSavedAt(now);
       lastSavedAtRef.current = now;
-      
+
       // Always backup to local storage immediately
       try { localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(stateToSync)); } catch (e) { console.warn("Local cache save notice:", e); }
-      
-      if (result.success) {
-        console.log(`[Sync] Success!`);
-        setIsManualSyncing(false);
-        setSyncError(false);
-        setLastManualSyncTime(Date.now());
-        return true;
-      } else {
-        console.warn(`[Sync] Cloud save returned notice, offline data secured:`, result.error || result.warning);
-        setIsManualSyncing(false);
-        setSyncError(false);
-        setLastManualSyncTime(Date.now());
-        return true;
-      }
+
+      setIsManualSyncing(false);
+      setSyncError(false);
+      setLastManualSyncTime(Date.now());
+      return syncSuccess;
     } catch (e) {
       console.warn(`[Sync] Notice:`, e);
       setIsManualSyncing(false);

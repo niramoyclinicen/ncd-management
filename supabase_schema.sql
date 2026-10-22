@@ -37,19 +37,7 @@ CREATE TABLE IF NOT EXISTS public.doctors (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 3. REFERRARS (রেফারার ও এজেন্টদের তালিকা)
-CREATE TABLE IF NOT EXISTS public.referrars (
-  id TEXT PRIMARY KEY,
-  ref_id TEXT,
-  ref_name TEXT,
-  area TEXT,
-  ref_mobile TEXT,
-  commission_percent NUMERIC DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
+-- 3. REFERRERS (রেফারার ও এজেন্টদের তালিকা)
 CREATE TABLE IF NOT EXISTS public.referrers (
   id TEXT PRIMARY KEY,
   ref_id TEXT,

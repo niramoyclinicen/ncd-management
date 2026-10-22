@@ -1368,166 +1368,185 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
           <div className="bg-slate-900 border border-slate-700 w-full max-w-6xl max-h-[95vh] rounded-[2rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden">
             
             {/* Modal Header */}
-            <div className="px-8 py-6 border-b border-white/5 bg-slate-950/40 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-900/50">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="19" cy="11" r="2"/><path d="M19 8v1"/><path d="M19 13v1"/></svg>
+            <div className="px-8 py-5 border-b border-white/5 bg-slate-950/60 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-900/50">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="19" cy="11" r="2"/><path d="M19 8v1"/><path d="M19 13v1"/></svg>
                 </div>
                 <div>
-                  <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Advanced Patient Search</h2>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">Search by Name, mobile, address or Upazila</p>
+                  <h2 className="text-2xl font-black text-white uppercase tracking-tighter">অ্যাডভান্সড পেশেন্ট সার্চ ও কু্যইক রেজিস্ট্রেশন</h2>
+                  <p className="text-xs text-slate-400 font-bold tracking-wider mt-0.5">নাম, মোবাইল বা ঠিকানা লিখে সার্চ করুন অথবা না পেলে নিচের ফর্মে সরাসরি নতুন রোগী সেভ করুন</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                 <button 
-                  onClick={() => setShowNewPatientForm(true)}
-                  className="flex items-center gap-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-emerald-900/20"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  New Patient
-                </button>
+              <div className="flex items-center gap-3">
                 <button 
                   onClick={() => {
                     setShowPatientSearchModal(false);
                     setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
                   }}
-                  className="w-12 h-12 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-xl transition-all duration-300"
+                  className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-xl transition-all duration-300"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
             </div>
 
-            {/* Modal Content - SEARCH FILTERS */}
-            <div className="px-8 py-5 bg-slate-950/20 grid grid-cols-1 md:grid-cols-5 gap-6 border-b border-white/5 shrink-0">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Search Name</label>
-                <div className="relative group">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            {/* Modal Content - SEARCH FILTERS & QUICK ADD FORM */}
+            <div className="px-6 py-4 bg-slate-950/40 border-b border-white/5 shrink-0 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">রোগীর নাম (Search/Name)</label>
                   <input 
                     type="text" 
-                    placeholder="Khushi..."
+                    placeholder="নাম লিখুন..."
                     value={patientSearchFilters.name || ''}
                     onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner font-bold"
                     autoFocus
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Age</label>
-                <input 
-                  type="text" 
-                  placeholder="Age..."
-                  value={patientSearchFilters.age || ''}
-                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, age: e.target.value }))}
-                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mobile Number</label>
-                <input 
-                  type="text" 
-                  placeholder="017..."
-                  value={patientSearchFilters.mobile || ''}
-                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, mobile: e.target.value }))}
-                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Address / Village</label>
-                <input 
-                  type="text" 
-                  placeholder="Address..."
-                  value={patientSearchFilters.address || ''}
-                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, address: e.target.value }))}
-                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Upazila / Thana</label>
-                <input 
-                  type="text" 
-                  placeholder="Thana..."
-                  value={patientSearchFilters.thana || ''}
-                  onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, thana: e.target.value }))}
-                  className="w-full bg-slate-950/50 border-2 border-slate-800 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate-700 outline-none transition-all shadow-inner"
-                />
-              </div>
-            </div>
-
-            {/* List Header */}
-            <div className="bg-slate-950 px-10 py-3 border-b border-white/5 grid grid-cols-12 gap-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] shrink-0">
-              <div className="col-span-1">ID</div>
-              <div className="col-span-3">Patient Name</div>
-              <div className="col-span-2">Age/Sex</div>
-              <div className="col-span-2">Mobile</div>
-              <div className="col-span-2">Address / Thana</div>
-              <div className="col-span-2 text-right">Selection</div>
-            </div>
-
-            {/* Scrolling List */}
-            <div className="flex-1 overflow-y-auto p-4 no-scrollbar bg-slate-900/20">
-              {filteredPatients.length > 0 ? (
-                <div className="grid grid-cols-1 gap-2">
-                  {filteredPatients.map((p, idx) => (
-                    <div 
-                      key={`${p.pt_id || 'pt'}-${idx}`}
-                      onClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
-                      onDoubleClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
-                      className="px-6 py-4 bg-slate-800/20 hover:bg-blue-600/10 border border-slate-800 hover:border-blue-500/50 rounded-2xl grid grid-cols-12 gap-5 items-center cursor-pointer transition-all group active:scale-[0.99]"
-                    >
-                      <div className="col-span-1 font-mono text-xs text-slate-600">{p.pt_id}</div>
-                      <div className="col-span-3">
-                        <p className="text-base font-black text-slate-200 group-hover:text-blue-400 transition-colors uppercase tracking-tight">{p.pt_name}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="px-2 py-1 bg-slate-800 rounded-md text-[10px] font-black text-slate-400 uppercase">{p.ageY}Y | {p.gender}</span>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-sm font-mono text-white/80">{p.mobile || '---'}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-xs text-white/60 truncate leading-tight">{p.address}{p.thana ? `\n${p.thana}` : ''}</p>
-                      </div>
-                      <div className="col-span-2 text-right">
-                        <button className="px-5 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Select</button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">বয়স (Age)</label>
+                  <input 
+                    type="text" 
+                    placeholder="বয়স..."
+                    value={patientSearchFilters.age || ''}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, age: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
+                  />
                 </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">মোবাইল নম্বর (Mobile)</label>
+                  <input 
+                    type="text" 
+                    placeholder="017..."
+                    value={patientSearchFilters.mobile || ''}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, mobile: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ঠিকানা / গ্রাম (Address)</label>
+                  <input 
+                    type="text" 
+                    placeholder="ঠিকানা..."
+                    value={patientSearchFilters.address || ''}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, address: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">থানা / উপজেলা (Thana)</label>
+                  <input 
+                    type="text" 
+                    placeholder="থানা..."
+                    value={patientSearchFilters.thana || ''}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, thana: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const name = (patientSearchFilters.name || '').trim();
+                      if (!name) {
+                        alert('দয়া করে অন্তত রোগীর নাম লিখুন।');
+                        return;
+                      }
+                      const newPtId = `PT-${Date.now().toString().slice(-6)}`;
+                      const newPatientObj = {
+                        pt_id: newPtId,
+                        id: newPtId,
+                        pt_name: name,
+                        mobile: (patientSearchFilters.mobile || '').trim(),
+                        ageY: patientSearchFilters.age || '0',
+                        gender: 'Male',
+                        address: (patientSearchFilters.address || '').trim(),
+                        thana: (patientSearchFilters.thana || '').trim(),
+                        created_at: new Date().toISOString()
+                      };
+                      const updatedPatients = [newPatientObj, ...(Array.isArray(patients) ? patients : [])];
+                      setPatients(updatedPatients);
+                      try {
+                        await dbService.syncPatientsToModularTable([newPatientObj]);
+                      } catch (err) {
+                        console.warn("Quick save patient notice:", err);
+                      }
+                      handlePatientSelect(newPtId, name);
+                      setSuccessMessage(`নতুন রোগী "${name}" সফলভাবে তৈরি ও সিলেক্ট করা হয়েছে।`);
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 px-3 text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+                  >
+                    <span>💾 সংরক্ষণ ও সিলেক্ট</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* List Header (Excel-like Style inspired by screenshot yyy_0089d2c1.png) */}
+            <div className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-6 py-2.5 border-b border-slate-300 dark:border-slate-700 grid grid-cols-12 gap-3 text-[11px] font-black uppercase tracking-wider shrink-0 shadow-sm">
+              <div className="col-span-2">আইডি (ID)</div>
+              <div className="col-span-3">রোগীর নাম (Patient Name)</div>
+              <div className="col-span-1">বয়স/লিঙ্গ</div>
+              <div className="col-span-2">মোবাইল</div>
+              <div className="col-span-3">ঠিকানা / থানা</div>
+              <div className="col-span-1 text-right">অ্যাকশন</div>
+            </div>
+
+            {/* Scrolling List (Excel-like Compact Rows with Zebra Striping) */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 bg-slate-900/40">
+              {filteredPatients.length > 0 ? (
+                filteredPatients.map((p, idx) => (
+                  <div 
+                    key={`${p.pt_id || 'pt'}-${idx}`}
+                    onClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
+                    className={`px-4 py-2 border rounded-lg grid grid-cols-12 gap-3 items-center cursor-pointer transition-all group ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-blue-50 dark:hover:bg-slate-800' : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:bg-blue-50 dark:hover:bg-slate-800'}`}
+                  >
+                    <div className="col-span-2 font-mono text-xs font-bold text-slate-500 dark:text-slate-400">{p.pt_id}</div>
+                    <div className="col-span-3">
+                      <p className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 uppercase tracking-tight">{p.pt_name}</p>
+                    </div>
+                    <div className="col-span-1">
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{p.ageY}য ({p.gender === 'Male' ? 'পুরুষ' : p.gender === 'Female' ? 'মহিলা' : p.gender})</span>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-xs font-mono text-slate-700 dark:text-slate-300 font-semibold">{p.mobile || '---'}</p>
+                    </div>
+                    <div className="col-span-3">
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">{p.address}{p.thana ? `, ${p.thana}` : ''}</p>
+                    </div>
+                    <div className="col-span-1 text-right">
+                      <button className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-black uppercase transition-all shadow-sm">সিলেক্ট</button>
+                    </div>
+                  </div>
+                ))
               ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-700">
-                   <div className="w-24 h-24 bg-slate-800/50 rounded-full flex items-center justify-center mb-6 opacity-30">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="17" y2="14"/><line x1="14" y1="11" x2="20" y2="11"/></svg>
-                   </div>
-                  <p className="text-2xl font-black uppercase tracking-tighter opacity-50 mb-2">Patient Not Found</p>
-                  <p className="text-xs font-bold uppercase tracking-widest opacity-30 max-w-xs text-center leading-relaxed">The searched record does not exist in our database. You can add a new one.</p>
+                <div className="flex flex-col items-center justify-center py-16 text-slate-500">
+                  <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mb-4 opacity-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="17" y2="14"/><line x1="14" y1="11" x2="20" y2="11"/></svg>
+                  </div>
+                  <p className="text-sm font-bold uppercase tracking-wider mb-1">কোনো রোগী পাওয়া যায়নি</p>
+                  <p className="text-xs text-slate-400 max-w-xs text-center">উপরের বক্সে সঠিক তথ্য লিখে বা নতুন তথ্য পূরণ করে সরাসরি "সংরক্ষণ ও সিলেক্ট করুন" বাটনে ক্লিক করুন।</p>
                 </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="px-10 py-5 bg-slate-950/60 border-t border-white/5 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Records: {patients.length}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Filter Results: {filteredPatients.length}</span>
-                  </div>
+            <div className="px-6 py-3 bg-slate-950/80 border-t border-white/5 flex justify-between items-center shrink-0 text-xs">
+              <div className="flex items-center gap-4 text-slate-400 font-bold">
+                <span>মোট রেকর্ড: <strong className="text-white">{patients.length}</strong></span>
+                <span>ফিল্টার ফলাফল: <strong className="text-emerald-400">{filteredPatients.length}</strong></span>
               </div>
-              <div className="flex items-center gap-3">
+              <div>
                  <button 
                     onClick={() => {
                       setShowPatientSearchModal(false);
                       setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
                     }}
-                    className="px-8 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                    className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-black uppercase tracking-wider transition-all"
                 >
-                    Close
+                    বন্ধ করুন
                 </button>
               </div>
             </div>

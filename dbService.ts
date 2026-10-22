@@ -233,14 +233,18 @@ export const getRecordDate = (rec: any): string => {
   return '';
 };
 
-// Check if a record belongs to the historical/legacy period (disabled in pure multi-table system)
-export const isLegacyDate = (_rawDate: any): boolean => {
-  return false;
+// Check if a record belongs to the historical/legacy period
+export const isLegacyDate = (rawDate: any): boolean => {
+  const date = normalizeDate(rawDate);
+  if (!date) return false;
+  return date < getTableSplitCutoffDate();
 };
 
-// Check if a record belongs to the modular/multi-table period (enabled for all records in pure multi-table system)
-export const isMultiTableDate = (_rawDate: any): boolean => {
-  return true;
+// Check if a record belongs to the modular/multi-table period
+export const isMultiTableDate = (rawDate: any): boolean => {
+  const date = normalizeDate(rawDate);
+  if (!date) return true; // Default to modern for safety if no date
+  return date >= getTableSplitCutoffDate();
 };
 
 // In-memory set for deleted lab invoices
@@ -2780,59 +2784,61 @@ export const dbService = {
       if (!supabase) return { success: true };
 
       // 3. Delete from ncd_state (Single Table System - crucial for April & historical records)
-      try {
-        // Query ALL rows from ncd_state so no row can ever resurrect this deleted invoice
-        const { data: allNcdRows } = await supabase.from('ncd_state').select('*');
-        const rowsToProcess = (allNcdRows && allNcdRows.length > 0) ? allNcdRows : (cachedLegacyRecordId ? [{ id: cachedLegacyRecordId }] : [{ id: MASTER_RECORD_ID }]);
+      if (isLegacyDate(getRecordDate(inv))) {
+        try {
+          // Query ALL rows from ncd_state so no row can ever resurrect this deleted invoice
+          const { data: allNcdRows } = await supabase.from('ncd_state').select('*');
+          const rowsToProcess = (allNcdRows && allNcdRows.length > 0) ? allNcdRows : (cachedLegacyRecordId ? [{ id: cachedLegacyRecordId }] : [{ id: MASTER_RECORD_ID }]);
 
-        for (const row of rowsToProcess) {
-          let rowData = row.data;
-          if (typeof rowData === 'string') {
-            try { rowData = JSON.parse(rowData); } catch { rowData = null; }
-          }
-          if (!rowData || typeof rowData !== 'object') {
-            rowData = (cachedLegacyState && typeof cachedLegacyState === 'object') ? { ...cachedLegacyState } : {};
-          }
-
-          // Clean all possible array keys in ncd_state row
-          ['labInvoices', 'invoices', 'lab_invoices', 'diagnostic_invoices'].forEach(col => {
-            if (Array.isArray(rowData[col])) {
-              rowData[col] = rowData[col].filter((x: any) => !isInvoiceMarkedDeleted(x, deletedSet));
+          for (const row of rowsToProcess) {
+            let rowData = row.data;
+            if (typeof rowData === 'string') {
+              try { rowData = JSON.parse(rowData); } catch { rowData = null; }
             }
-          });
-
-          // Store deleted tombstone list inside ncd_state
-          const existingDeleted = Array.isArray(rowData.deleted_lab_invoices) ? rowData.deleted_lab_invoices : [];
-          rowData.deleted_lab_invoices = Array.from(new Set([...existingDeleted, ...allTargetIds]));
-          rowData.last_updated_at = now;
-
-          await supabase.from('ncd_state').upsert({
-            id: row.id || MASTER_RECORD_ID,
-            data: rowData,
-            updated_at: now
-          }, { onConflict: 'id' });
-
-          if (row.id === MASTER_RECORD_ID || row.id === cachedLegacyRecordId || !cachedLegacyState) {
-            cachedLegacyState = rowData;
-            cachedLegacyRecordId = row.id || MASTER_RECORD_ID;
-          }
-        }
-
-        // Also ensure in-memory cachedLegacyState is completely cleaned
-        if (cachedLegacyState) {
-          ['labInvoices', 'invoices', 'lab_invoices', 'diagnostic_invoices'].forEach(col => {
-            if (Array.isArray(cachedLegacyState[col])) {
-              cachedLegacyState[col] = cachedLegacyState[col].filter((x: any) => !isInvoiceMarkedDeleted(x, deletedSet));
+            if (!rowData || typeof rowData !== 'object') {
+              rowData = (cachedLegacyState && typeof cachedLegacyState === 'object') ? { ...cachedLegacyState } : {};
             }
-          });
-          const curDel = Array.isArray(cachedLegacyState.deleted_lab_invoices) ? cachedLegacyState.deleted_lab_invoices : [];
-          cachedLegacyState.deleted_lab_invoices = Array.from(new Set([...curDel, ...allTargetIds]));
-          cachedLegacyState.last_updated_at = now;
-        }
 
-        console.log(`[dbService] Deleted invoice from ncd_state across all rows: ${allTargetIds.join(', ')}`);
-      } catch (delErr) {
-        console.warn("[dbService] ncd_state delete lab invoice notice:", delErr);
+            // Clean all possible array keys in ncd_state row
+            ['labInvoices', 'invoices', 'lab_invoices', 'diagnostic_invoices'].forEach(col => {
+              if (Array.isArray(rowData[col])) {
+                rowData[col] = rowData[col].filter((x: any) => !isInvoiceMarkedDeleted(x, deletedSet));
+              }
+            });
+
+            // Store deleted tombstone list inside ncd_state
+            const existingDeleted = Array.isArray(rowData.deleted_lab_invoices) ? rowData.deleted_lab_invoices : [];
+            rowData.deleted_lab_invoices = Array.from(new Set([...existingDeleted, ...allTargetIds]));
+            rowData.last_updated_at = now;
+
+            await supabase.from('ncd_state').upsert({
+              id: row.id || MASTER_RECORD_ID,
+              data: rowData,
+              updated_at: now
+            }, { onConflict: 'id' });
+
+            if (row.id === MASTER_RECORD_ID || row.id === cachedLegacyRecordId || !cachedLegacyState) {
+              cachedLegacyState = rowData;
+              cachedLegacyRecordId = row.id || MASTER_RECORD_ID;
+            }
+          }
+
+          // Also ensure in-memory cachedLegacyState is completely cleaned
+          if (cachedLegacyState) {
+            ['labInvoices', 'invoices', 'lab_invoices', 'diagnostic_invoices'].forEach(col => {
+              if (Array.isArray(cachedLegacyState[col])) {
+                cachedLegacyState[col] = cachedLegacyState[col].filter((x: any) => !isInvoiceMarkedDeleted(x, deletedSet));
+              }
+            });
+            const curDel = Array.isArray(cachedLegacyState.deleted_lab_invoices) ? cachedLegacyState.deleted_lab_invoices : [];
+            cachedLegacyState.deleted_lab_invoices = Array.from(new Set([...curDel, ...allTargetIds]));
+            cachedLegacyState.last_updated_at = now;
+          }
+
+          console.log(`[dbService] Deleted invoice from ncd_state across all rows: ${allTargetIds.join(', ')}`);
+        } catch (delErr) {
+          console.warn("[dbService] ncd_state delete lab invoice notice:", delErr);
+        }
       }
 
       // 4. Also clean from Modular Tables ('lab_invoices' and 'invoices')

@@ -3753,7 +3753,24 @@ export const dbService = {
     if (!supabase || !Array.isArray(patients) || patients.length === 0) return true;
     try {
       const now = new Date().toISOString();
-      return await upsertTableSafe(supabase, 'patients', patients.map((p: any) => ({ ...p, updated_at: now })));
+      const rows = patients.map((p: any) => {
+        const ptId = String(p.pt_id || p.id || `PT-${Date.now()}`).trim();
+        const ptName = String(p.pt_name || p.name || '').trim();
+        return {
+          ...p,
+          id: ptId,
+          pt_id: ptId,
+          pt_name: ptName,
+          name: ptName,
+          ageY: String(p.ageY || p.age || ''),
+          gender: String(p.gender || ''),
+          mobile: String(p.mobile || '').trim(),
+          address: String(p.address || ''),
+          updated_at: now,
+          data: p
+        };
+      });
+      return await upsertTableSafe(supabase, 'patients', rows);
     } catch (e) {
       console.warn("syncPatientsToModularTable notice:", e);
       return false;
@@ -3764,7 +3781,21 @@ export const dbService = {
     if (!supabase || !Array.isArray(doctors) || doctors.length === 0) return true;
     try {
       const now = new Date().toISOString();
-      return await upsertTableSafe(supabase, 'doctors', doctors.map((d: any) => ({ ...d, updated_at: now })));
+      const rows = doctors.map((d: any) => {
+        const docId = String(d.doctor_id || d.id || `DOC-${Date.now()}`).trim();
+        const docName = String(d.doctor_name || d.name || '').trim();
+        return {
+          ...d,
+          id: docId,
+          doctor_id: docId,
+          doctor_name: docName,
+          name: docName,
+          mobile: String(d.mobile || '').trim(),
+          updated_at: now,
+          data: d
+        };
+      });
+      return await upsertTableSafe(supabase, 'doctors', rows);
     } catch (e) {
       console.warn("syncDoctorsToModularTable notice:", e);
       return false;
@@ -3775,7 +3806,20 @@ export const dbService = {
     if (!supabase || !Array.isArray(referrars) || referrars.length === 0) return true;
     try {
       const now = new Date().toISOString();
-      const rows = referrars.map((r: any) => ({ ...r, updated_at: now }));
+      const rows = referrars.map((r: any) => {
+        const refId = String(r.ref_id || r.referrer_id || r.referrar_id || r.id || `REF-${Date.now()}`).trim();
+        const refName = String(r.ref_name || r.referrer_name || r.referrar_name || r.name || '').trim();
+        return {
+          ...r,
+          id: refId,
+          ref_id: refId,
+          ref_name: refName,
+          name: refName,
+          ref_mobile: String(r.ref_mobile || r.mobile || '').trim(),
+          updated_at: now,
+          data: r
+        };
+      });
       const r1 = await upsertTableSafe(supabase, 'referrars', rows);
       const r2 = await upsertTableSafe(supabase, 'referrers', rows);
       return r1 || r2;
@@ -3789,7 +3833,21 @@ export const dbService = {
     if (!supabase || !Array.isArray(reagents) || reagents.length === 0) return true;
     try {
       const now = new Date().toISOString();
-      return await upsertTableSafe(supabase, 'reagents', reagents.map((r: any) => ({ ...r, updated_at: now })));
+      const rows = reagents.map((r: any) => {
+        const regId = String(r.reagent_id || r.id || `REG-${Date.now()}`).trim();
+        const regName = String(r.reagent_name || r.name || '').trim();
+        return {
+          ...r,
+          id: regId,
+          reagent_id: regId,
+          reagent_name: regName,
+          name: regName,
+          quantity: Number(r.quantity ?? 0),
+          updated_at: now,
+          data: r
+        };
+      });
+      return await upsertTableSafe(supabase, 'reagents', rows);
     } catch (e) {
       console.warn("syncReagentsToModularTable notice:", e);
       return false;
@@ -3800,7 +3858,21 @@ export const dbService = {
     if (!supabase || !Array.isArray(employees) || employees.length === 0) return true;
     try {
       const now = new Date().toISOString();
-      return await upsertTableSafe(supabase, 'employees', employees.map((e: any) => ({ ...e, updated_at: now })));
+      const rows = employees.map((e: any) => {
+        const empId = String(e.emp_id || e.id || `EMP-${Date.now()}`).trim();
+        const empName = String(e.emp_name || e.name || '').trim();
+        return {
+          ...e,
+          id: empId,
+          emp_id: empId,
+          emp_name: empName,
+          name: empName,
+          mobile: String(e.mobile || '').trim(),
+          updated_at: now,
+          data: e
+        };
+      });
+      return await upsertTableSafe(supabase, 'employees', rows);
     } catch (e) {
       console.warn("syncEmployeesToModularTable notice:", e);
       return false;

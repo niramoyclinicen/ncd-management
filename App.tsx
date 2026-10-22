@@ -274,7 +274,7 @@ const AppContent = () => {
 
   if (!data.isDataLoaded) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6">
         <div className="relative">
           <div className="w-24 h-24 border-4 border-sky-500/20 border-t-sky-500 rounded-full animate-spin"></div>
           <div className="absolute inset-0 flex items-center justify-center">
@@ -282,6 +282,12 @@ const AppContent = () => {
           </div>
         </div>
         <p className="mt-8 text-sky-400 font-black tracking-[0.3em] uppercase text-sm animate-pulse">Connecting to Cloud...</p>
+        <button 
+          onClick={() => { data.resetToFreshSoftware(); window.location.reload(); }}
+          className="mt-10 px-6 py-3 bg-red-900/50 hover:bg-red-900 border border-red-700 rounded-xl text-red-200 font-bold"
+        >
+          Reset Software (If stuck)
+        </button>
       </div>
     );
   }

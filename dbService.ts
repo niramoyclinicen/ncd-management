@@ -86,6 +86,8 @@ const safeIsoDate = (d: any): string | null => {
 };
 
 
+export const isSingleTableSaveDisabled = true;
+
 export const getTableSplitCutoffDate = (): string => {
   return '2026-08-01';
 };
@@ -603,6 +605,9 @@ export const dbService = {
       isConnected: !!supabase && isValidSupabaseConfig(currentConfig.url, currentConfig.key)
     };
   },
+
+  isSingleTableSaveDisabled: () => true,
+  setSingleTableSaveDisabled: () => {},
 
   setSupabaseConfig: (url: string, key: string) => {
     return initSupabaseClient(url, key);
@@ -1704,13 +1709,16 @@ export const dbService = {
   },
 
   saveToCloud: async (appState: any) => {
+    console.log("[dbService] saveToCloud started");
     try {
       if (!supabase) {
+        console.log("[dbService] saveToCloud: supabase not connected");
         return { success: false, error: "Supabase not connected. Offline save is disabled." };
       }
       
       const now = new Date().toISOString();
       let hasAnySaveSuccess = false;
+      console.log("[dbService] saveToCloud: supabase connected, starting modular sync");
 
 
       // ---------------------------------------------------------------------------------

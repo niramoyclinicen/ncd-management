@@ -109,8 +109,11 @@ export function useAppData() {
   // --- DATA LOADING & REAL-TIME SYNC ---
   useEffect(() => {
     const loadData = async () => {
+      console.log("[useAppData] loadData started");
       const loadedData = await dbService.loadFromCloud();
+      console.log("[useAppData] loadData finished", loadedData ? "success" : "failure");
       const localData = dbService.getLocalBackup();
+      console.log("[useAppData] localBackup fetched");
       
       let finalDataToLoad = loadedData;
       

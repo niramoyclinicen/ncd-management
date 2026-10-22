@@ -4267,23 +4267,21 @@ export const dbService = {
         return {
           id: invId,
           invoice_id: invId,
-          invoice_date: invDate,
+          daily_id: inv.daily_id || invId,
           patient_id: String(inv.patient_id || inv.pt_id || ''),
           patient_name: inv.patient_name || inv.pt_name || '',
-          doctor_id: String(inv.doctor_id || ''),
-          doctor_name: inv.doctor_name || '',
-          referrar_id: String(inv.referrar_id || inv.ref_id || ''),
-          referrar_name: inv.referrar_name || inv.ref_name || '',
-          items,
+          invoice_date: invDate,
           total_amount: total,
+          discount_amount: discount,
+          net_payable: total - discount,
           paid_amount: paid,
           due_amount: due,
-          discount_amount: discount,
-          commission_paid: Number(inv.commission_paid ?? inv.commissionPaid ?? 0),
-          special_commission: Number(inv.special_commission ?? inv.specialCommission ?? 0),
-          status: inv.status || (due > 0 ? 'Due' : 'Paid'),
-          data: inv,
-          updated_at: now
+          doctor_commission: Number(inv.doctor_commission ?? inv.doctorCommission ?? 0),
+          items: items,
+          is_deleted: !!(inv.status === 'Deleted' || inv.status === 'Cancelled' || inv.isDeleted || inv.is_deleted),
+          created_at: inv.created_at || now,
+          updated_at: now,
+          data: inv
         };
       });
       return await upsertTableSafe(supabase, 'lab_invoices', rows);

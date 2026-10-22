@@ -532,20 +532,8 @@ const upsertTableSafe = async (client: SupabaseClient, tableName: string, rows: 
     const chunkSize = 50;
     for (let i = 0; i < rows.length; i += chunkSize) {
       let chunk = rows.slice(i, i + chunkSize);
-      let conflictTarget = (tableName === 'purchase_invoices' || tableName === 'sales_invoices' || tableName === 'lab_invoices')
-        ? 'invoice_id'
-        : (tableName === 'indoor_invoices' ? 'daily_id' : 'id');
-
-      let { error } = await client.from(tableName).upsert(chunk, { onConflict: conflictTarget });
-
-      if (error && conflictTarget !== 'id') {
-        const retryId = await client.from(tableName).upsert(chunk, { onConflict: 'id' });
-        if (!retryId.error) {
-          error = null;
-        } else {
-          error = retryId.error;
-        }
-      }
+      // All modular tables use 'id' as PRIMARY KEY
+      let { error } = await client.from(tableName).upsert(chunk, { onConflict: 'id' });
 
       // If missing column error in schema cache, iteratively remove bad columns and retry up to 5 times
       let colRetry = 0;
@@ -559,21 +547,24 @@ const upsertTableSafe = async (client: SupabaseClient, tableName: string, rows: 
             delete copy[badCol];
             return copy;
           });
-          const retryRes = await client.from(tableName).upsert(sanitizedChunk, { onConflict: conflictTarget });
+          const retryRes = await client.from(tableName).upsert(sanitizedChunk, { onConflict: 'id' });
           if (!retryRes.error) {
             error = null;
             break;
-          } else {
-            const retryIdRes = await client.from(tableName).upsert(sanitizedChunk, { onConflict: 'id' });
-            if (!retryIdRes.error) {
-              error = null;
-              break;
-            }
-            error = retryRes.error;
           }
+          error = retryRes.error;
           colRetry++;
         } else {
           break;
+        }
+      }
+
+      // If upsert still failed (e.g. Postgres constraint variation), attempt insert fallback
+      if (error) {
+        console.warn(`[dbService] Upsert error for ${tableName}, attempting insert fallback:`, error.message);
+        const { error: insertErr } = await client.from(tableName).insert(sanitizedChunk);
+        if (!insertErr) {
+          error = null;
         }
       }
 
@@ -2415,35 +2406,46 @@ export const dbService = {
       });
 
       if (rows.length > 0) {
-        await upsertTableSafe(supabase, 'detailed_expenses', rows);
+        const syncOk = await upsertTableSafe(supabase, 'detailed_expenses', rows);
+        if (!syncOk) {
+          return { success: false, error: 'সুপাবেজ detailed_expenses টেবিলে ডাটা সেভ হতে ব্যর্থ হয়েছে।' };
+        }
       }
 
       return { success: true };
     } catch (err: any) {
       console.warn("saveExpensesDirectly notice:", err);
-      return { success: true, warning: err?.message };
+      return { success: false, error: err?.message || 'খরচ সেভ করার সময় ত্রুটি ঘটেছে।' };
     }
   },
 
   savePurchaseInvoiceDirectly: async (inv: any) => {
     try {
-      if (!supabase) return { success: false, error: 'Supabase not connected' };
-      await dbService.syncPurchaseInvoicesToModularTable([inv]);
+      if (!inv) return { success: false, error: 'No invoice provided' };
+      if (!supabase) return { success: false, error: 'সুপাবেজ ক্লাউড ডাটাবেজ কানেক্টেড নেই।' };
+      const syncOk = await dbService.syncPurchaseInvoicesToModularTable([inv]);
+      if (!syncOk) {
+        return { success: false, error: 'সুপাবেজ purchase_invoices টেবিলে ডাটা সেভ হতে ব্যর্থ হয়েছে।' };
+      }
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] savePurchaseInvoiceDirectly notice:", e);
-      return { success: true, warning: e?.message };
+      return { success: false, error: e?.message || 'ক্রয় ইনভয়েস সেভ করতে সমস্যা হয়েছে।' };
     }
   },
 
   saveSalesInvoiceDirectly: async (inv: any) => {
     try {
-      if (!supabase) return { success: false, error: 'Supabase not connected' };
-      await dbService.syncSalesInvoicesToModularTable([inv]);
+      if (!inv) return { success: false, error: 'No invoice provided' };
+      if (!supabase) return { success: false, error: 'সুপাবেজ ক্লাউড ডাটাবেজ কানেক্টেড নেই।' };
+      const syncOk = await dbService.syncSalesInvoicesToModularTable([inv]);
+      if (!syncOk) {
+        return { success: false, error: 'সুপাবেজ sales_invoices টেবিলে ডাটা সেভ হতে ব্যর্থ হয়েছে।' };
+      }
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] saveSalesInvoiceDirectly notice:", e);
-      return { success: true, warning: e?.message };
+      return { success: false, error: e?.message || 'বিক্রয় ইনভয়েস সেভ করতে সমস্যা হয়েছে।' };
     }
   },
 
@@ -2480,24 +2482,30 @@ export const dbService = {
   saveIndoorInvoiceDirectly: async (inv: any) => {
     try {
       if (!inv) return { success: false, error: 'No invoice provided' };
-      if (!supabase) return { success: true };
-      await dbService.syncIndoorInvoicesToModularTable([inv]);
+      if (!supabase) return { success: false, error: 'সুপাবেজ ক্লাউড ডাটাবেজ কানেক্টেড নেই।' };
+      const syncOk = await dbService.syncIndoorInvoicesToModularTable([inv]);
+      if (!syncOk) {
+        return { success: false, error: 'সুপাবেজ indoor_invoices টেবিলে ইনভয়েস সেভ হতে ব্যর্থ হয়েছে।' };
+      }
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] saveIndoorInvoiceDirectly notice:", e);
-      return { success: true, warning: e?.message };
+      return { success: false, error: e?.message || 'ইনডোর ইনভয়েস সেভ করতে সমস্যা হয়েছে।' };
     }
   },
 
   saveAdmissionDirectly: async (adm: any) => {
     try {
       if (!adm) return { success: false, error: 'No admission provided' };
-      if (!supabase) return { success: true };
-      await dbService.syncAdmissionsToModularTable([adm]);
+      if (!supabase) return { success: false, error: 'সুপাবেজ ক্লাউড ডাটাবেজ কানেক্টেড নেই।' };
+      const syncOk = await dbService.syncAdmissionsToModularTable([adm]);
+      if (!syncOk) {
+        return { success: false, error: 'সুপাবেজ admissions টেবিলে এডমিশন সেভ হতে ব্যর্থ হয়েছে।' };
+      }
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] saveAdmissionDirectly notice:", e);
-      return { success: true, warning: e?.message };
+      return { success: false, error: e?.message || 'এডমিশন সেভ করতে সমস্যা হয়েছে।' };
     }
   },
 
@@ -2549,13 +2557,16 @@ export const dbService = {
 
   saveLabInvoiceDirectly: async (inv: any) => {
     try {
-      if (!inv) return { success: false, error: 'No invoice provided' };
-      if (!supabase) return { success: true };
-      await dbService.syncLabInvoicesToModularTable([inv]);
+      if (!inv) return { success: false, error: 'কোনো ইনভয়েস ডাটা পাওয়া যায়নি।' };
+      if (!supabase) return { success: false, error: 'সুপাবেজ ক্লাউড ডাটাবেজ কানেক্টেড নেই! অ্যাডমিন সেটিংস থেকে Supabase URL ও Key সেট করুন।' };
+      const syncOk = await dbService.syncLabInvoicesToModularTable([inv]);
+      if (!syncOk) {
+        return { success: false, error: 'সুপাবেজ lab_invoices টেবিলে ইনভয়েস সেভ হতে ব্যর্থ হয়েছে। সুপাবেজ টেবিল তৈরি আছে কিনা ও RLS বন্ধ আছে কিনা চেক করুন।' };
+      }
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] saveLabInvoiceDirectly notice:", e);
-      return { success: true, warning: e?.message };
+      return { success: false, error: e?.message || 'ল্যাব ইনভয়েস ক্লাউডে সেভ করতে সমস্যা হয়েছে।' };
     }
   },
 
@@ -2959,15 +2970,18 @@ export const dbService = {
         dbService.saveSingleConsolidatedEntry(entry);
       } catch (e) {}
 
-      if (!supabase) return { success: true };
+      if (!supabase) return { success: false, error: 'সুপাবেজ ক্লাউড ডাটাবেজ কানেক্টেড নেই।' };
 
       // Sync directly to modular table 'consolidated_lab_entries'
-      await dbService.syncConsolidatedLabEntriesToModularTable([entry]);
+      const syncOk = await dbService.syncConsolidatedLabEntriesToModularTable([entry]);
+      if (!syncOk) {
+        return { success: false, error: 'সুপাবেজ consolidated_lab_entries টেবিলে ডাটা সেভ হতে ব্যর্থ হয়েছে।' };
+      }
 
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] saveConsolidatedEntryDirectly notice:", e);
-      return { success: true, warning: e?.message };
+      return { success: false, error: e?.message || 'কনসোলিডেটেড এন্ট্রি সেভ করতে সমস্যা হয়েছে।' };
     }
   },
 
@@ -3069,15 +3083,18 @@ export const dbService = {
         dbService.saveSingleConsolidatedClinicEntry(entry);
       } catch (e) {}
 
-      if (!supabase) return { success: true };
+      if (!supabase) return { success: false, error: 'সুপাবেজ ক্লাউড ডাটাবেজ কানেক্টেড নেই।' };
 
       // Sync directly to modular table 'consolidated_clinic_entries'
-      await dbService.syncConsolidatedClinicEntriesToModularTable([entry]);
+      const syncOk = await dbService.syncConsolidatedClinicEntriesToModularTable([entry]);
+      if (!syncOk) {
+        return { success: false, error: 'সুপাবেজ consolidated_clinic_entries টেবিলে ডাটা সেভ হতে ব্যর্থ হয়েছে।' };
+      }
 
       return { success: true };
     } catch (e: any) {
       console.warn("[dbService] saveConsolidatedClinicEntryDirectly notice:", e);
-      return { success: true, warning: e?.message };
+      return { success: false, error: e?.message || 'ক্লিনিক কনসোলিডেটেড এন্ট্রি সেভ করতে সমস্যা হয়েছে।' };
     }
   },
 

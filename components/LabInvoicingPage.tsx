@@ -794,8 +794,12 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
       // 1. Direct database save to modular lab_invoices table
       try {
-        await dbService.saveLabInvoiceDirectly(invoiceToSave);
-      } catch (directErr) {
+        const directRes = await dbService.saveLabInvoiceDirectly(invoiceToSave);
+        if (directRes && !directRes.success) {
+          console.warn("Direct lab invoice save warning:", directRes.error);
+          alert(`সতর্কবার্তা: ইনভয়েসটি ব্রাউজারে সংরক্ষিত হয়েছে, কিন্তু সুপাবেজ ক্লাউডে সেভ হয়নি!\n\nকারণ: ${directRes.error}\n\nদয়া করে অ্যাডমিন সেটিংস থেকে Supabase সংযোগ এবং টেবিলগুলো যাচাই করুন।`);
+        }
+      } catch (directErr: any) {
         console.warn("Direct lab invoice save warning:", directErr);
       }
 

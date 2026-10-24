@@ -142,124 +142,14 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   const [isPushingLocal, setIsPushingLocal] = useState(false);
   const [showConfigInputs, setShowConfigInputs] = useState(!supConfig.isConnected);
 
-  // Medicine Multi-Table Migration State
-  const [isMigratingMedicine, setIsMigratingMedicine] = useState(false);
-  const [migrationStatus, setMigrationStatus] = useState<{ success?: boolean; message?: string } | null>(null);
-  const [medicineStats, setMedicineStats] = useState<{ purchases: number; sales: number; medicines: number; connected: boolean } | null>(null);
-  const [showSqlScript, setShowSqlScript] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
+  // Migration functionality removed.
 
-  // Safe Pre-Migration Backup & Smart Migration Engine State
-  const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
-  const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
-  const [rollbackSnapshotInfo, setRollbackSnapshotInfo] = useState(() => dbService.getPreMigrationSnapshotInfo());
-  const [isSmartMigrating, setIsSmartMigrating] = useState(false);
-  const [migrationStepMsg, setMigrationStepMsg] = useState('');
-  const [migrationPct, setMigrationPct] = useState(0);
-  const [smartMigrationReport, setSmartMigrationReport] = useState<any | null>(null);
-  const [isRollingBack, setIsRollingBack] = useState(false);
-  const [rollbackMsg, setRollbackMsg] = useState<string | null>(null);
-  const [multiTableStats, setMultiTableStats] = useState<{ connected: boolean; tables: Record<string, number>; totalCount: number } | null>(null);
-  const [showFullSqlScript, setShowFullSqlScript] = useState(false);
-  const [copiedFullSql, setCopiedFullSql] = useState(false);
-  const [showDropNcdStateGuidance, setShowDropNcdStateGuidance] = useState(false);
-  const [isSingleTableDisabled, setIsSingleTableDisabled] = useState(() => {
-    try {
-      return typeof dbService.isSingleTableSaveDisabled === 'function' ? dbService.isSingleTableSaveDisabled() : true;
-    } catch {
-      return true;
-    }
-  });
 
-  // Dedicated Expense Transfer State
-  const [isTransferringExpenses, setIsTransferringExpenses] = useState(false);
-  const [expenseTransferPct, setExpenseTransferPct] = useState(0);
-  const [expenseTransferMsg, setExpenseTransferMsg] = useState('');
-  const [expenseTransferReport, setExpenseTransferReport] = useState<{
-    success: boolean;
-    message: string;
-    transferredCount: number;
-    duplicatesSkipped: number;
-    totalLegacyExpenses: number;
-    totalModularExpensesNow: number;
-    datesCovered: string[];
-  } | null>(null);
+  // Safe Pre-Migration Backup removed.
 
-  // Dedicated Tests & Commission Transfer State
-  const [isTransferringTests, setIsTransferringTests] = useState(false);
-  const [testTransferPct, setTestTransferPct] = useState(0);
-  const [testTransferMsg, setTestTransferMsg] = useState('');
-  const [testTransferReport, setTestTransferReport] = useState<{
-    success: boolean;
-    message: string;
-    restoredCommissionsCount: number;
-    transferredCount: number;
-    totalTestsNow: number;
-  } | null>(null);
 
-  const handleTransferTests = async () => {
-    if (!window.confirm("আপনি কি ncd_state থেকে সমস্ত টেস্টের আসল কমিশন (PC) ও সার্ভিস প্রাইজ Supabase-এর tests/test টেবিলে পার্মানেন্ট ট্রান্সফার করতে চান?\n\n১. এটি ncd_state-এর কোনো ডাটা ডিলিট করবে না (১০০% রিড-অনলি)।\n২. বর্তমান কোনো টেস্টের সঠিক ডাটা নষ্ট হবে না।\n৩. ট্রান্সফার শেষে ল্যাব ইনভয়েস ও টেস্ট টেবিলে কমিশন স্বয়ংক্রিয়ভাবে কার্যকর হবে।\n\nচালিয়ে যেতে 'OK' চাপুন।")) {
-      return;
-    }
-    setIsTransferringTests(true);
-    setTestTransferReport(null);
-    setTestTransferMsg('শুরু হচ্ছে...');
-    setTestTransferPct(5);
+  // Migration functionality removed.
 
-    try {
-      const report = await dbService.migrateTestsFromNcdStateToModular((msg, pct) => {
-        setTestTransferMsg(msg);
-        setTestTransferPct(pct);
-      });
-      setTestTransferReport(report);
-      if (performBlockingSync) {
-        await performBlockingSync();
-      }
-    } catch (e: any) {
-      setTestTransferReport({
-        success: false,
-        message: 'টেস্ট ট্রান্সফারে অপ্রত্যাশিত ত্রুটি: ' + (e?.message || 'অজানা ত্রুটি'),
-        restoredCommissionsCount: 0,
-        transferredCount: 0,
-        totalTestsNow: 0
-      });
-    } finally {
-      setIsTransferringTests(false);
-    }
-  };
-
-  const handleTransferExpenses = async () => {
-    if (!window.confirm("আপনি কি ncd_state থেকে জানুয়ারি-জুলাই ও সমস্ত ঐতিহাসিক খরচের ডাটা Supabase-এর detailed_expenses টেবিলে পার্মানেন্ট ট্রান্সফার করতে চান?\n\n১. এটি ncd_state-এর কোনো ডাটা ডিলিট করবে না (১০০% রিড-অনলি)।\n২. detailed_expenses টেবিলে থাকা বর্তমান কোনো ডাটা ক্ষতিগ্রস্ত হবে না এবং কোনো ডুপ্লিকেট তৈরি হবে না।\n৩. ট্রান্সফার শেষে অ্যাপের সমস্ত খরচ সরাসরি detailed_expenses থেকে আসবে।\n\nচালিয়ে যেতে 'OK' চাপুন।")) {
-      return;
-    }
-    setIsTransferringExpenses(true);
-    setExpenseTransferReport(null);
-    setExpenseTransferMsg('শুরু হচ্ছে...');
-    setExpenseTransferPct(5);
-
-    try {
-      const report = await dbService.migrateExpensesFromNcdStateToModular((msg, pct) => {
-        setExpenseTransferMsg(msg);
-        setExpenseTransferPct(pct);
-      });
-      setExpenseTransferReport(report);
-      if (performBlockingSync) {
-        await performBlockingSync();
-      }
-    } catch (e: any) {
-      setExpenseTransferReport({
-        success: false,
-        message: 'খরচ ট্রান্সফারে অপ্রত্যাশিত ত্রুটি: ' + (e?.message || 'অজানা ত্রুটি'),
-        transferredCount: 0,
-        duplicatesSkipped: 0,
-        totalLegacyExpenses: 0,
-        totalModularExpensesNow: 0,
-        datesCovered: []
-      });
-    } finally {
-      setIsTransferringExpenses(false);
-    }
-  };
 
   const isConnected = dbService.isSupabaseConnected();
 

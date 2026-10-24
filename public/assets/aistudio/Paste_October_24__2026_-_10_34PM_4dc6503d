@@ -1,0 +1,141 @@
+Loading the script '<URL>' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL>". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+Loading the script '<URL>' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL>". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+Loading the script '<URL>' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL>". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+Loading the script '<URL>' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL>". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+Loading the script '<URL>' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL>". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+Loading the script '<URL>' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL>". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+Loading the script '<URL>' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL> <URL>". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+The powerPreference option is currently ignored when calling requestAdapter() on Windows. See <URL>
+The powerPreference option is currently ignored when calling requestAdapter() on Windows. See <URL>
+The powerPreference option is currently ignored when calling requestAdapter() on Windows. See <URL>
+The powerPreference option is currently ignored when calling requestAdapter() on Windows. See <URL>
+The powerPreference option is currently ignored when calling requestAdapter() on Windows. See <URL>
+The powerPreference option is currently ignored when calling requestAdapter() on Windows. See <URL>
+The powerPreference option is currently ignored when calling requestAdapter() on Windows. See <URL>
+The powerPreference option is currently ignored when calling requestAdapter() on Windows. See <URL>
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+editor.main.js:601 Creating a worker from 'https://aistudio.google.com/monaco/IWU5O3yRaE9v/worker.js' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: https://accounts.google.com/gsi/client https://apis.google.com/js/api.js https://billing-ads-qa-devel.corp.google.com/payments/v4/js/integrator.js https://payments.google.com/payments/v4/js/integrator.js https://payments.sandbox.google.com/payments/v4/js/integrator.js https://www.googletagmanager.com/gtm.js https://www.gstatic.com/glue/cookienotificationbar/cookienotificationbar.min.js https://www-onepick-opensocial.googleusercontent.com/gadgets/js/rpc.js https://www.google.com/tools/feedback/chat_load.js https://www.google.com/tools/feedback/help_api.js https://www.google.com/tools/feedback/load.js https://www.google.com/tools/feedback/open.js https://www.google.com/tools/feedback/open_to_help_guide_lazy.js https://www.gstatic.com/feedback/js/ https://www.gstatic.com/feedback/js/help/prod/service/lazy.min.js https://www.gstatic.com/inproduct_help/api/main.min.js https://www.gstatic.com/inproduct_help/chatsupport/chatsupport_button_v2.js https://www.gstatic.com/inproduct_help/service/lazy.min.js https://www.gstatic.com/uservoice/feedback/client/web/live/ https://www.gstatic.com/uservoice/surveys/resources/prod/js/survey/ https://www.googletagmanager.com/gtag/js https://www.google-analytics.com/analytics.js https://www.googletagmanager.com/gtag/destination https://www.gstatic.com/_/mss/boq-makersuite/_/js/k=boq-makersuite.MakerSuite.en.0qwTgQDAqRA.2018.O/ https://apis.google.com/_/scs/abc-static/_/js/ https://payments.google.com/payments/u/0/v4/js/integrator.js https://payments.youtube.com/payments/v4/js/integrator.js https://payments.youtube.com/payments/u/0/v4/js/integrator.js https://payments.cloud.google/payments/v4/js/integrator.js". Note that 'worker-src' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+editor.main.js:601 Creating a worker from 'https://aistudio.google.com/monaco/IWU5O3yRaE9v/worker.js' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: https://accounts.google.com/gsi/client https://apis.google.com/js/api.js https://billing-ads-qa-devel.corp.google.com/payments/v4/js/integrator.js https://payments.google.com/payments/v4/js/integrator.js https://payments.sandbox.google.com/payments/v4/js/integrator.js https://www.googletagmanager.com/gtm.js https://www.gstatic.com/glue/cookienotificationbar/cookienotificationbar.min.js https://www-onepick-opensocial.googleusercontent.com/gadgets/js/rpc.js https://www.google.com/tools/feedback/chat_load.js https://www.google.com/tools/feedback/help_api.js https://www.google.com/tools/feedback/load.js https://www.google.com/tools/feedback/open.js https://www.google.com/tools/feedback/open_to_help_guide_lazy.js https://www.gstatic.com/feedback/js/ https://www.gstatic.com/feedback/js/help/prod/service/lazy.min.js https://www.gstatic.com/inproduct_help/api/main.min.js https://www.gstatic.com/inproduct_help/chatsupport/chatsupport_button_v2.js https://www.gstatic.com/inproduct_help/service/lazy.min.js https://www.gstatic.com/uservoice/feedback/client/web/live/ https://www.gstatic.com/uservoice/surveys/resources/prod/js/survey/ https://www.googletagmanager.com/gtag/js https://www.google-analytics.com/analytics.js https://www.googletagmanager.com/gtag/destination https://www.gstatic.com/_/mss/boq-makersuite/_/js/k=boq-makersuite.MakerSuite.en.0qwTgQDAqRA.2018.O/ https://apis.google.com/_/scs/abc-static/_/js/ https://payments.google.com/payments/u/0/v4/js/integrator.js https://payments.youtube.com/payments/v4/js/integrator.js https://payments.youtube.com/payments/u/0/v4/js/integrator.js https://payments.cloud.google/payments/v4/js/integrator.js". Note that 'worker-src' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+m=Jn51xb:442 Origin trial controlled feature not enabled: 'writer'.
+(anonymous) @ m=Jn51xb:442
+m=Jn51xb:442 Origin trial controlled feature not enabled: 'rewriter'.
+(anonymous) @ m=Jn51xb:442
+m=Jn51xb:442 Unrecognized feature: 'proofreader'.
+(anonymous) @ m=Jn51xb:442
+ais-dev-rrwecnld2x7g2o4mt4jfcw-15623808159.asia-east1.run.app/?__aistudio_auth_token=5hNWtnf4Gum9NHD975NeglBY7It224KG0kAJsshs73A%3D#/settings:1 [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+cb=gapi.loaded_0?le=scs:100 [Violation] Permissions policy violation: unload is not allowed in this document.
+_.$e @ cb=gapi.loaded_0?le=scs:100
+editor.main.js:601 Creating a worker from 'https://aistudio.google.com/monaco/IWU5O3yRaE9v/worker.js' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: https://accounts.google.com/gsi/client https://apis.google.com/js/api.js https://billing-ads-qa-devel.corp.google.com/payments/v4/js/integrator.js https://payments.google.com/payments/v4/js/integrator.js https://payments.sandbox.google.com/payments/v4/js/integrator.js https://www.googletagmanager.com/gtm.js https://www.gstatic.com/glue/cookienotificationbar/cookienotificationbar.min.js https://www-onepick-opensocial.googleusercontent.com/gadgets/js/rpc.js https://www.google.com/tools/feedback/chat_load.js https://www.google.com/tools/feedback/help_api.js https://www.google.com/tools/feedback/load.js https://www.google.com/tools/feedback/open.js https://www.google.com/tools/feedback/open_to_help_guide_lazy.js https://www.gstatic.com/feedback/js/ https://www.gstatic.com/feedback/js/help/prod/service/lazy.min.js https://www.gstatic.com/inproduct_help/api/main.min.js https://www.gstatic.com/inproduct_help/chatsupport/chatsupport_button_v2.js https://www.gstatic.com/inproduct_help/service/lazy.min.js https://www.gstatic.com/uservoice/feedback/client/web/live/ https://www.gstatic.com/uservoice/surveys/resources/prod/js/survey/ https://www.googletagmanager.com/gtag/js https://www.google-analytics.com/analytics.js https://www.googletagmanager.com/gtag/destination https://www.gstatic.com/_/mss/boq-makersuite/_/js/k=boq-makersuite.MakerSuite.en.0qwTgQDAqRA.2018.O/ https://apis.google.com/_/scs/abc-static/_/js/ https://payments.google.com/payments/u/0/v4/js/integrator.js https://payments.youtube.com/payments/v4/js/integrator.js https://payments.youtube.com/payments/u/0/v4/js/integrator.js https://payments.cloud.google/payments/v4/js/integrator.js". Note that 'worker-src' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+editor.main.js:601 Creating a worker from 'https://aistudio.google.com/monaco/IWU5O3yRaE9v/worker.js' violates the following Content Security Policy directive: "script-src 'unsafe-inline' 'unsafe-eval' blob: data: https://accounts.google.com/gsi/client https://apis.google.com/js/api.js https://billing-ads-qa-devel.corp.google.com/payments/v4/js/integrator.js https://payments.google.com/payments/v4/js/integrator.js https://payments.sandbox.google.com/payments/v4/js/integrator.js https://www.googletagmanager.com/gtm.js https://www.gstatic.com/glue/cookienotificationbar/cookienotificationbar.min.js https://www-onepick-opensocial.googleusercontent.com/gadgets/js/rpc.js https://www.google.com/tools/feedback/chat_load.js https://www.google.com/tools/feedback/help_api.js https://www.google.com/tools/feedback/load.js https://www.google.com/tools/feedback/open.js https://www.google.com/tools/feedback/open_to_help_guide_lazy.js https://www.gstatic.com/feedback/js/ https://www.gstatic.com/feedback/js/help/prod/service/lazy.min.js https://www.gstatic.com/inproduct_help/api/main.min.js https://www.gstatic.com/inproduct_help/chatsupport/chatsupport_button_v2.js https://www.gstatic.com/inproduct_help/service/lazy.min.js https://www.gstatic.com/uservoice/feedback/client/web/live/ https://www.gstatic.com/uservoice/surveys/resources/prod/js/survey/ https://www.googletagmanager.com/gtag/js https://www.google-analytics.com/analytics.js https://www.googletagmanager.com/gtag/destination https://www.gstatic.com/_/mss/boq-makersuite/_/js/k=boq-makersuite.MakerSuite.en.0qwTgQDAqRA.2018.O/ https://apis.google.com/_/scs/abc-static/_/js/ https://payments.google.com/payments/u/0/v4/js/integrator.js https://payments.youtube.com/payments/v4/js/integrator.js https://payments.youtube.com/payments/u/0/v4/js/integrator.js https://payments.cloud.google/payments/v4/js/integrator.js". Note that 'worker-src' was not explicitly set, so 'script-src' is used as a fallback. The policy is report-only, so the violation has been logged but no further action has been taken.
+ WebSocket connection to 'wss://ais-dev-rrwecnld2x7g2o4mt4jfcw-15623808159.asia-east1.run.app/' failed: Error during WebSocket handshake: 'Sec-WebSocket-Accept' header is missing
+createWebSocket @ _aistudio-iframe.js?v=6634132a:305
+m=_b:1460 No ID or name found in config.
+updateJsLog @ m=_b:1460
+ WebSocket connection to 'wss://ais-dev-rrwecnld2x7g2o4mt4jfcw-15623808159.asia-east1.run.app/' failed: Error in connection establishment: net::ERR_NETWORK_IO_SUSPENDED
+createWebSocket @ _aistudio-iframe.js?v=6634132a:305
+(index):64 cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+(anonymous) @ (index):64
+_aistudio-iframe.js?v=6634132a:396 [vite] connecting...
+_aistudio-iframe.js?v=6634132a:396 [vite] connected.
+_aistudio-iframe.js?v=6634132a:391 [useAppData] loadData started
+_aistudio-iframe.js?v=6634132a:391 [dbService] loadFromCloud called
+_aistudio-iframe.js?v=6634132a:391 [useAppData] loadData started
+_aistudio-iframe.js?v=6634132a:391 [dbService] loadFromCloud called
+_aistudio-iframe.js?v=6634132a:391 [useAppData] loadData finished success
+_aistudio-iframe.js?v=6634132a:425 getLocalBackup error: ReferenceError: LOCAL_STORAGE_KEY is not defined
+    at Object.getLocalBackup (dbService.ts:1997:47)
+    at loadData (useAppData.ts:115:35)
+warn @ _aistudio-iframe.js?v=6634132a:425
+_aistudio-iframe.js?v=6634132a:391 [useAppData] localBackup fetched
+_aistudio-iframe.js?v=6634132a:391 Fresh software start: clean state.
+_aistudio-iframe.js?v=6634132a:391 [useAppData] updateLocalState called, data keys: Array(15)
+_aistudio-iframe.js?v=6634132a:391 [useAppData] loadData finished success
+_aistudio-iframe.js?v=6634132a:425 getLocalBackup error: ReferenceError: LOCAL_STORAGE_KEY is not defined
+    at Object.getLocalBackup (dbService.ts:1997:47)
+    at loadData (useAppData.ts:115:35)
+warn @ _aistudio-iframe.js?v=6634132a:425
+_aistudio-iframe.js?v=6634132a:391 [useAppData] localBackup fetched
+_aistudio-iframe.js?v=6634132a:391 Fresh software start: clean state.
+_aistudio-iframe.js?v=6634132a:391 [useAppData] updateLocalState called, data keys: Array(15)
+[Violation] Forced reflow while executing JavaScript took 36ms
+[Violation] Forced reflow while executing JavaScript took 34ms
+[Violation] Forced reflow while executing JavaScript took 32ms

@@ -378,8 +378,13 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
       }
     }
 
-    if (!cloudSuccess && dbService.isSupabaseConnected()) {
-      setErrorMessage('ক্লাউড ডাটাবেজে পেশেন্ট সেভ ব্যর্থ হয়েছে। দয়া করে ইন্টারনেট ও Supabase টেবিল কানেকশন চেক করুন।');
+    if (!cloudSuccess) {
+      setErrorMessage(dbService.isSupabaseConnected() 
+        ? 'ক্লাউড ডাটাবেজে পেশেন্ট সেভ ব্যর্থ হয়েছে। দয়া করে ইন্টারনেট ও Supabase টেবিল কানেকশন চেক করুন।'
+        : 'আপনি বর্তমানে অফলাইনে আছেন। পেশেন্ট ডাটা শুধুমাত্র লোকাল ডিভাইসে সেভ হয়েছে (ক্লাউড সিঙ্ক ব্যর্থ)।');
+      
+      // Update local state anyway so user doesn't lose entry, but with error warning
+      setPatients(newPatients);
       return;
     }
 

@@ -86,15 +86,8 @@ const safeIsoDate = (d: any): string | null => {
 };
 
 
+// Pure multi-table architecture: all data resides in modular tables
 export const isSingleTableSaveDisabled = true;
-
-export const getTableSplitCutoffDate = (): string => {
-  return '1970-01-01';
-};
-
-export const setTableSplitCutoffDate = (_dateStr: string) => {
-  // Pure multi-table architecture: all data resides in modular tables
-};
 
 // Robust date normalizer to YYYY-MM-DD supporting Bengali digits, DD-MM-YYYY, DD/MM/YYYY, DD-MM-YY, DD/MM/YY, ISO, and timestamps
 export const normalizeDate = (d: any): string => {
@@ -229,16 +222,6 @@ export const getRecordDate = (rec: any): string => {
     }
   }
   return '';
-};
-
-// In pure multi-table architecture, all dates go directly to dedicated modular tables
-export const isLegacyDate = (_rawDate?: any): boolean => {
-  return false;
-};
-
-// All records belong to dedicated modular tables
-export const isMultiTableDate = (_rawDate?: any): boolean => {
-  return true;
 };
 
 // In-memory set for deleted lab invoices
@@ -504,6 +487,7 @@ const fetchTableSafe = async (client: SupabaseClient, tableName: string) => {
     let from = 0;
     
     while (true) {
+      console.log(`[dbService] Fetching ${tableName}, range: ${from}-${from + pageSize - 1}`);
       const { data, error } = await client.from(tableName).select('*').range(from, from + pageSize - 1);
       if (error) {
         if (from === 0) {
@@ -533,6 +517,7 @@ const upsertTableSafe = async (client: SupabaseClient, tableName: string, rows: 
     for (let i = 0; i < rows.length; i += chunkSize) {
       let chunk = rows.slice(i, i + chunkSize);
       // All modular tables use 'id' as PRIMARY KEY
+      console.log(`[dbService] Upserting to ${tableName}`, chunk);
       let { error } = await client.from(tableName).upsert(chunk, { onConflict: 'id' });
 
       // If missing column error in schema cache, iteratively remove bad columns and retry up to 5 times
@@ -638,15 +623,12 @@ export const dbService = {
   },
 
   loadFromCloud: async () => {
+    console.log("[dbService] loadFromCloud called");
     try {
       if (!supabase) {
         return { _error: "Supabase not initialized. Offline mode is completely disabled." };
       }
       
-      const cutoffDate = getTableSplitCutoffDate(); // '2026-08-01'
-
-
-
       // 1. Initialize state
       let state: any = {};
 
@@ -1315,7 +1297,7 @@ export const dbService = {
 
           // Automatic recovery for 0-amount expenses from local cache / offline cache
           try {
-            const rawCache = localStorage.getItem('ncd_offline_cache_v1') || localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_migration_rollback_snapshot');
+            const rawCache = localStorage.getItem('ncd_offline_cache_v1') || localStorage.getItem('ncd_offline_cache_v1') || localStorage.getItem('ncd_migration_rollback_snapshot');
             if (rawCache) {
               const cachedObj = JSON.parse(rawCache);
               const cachedExp = cachedObj.detailedExpenses || cachedObj.detailed_expenses;
@@ -1658,7 +1640,7 @@ export const dbService = {
 
       // Update offline cache with the fresh state loaded from cloud
       try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(state));
         localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(state));
       } catch (cacheErr) {}
 
@@ -2012,7 +1994,7 @@ export const dbService = {
       const candidates: any[] = [];
 
       // 1. Primary offline cache
-      const rawPrimary = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
+      const rawPrimary = localStorage.getItem('ncd_offline_cache_v1');
       if (rawPrimary) {
         try {
           const parsed = JSON.parse(rawPrimary);
@@ -2273,8 +2255,6 @@ export const dbService = {
     return normalized;
   },
   
-  getTableSplitCutoffDate,
-  setTableSplitCutoffDate,
 
 
   cleanDuplicateExpenses: async (onProgress?: (progress: number) => void) => {
@@ -2883,7 +2863,7 @@ export const dbService = {
         'ncd_consolidated_lab_entries',
         'ncd_consolidated_backup_vault',
         'ncd_consolidated_lab_entries_v1',
-        LOCAL_STORAGE_KEY,
+        'ncd_offline_cache_v1',
         'ncd_offline_cache_v1'
       ];
       keys.forEach(k => {
@@ -2933,12 +2913,12 @@ export const dbService = {
       localStorage.setItem('ncd_consolidated_lab_entries', JSON.stringify(sanitized));
       localStorage.setItem('ncd_consolidated_backup_vault', JSON.stringify(sanitized));
       try {
-        const cachedRaw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
+        const cachedRaw = localStorage.getItem('ncd_offline_cache_v1') || localStorage.getItem('ncd_offline_cache_v1');
         if (cachedRaw) {
           const cached = JSON.parse(cachedRaw);
           cached.consolidatedLabEntries = sanitized;
           cached.last_updated_at = new Date().toISOString();
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cached));
+          localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
           localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
         }
       } catch (e) {}
@@ -2996,7 +2976,7 @@ export const dbService = {
         'ncd_consolidated_clinic_entries',
         'ncd_consolidated_clinic_backup_vault',
         'ncd_consolidated_clinic_entries_v1',
-        LOCAL_STORAGE_KEY,
+        'ncd_offline_cache_v1',
         'ncd_offline_cache_v1'
       ];
       keys.forEach(k => {
@@ -3046,12 +3026,12 @@ export const dbService = {
       localStorage.setItem('ncd_consolidated_clinic_entries', JSON.stringify(sanitized));
       localStorage.setItem('ncd_consolidated_clinic_backup_vault', JSON.stringify(sanitized));
       try {
-        const cachedRaw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem('ncd_offline_cache_v1');
+        const cachedRaw = localStorage.getItem('ncd_offline_cache_v1') || localStorage.getItem('ncd_offline_cache_v1');
         if (cachedRaw) {
           const cached = JSON.parse(cachedRaw);
           cached.consolidatedClinicEntries = sanitized;
           cached.last_updated_at = new Date().toISOString();
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cached));
+          localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
           localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
         }
       } catch (e) {}
@@ -4015,7 +3995,7 @@ export const dbService = {
 
       // Update local storage caches
       try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToRestore));
+        localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(dataToRestore));
         localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(dataToRestore));
       } catch {}
 

@@ -168,6 +168,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
     const [activeTestName, setActiveTestName] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
     const [viewMode, setViewMode] = useState<'reporting' | 'template_mgmt'>('reporting');
     const [selectedTechnologistId, setSelectedTechnologistId] = useState<string>('');
     const [selectedConsultantId, setSelectedConsultantId] = useState<string>('');
@@ -539,10 +540,11 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
                                     if (performBlockingSync) performBlockingSync({ rtTemplates: updated });
                                 } catch (e: any) {
                                     if (e.name === 'QuotaExceededError' || e.message.includes('exceeded the quota')) {
-                                        alert("আপনার ব্রাউজারের স্টোরেজ ফুল হয়ে গেছে (5MB Limit)। দয়া করে কিছু অপ্রয়োজনীয় টেমপ্লেট ডিলিট করুন।");
+                                        setErrorMessage("আপনার ব্রাউজারের স্টোরেজ ফুল হয়ে গেছে (5MB Limit)। দয়া করে কিছু অপ্রয়োজনীয় টেমপ্লেট ডিলিট করুন।");
                                     } else {
-                                        alert("Failed to save: " + e.message);
+                                        setErrorMessage("Failed to save: " + e.message);
                                     }
+                                    setTimeout(() => setErrorMessage(''), 3000);
                                 }
                             }} className="px-5 py-2.5 bg-indigo-600 text-white font-black uppercase tracking-widest text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-lg">Save Template</button>
                         </div>
@@ -661,6 +663,7 @@ const LabReportingPage: React.FC<any> = ({ invoices, setInvoices, reports, setRe
             `}</style>
 
             {successMessage && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 border-2 border-emerald-500 text-white px-12 py-8 rounded-[3rem] shadow-2xl z-[500] animate-fade-in-up flex flex-col items-center gap-4"><div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white text-2xl font-black">✓</div><div className="text-xl font-black uppercase tracking-widest">{successMessage}</div></div>}
+            {errorMessage && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 border-2 border-red-500 text-white px-12 py-8 rounded-[3rem] shadow-2xl z-[500] animate-fade-in-up flex flex-col items-center gap-4"><div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white text-2xl font-black">✕</div><div className="text-xl font-black uppercase tracking-widest">{errorMessage}</div></div>}
             
             <div className="flex flex-1 overflow-hidden min-h-0">
                 <div className="w-[220px] shrink-0 bg-white border-r flex flex-col shadow-sm no-print min-h-0">

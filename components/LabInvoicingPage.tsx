@@ -92,6 +92,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [applyPC, setApplyPC] = useState(false); // State for Apply PC checkbox
   const [showMobileHistory, setShowMobileHistory] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingFilmSelections, setPendingFilmSelections] = useState<{test_id: string, test_name: string, film_reagent_id: string}[] | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
@@ -797,10 +798,12 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         const directRes = await dbService.saveLabInvoiceDirectly(invoiceToSave);
         if (directRes && !directRes.success) {
           console.warn("Direct lab invoice save warning:", directRes.error);
-          alert(`সতর্কবার্তা: ইনভয়েসটি ব্রাউজারে সংরক্ষিত হয়েছে, কিন্তু সুপাবেজ ক্লাউডে সেভ হয়নি!\n\nকারণ: ${directRes.error}\n\nদয়া করে অ্যাডমিন সেটিংস থেকে Supabase সংযোগ এবং টেবিলগুলো যাচাই করুন।`);
+          setErrorMessage(`সতর্কবার্তা: ইনভয়েসটি ব্রাউজারে সংরক্ষিত হয়েছে, কিন্তু সুপাবেজ ক্লাউডে সেভ হয়নি!\n\nকারণ: ${directRes.error}\n\nদয়া করে অ্যাডমিন সেটিংস থেকে Supabase সংযোগ এবং টেবিলগুলো যাচাই করুন।`);
+          // DO NOT return, allow local state update, but keep warning visible
         }
       } catch (directErr: any) {
         console.warn("Direct lab invoice save warning:", directErr);
+        setErrorMessage("ইনভয়েস সেভ করার সময় ক্লাউড কানেকশন ত্রুটি হয়েছে। ডাটা লোকালি সংরক্ষিত হয়েছে।");
       }
 
       // 2. Persist reagent deductions if applicable
@@ -827,7 +830,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       }
     } catch (err) {
       console.error("Save error:", err);
-      alert("ডাটা সেভ করার সময় একটি ত্রুটি হয়েছে।");
+      setErrorMessage("ডাটা সেভ করার সময় একটি ত্রুটি হয়েছে।");
     } finally {
       setLoading(false);
     }
@@ -1248,6 +1251,15 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-emerald-600 text-2xl font-black shadow-lg">✓</div>
                     <span className="text-xl font-black uppercase tracking-widest">{successMessage}</span>
                     <button onClick={() => setSuccessMessage('')} className="pointer-events-auto mt-2 text-emerald-200 text-xs underline font-bold">dismiss</button>
+                </div>
+            </div>
+        )}
+        {errorMessage && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
+                <div className="bg-red-600 border-2 border-white text-white px-10 py-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-fade-in-up flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-red-600 text-2xl font-black shadow-lg">✕</div>
+                    <span className="text-xl font-black uppercase tracking-widest">{errorMessage}</span>
+                    <button onClick={() => setErrorMessage('')} className="pointer-events-auto mt-2 text-red-200 text-xs underline font-bold">dismiss</button>
                 </div>
             </div>
         )}

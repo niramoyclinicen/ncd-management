@@ -23,8 +23,6 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
   const [selectedFilterCategory, setSelectedFilterCategory] = useState('All');
   const [successMessage, setSuccessMessage] = useState('');
   const [isReloading, setIsReloading] = useState(false);
-  const [isRestoringNcdState, setIsRestoringNcdState] = useState(false);
-  const [restoreProgressMsg, setRestoreProgressMsg] = useState('');
 
   const [tempSubTests, setTempSubTests] = useState<SubTest[]>([]);
 
@@ -137,36 +135,6 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
     }
   };
 
-  const handleRestoreFromNcdState = async () => {
-    if (!window.confirm("আপনি কি পুরাতন ncd_state টেবিল (জানুয়ারি-জুলাই ২০২৬) থেকে টেস্টের আসল কমিশন ও সার্ভিস প্রাইজ নতুন পৃথক টেবিলে রিস্টোর করতে চান?")) {
-      return;
-    }
-    setIsRestoringNcdState(true);
-    setRestoreProgressMsg('শুরু হচ্ছে...');
-    try {
-      const res = await dbService.migrateTestsFromNcdStateToModular((msg, pct) => {
-        setRestoreProgressMsg(`${msg} (${pct}%)`);
-      });
-
-      if (res.success) {
-        if (Array.isArray(res.tests) && res.tests.length > 0) {
-          setTests(res.tests);
-        }
-        if (performBlockingSync) {
-          await performBlockingSync({ tests: res.tests });
-        }
-        setSuccessMessage(`✓ ${res.message}`);
-      } else {
-        alert(res.message);
-      }
-    } catch (e: any) {
-      console.error("Restore from ncd_state error:", e);
-      alert("রিস্টোর ব্যর্থ: " + (e?.message || e));
-    } finally {
-      setIsRestoringNcdState(false);
-      setRestoreProgressMsg('');
-    }
-  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -471,7 +439,7 @@ const TestInfoPage: React.FC<Props> = ({ reagents, tests, setTests, isEmbedded =
                         <button
                             type="button"
                             onClick={handleReloadFromCloud}
-                            disabled={isReloading || isRestoringNcdState}
+                            disabled={isReloading}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-700 hover:bg-sky-600 text-white rounded-xl text-xs font-bold shadow transition-all active:scale-95 disabled:opacity-50"
                             title="ক্লাউড ডাটাবেজ (test/tests টেবিল) থেকে টেস্ট লোড করুন"
                         >

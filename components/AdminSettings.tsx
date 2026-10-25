@@ -2052,320 +2052,64 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                 </div>
               </div>
 
-              {/* MIGRATION & DISCONNECT SINGLE TABLE SECTION */}
+              {/* PURE MULTI-TABLE STATUS & LIVE COUNTERS */}
               <div className="space-y-6 pt-4 border-t border-slate-800">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-base font-black text-white uppercase tracking-tight flex items-center gap-2">
-                      💎 পার্মানেন্ট ডাটা মাইগ্রেশন ও সিঙ্গেল টেবিল (ncd_state) পৃথকীকরণ
+                      ⚡ Supabase ২৪টি পৃথক টেবিল (Pure Multi-Table Architecture)
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      ncd_state থেকে সমস্ত ঐতিহাসিক ডাটা পৃথক পৃথক টেবিলে স্থায়ীভাবে ট্রান্সফার করে সিঙ্গেল টেবিলের সাথে সম্পর্ক ছিন্ন করুন।
+                      একক টেবিল (ncd_state) বিলুপ্ত করে শতভাগ পৃথক টেবিলে ডাটা সেভ ও লোড নিশ্চিত করা হয়েছে।
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCheckMultiTableStats}
+                      className="px-3 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshIcon size={14} />
+                      টেবিল রেকর্ড রিফ্রেশ করুন
+                    </button>
                     <span className="text-[11px] font-black px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-                      সিঙ্গেল টেবিল রাইট: সম্পূর্ণ বন্ধ (Safe)
+                      মাল্টি-টেবিল: সক্রিয়
                     </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* CARD 1: EXPENSES PERMANENT TRANSFER */}
-                  <div className="bg-slate-950 p-6 rounded-2xl border-2 border-emerald-600/30 space-y-5 shadow-xl relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <span className="p-2.5 rounded-xl bg-emerald-600/20 text-emerald-400 font-bold text-lg">
-                          💰
-                        </span>
-                        <div>
-                          <h4 className="text-sm font-black text-white uppercase">
-                            ১. খরচের ডাটা পার্মানেন্ট ট্রান্সফার
-                          </h4>
-                          <span className="text-[10px] text-emerald-400 font-semibold">
-                            detailed_expenses টেবিলে পুশ
+                {multiTableStats && Object.keys(multiTableStats).length > 0 ? (
+                  <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+                    <div className="text-xs font-black text-sky-400 uppercase tracking-wider flex items-center justify-between">
+                      <span>সুপাবেজ টেবিলে বর্তমান ডাটা সংখ্যা:</span>
+                      <span className="font-mono text-emerald-400">Total Tables: {Object.keys(multiTableStats).length}</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs font-mono">
+                      {Object.entries(multiTableStats).map(([tbl, cnt]) => (
+                        <div key={tbl} className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex items-center justify-between">
+                          <span className="text-slate-300 font-bold">{tbl}:</span>
+                          <span className="text-emerald-400 font-black px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-600/30">
+                            {cnt} টি
                           </span>
                         </div>
-                      </div>
+                      ))}
                     </div>
-
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      ncd_state টেবিল থেকে জানুয়ারি থেকে ৩১ জুলাই পর্যন্ত সমস্ত খরচের এন্ট্রি বের করে Supabase-এর <span className="font-mono text-emerald-400 font-bold">detailed_expenses</span> টেবিলে স্বয়ংক্রিয়ভাবে INSERT/UPSERT করা হবে।
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={handleTransferExpenses}
-                      disabled={isTransferringExpenses}
-                      className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-98 text-white text-xs font-black py-3.5 px-4 rounded-xl uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 disabled:opacity-50"
-                    >
-                      {isTransferringExpenses ? (
-                        <>
-                          <Activity size={16} className="animate-spin" />
-                          ট্রান্সফার চলছে ({expenseTransferPct}%)...
-                        </>
-                      ) : (
-                        <>
-                          <span>🚀</span>
-                          <span>খরচ ট্রান্সফার করুন</span>
-                        </>
-                      )}
-                    </button>
-
-                    {isTransferringExpenses && (
-                      <div className="space-y-2 bg-slate-900/80 p-3.5 rounded-xl border border-emerald-500/20">
-                        <div className="flex justify-between text-xs text-slate-300 font-bold">
-                          <span>{expenseTransferMsg}</span>
-                          <span className="font-mono text-emerald-400">{expenseTransferPct}%</span>
-                        </div>
-                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                          <div
-                            className="bg-emerald-500 h-full transition-all duration-300 rounded-full"
-                            style={{ width: `${expenseTransferPct}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {expenseTransferReport && (
-                      <div className={`p-4 rounded-xl text-xs space-y-2.5 border ${expenseTransferReport.success ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' : 'bg-rose-950/40 border-rose-500/40 text-rose-200'}`}>
-                        <div className="font-bold flex items-center gap-2">
-                          <span>{expenseTransferReport.success ? '✓' : '✕'}</span>
-                          <span>{expenseTransferReport.message}</span>
-                        </div>
-                        {expenseTransferReport.success && (
-                          <div className="pt-2 border-t border-emerald-900/60 grid grid-cols-2 gap-2 text-[11px] font-mono">
-                            <div className="bg-slate-900/80 p-2 rounded-lg">
-                              <span className="text-slate-400 block text-[10px]">ট্রান্সফার হওয়া খরচ:</span>
-                              <span className="text-emerald-400 font-bold">{expenseTransferReport.transferredCount} টি</span>
-                            </div>
-                            <div className="bg-slate-900/80 p-2 rounded-lg">
-                              <span className="text-slate-400 block text-[10px]">ডুপ্লিকেট বাদ:</span>
-                              <span className="text-amber-400 font-bold">{expenseTransferReport.duplicatesSkipped} টি</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
-
-                  {/* CARD 2: TEST & COMMISSION RECOVERY & PERMANENT TRANSFER */}
-                  <div className="bg-slate-950 p-6 rounded-2xl border-2 border-amber-500/30 space-y-5 shadow-xl relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <span className="p-2.5 rounded-xl bg-amber-600/20 text-amber-400 font-bold text-lg">
-                          🧪
-                        </span>
-                        <div>
-                          <h4 className="text-sm font-black text-white uppercase">
-                            ২. টেস্ট ও কমিশন (PC) ট্রান্সফার
-                          </h4>
-                          <span className="text-[10px] text-amber-400 font-semibold">
-                            tests টেবিলে কমিশন রিস্টোর
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      ncd_state টেবিল থেকে সমস্ত টেস্টের আসল কমিশন (PC) ও সার্ভিস প্রাইজ বের করে Supabase-এর <span className="font-mono text-amber-400 font-bold">tests/test</span> টেবিলে পার্মানেন্ট সেভ ও রিস্টোর করা হবে।
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={handleTransferTests}
-                      disabled={isTransferringTests}
-                      className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 active:scale-98 text-white text-xs font-black py-3.5 px-4 rounded-xl uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-900/30 disabled:opacity-50"
-                    >
-                      {isTransferringTests ? (
-                        <>
-                          <Activity size={16} className="animate-spin" />
-                          ট্রান্সফার চলছে ({testTransferPct}%)...
-                        </>
-                      ) : (
-                        <>
-                          <span>⚡</span>
-                          <span>টেস্ট ও কমিশন ট্রান্সফার করুন</span>
-                        </>
-                      )}
-                    </button>
-
-                    {isTransferringTests && (
-                      <div className="space-y-2 bg-slate-900/80 p-3.5 rounded-xl border border-amber-500/20">
-                        <div className="flex justify-between text-xs text-slate-300 font-bold">
-                          <span>{testTransferMsg}</span>
-                          <span className="font-mono text-amber-400">{testTransferPct}%</span>
-                        </div>
-                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                          <div
-                            className="bg-amber-500 h-full transition-all duration-300 rounded-full"
-                            style={{ width: `${testTransferPct}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {testTransferReport && (
-                      <div className={`p-4 rounded-xl text-xs space-y-2.5 border ${testTransferReport.success ? 'bg-amber-950/40 border-amber-500/40 text-amber-200' : 'bg-rose-950/40 border-rose-500/40 text-rose-200'}`}>
-                        <div className="font-bold flex items-center gap-2">
-                          <span>{testTransferReport.success ? '✓' : '✕'}</span>
-                          <span>{testTransferReport.message}</span>
-                        </div>
-                        {testTransferReport.success && (
-                          <div className="pt-2 border-t border-amber-900/60 grid grid-cols-2 gap-2 text-[11px] font-mono">
-                            <div className="bg-slate-900/80 p-2 rounded-lg">
-                              <span className="text-slate-400 block text-[10px]">আপডেটকৃত টেস্ট:</span>
-                              <span className="text-amber-400 font-bold">{testTransferReport.transferredCount} টি</span>
-                            </div>
-                            <div className="bg-slate-900/80 p-2 rounded-lg">
-                              <span className="text-slate-400 block text-[10px]">উদ্ধারকৃত কমিশন:</span>
-                              <span className="text-emerald-400 font-bold">{testTransferReport.restoredCommissionsCount} টি</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* CARD 3: FULL SMART MULTI-TABLE MIGRATION */}
-                  <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5 shadow-xl">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <span className="p-2.5 rounded-xl bg-sky-600/20 text-sky-400 font-bold text-lg">
-                          🔄
-                        </span>
-                        <div>
-                          <h4 className="text-sm font-black text-white uppercase">
-                            ৩. সম্পূর্ণ স্মার্ট মাইগ্রেশন (সকল)
-                          </h4>
-                          <span className="text-[10px] text-sky-400 font-semibold">
-                            ইনভয়েস, ওষুধ, ল্যাব, খরচ ও ডিউ
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleCheckMultiTableStats}
-                        className="text-[10px] text-slate-400 hover:text-white font-bold bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-800 uppercase"
-                      >
-                        স্ট্যাটাস
-                      </button>
-                    </div>
-
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      এটি শুরুর পূর্বে স্বয়ংক্রিয়ভাবে একটি সেফটি স্ন্যাপশট ও অফলাইন ব্যাকআপ ডাউনলোড করবে। পুরাতন ncd_state থেকে কোনো ডাটা ডিলিট হবে না (রিড-অনলি)। নতুন পৃথক টেবিলে থাকা ডাটা অপরিবর্তিত রেখে কেবল মিসিং রেকর্ড পুশ করবে।
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={handleRunSmartMigration}
-                      disabled={isSmartMigrating}
-                      className="w-full bg-sky-600 hover:bg-sky-500 active:scale-98 text-white text-xs font-black py-3.5 px-4 rounded-xl uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
-                    >
-                      {isSmartMigrating ? (
-                        <>
-                          <Activity size={16} className="animate-spin" />
-                          মাইগ্রেশন চলছে ({migrationPct}%)...
-                        </>
-                      ) : (
-                        <>
-                          <span>🛡️</span>
-                          <span>স্মার্ট মাইগ্রেশন ইঞ্জিন চালান (All Modules)</span>
-                        </>
-                      )}
-                    </button>
-
-                    {isSmartMigrating && (
-                      <div className="space-y-2 bg-slate-900/80 p-3.5 rounded-xl border border-sky-500/20">
-                        <div className="flex justify-between text-xs text-slate-300 font-bold">
-                          <span>{migrationStepMsg}</span>
-                          <span className="font-mono text-sky-400">{migrationPct}%</span>
-                        </div>
-                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                          <div
-                            className="bg-sky-500 h-full transition-all duration-300 rounded-full"
-                            style={{ width: `${migrationPct}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {smartMigrationReport && (
-                      <div className={`p-4 rounded-xl text-xs space-y-2 border ${smartMigrationReport.success ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' : 'bg-rose-950/40 border-rose-500/40 text-rose-200'}`}>
-                        <div className="font-bold flex items-center gap-2">
-                          <span>{smartMigrationReport.success ? '✓' : '✕'}</span>
-                          <span>{smartMigrationReport.message}</span>
-                        </div>
-                        {smartMigrationReport.rescued && (
-                          <div className="pt-2 border-t border-slate-800 grid grid-cols-2 gap-2 text-[11px] font-mono">
-                            <div className="bg-slate-900 p-2 rounded-lg">
-                              <span className="text-slate-400 block text-[10px]">মোট উদ্ধারকৃত রেকর্ড:</span>
-                              <span className="text-emerald-400 font-bold">{smartMigrationReport.rescued.total} টি</span>
-                            </div>
-                            <div className="bg-slate-900 p-2 rounded-lg">
-                              <span className="text-slate-400 block text-[10px]">ডুপ্লিকেট বাদ দেওয়া:</span>
-                              <span className="text-amber-400 font-bold">{smartMigrationReport.duplicatesIgnored} টি</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {rollbackSnapshotInfo && (
-                      <div className="flex items-center justify-between p-3 bg-slate-900 rounded-xl border border-slate-800 text-xs">
-                        <span className="text-slate-400 text-[11px]">
-                          প্রি-মাইগ্রেশন স্ন্যাপশট সংরক্ষিত আছে ({new Date(rollbackSnapshotInfo.createdAt).toLocaleTimeString()})
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleRollbackSnapshot}
-                          disabled={isRollingBack}
-                          className="text-[11px] text-amber-400 hover:text-amber-300 font-bold underline ml-2"
-                        >
-                          {isRollingBack ? 'রোলব্যাক হচ্ছে...' : 'রোলব্যাক'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* SINGLE TABLE CLEANUP & DROP GUIDANCE CARD */}
-                <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">🗑️</span>
-                      <h4 className="text-xs font-black text-slate-200 uppercase tracking-wider">
-                        ৩. সিঙ্গেল টেবিল (ncd_state) স্থায়ীভাবে ডিলিট করার নিয়ম
-                      </h4>
+                ) : (
+                  <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex items-center justify-between shadow-xl">
+                    <div className="text-xs text-slate-300">
+                      সুপাবেজ ডাটাবেজের ২৪টি টেবিলের লাইভ রেকর্ড কাউন্ট দেখতে "টেবিল রেকর্ড রিফ্রেশ করুন" বাটনে ক্লিক করুন।
                     </div>
                     <button
                       type="button"
-                      onClick={() => setShowDropNcdStateGuidance(!showDropNcdStateGuidance)}
-                      className="text-[11px] font-bold text-sky-400 hover:text-white"
+                      onClick={handleCheckMultiTableStats}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer"
                     >
-                      {showDropNcdStateGuidance ? 'গাইড বন্ধ করুন ▲' : 'গাইড দেখুন ▼'}
+                      রেকর্ড দেখুন
                     </button>
                   </div>
-
-                  {showDropNcdStateGuidance && (
-                    <div className="pt-3 border-t border-slate-800 space-y-3 text-xs text-slate-300 leading-relaxed animate-fade-in">
-                      <p>
-                        ১ ও ২ নম্বর ধাপের ট্রান্সফার সফলভাবে সম্পন্ন হওয়ার পর এবং একাউন্টস পেজে জানুয়ারি-জুলাইয়ের হিসাব মিলিয়ে নেওয়ার পর আপনি নিশ্চিন্তে Supabase থেকে <span className="font-mono text-rose-400 font-bold">ncd_state</span> টেবিলটি মুছে ফেলতে পারেন:
-                      </p>
-                      <ol className="list-decimal list-inside space-y-1 text-slate-400">
-                        <li>Supabase ড্যাশবোর্ডে গিয়ে আপনার প্রোজেক্ট খুলুন।</li>
-                        <li>বাম পাশের মেনু থেকে <span className="text-white font-bold">SQL Editor</span>-এ যান।</li>
-                        <li>নিচের কমান্ডটি লিখে <span className="text-white font-bold">Run</span> চাপুন:</li>
-                      </ol>
-                      <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-xs text-emerald-400 flex justify-between items-center">
-                        <code>DROP TABLE IF EXISTS ncd_state;</code>
-                      </div>
-                      <p className="text-[11px] text-emerald-400 font-semibold">
-                        ✓ সফটওয়্যারটি ইতিমধ্যেই শতভাগ পৃথক টেবিল (modular tables) থেকে ডাটা পড়া ও লেখার জন্য কনফিগার করা হয়েছে। ncd_state ড্রপ করলেও সফটওয়্যার পুরোপুরি স্বাভাবিকভাবে আজীবন চলবে।
-                      </p>
-                    </div>
-                  )}
-                </div>
+                )}
+              </div>
 
                 {/* FULL MULTI-TABLE SQL SCRIPT VIEWER & COPY CARD */}
                 <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border-2 border-sky-500/40 shadow-2xl space-y-4">
@@ -2419,7 +2163,6 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                     </div>
                   )}
                 </div>
-              </div>
             </div>
           )}
 

@@ -1,4 +1,4 @@
-// Complete Supabase SQL Schema for Niramoy Clinic & Diagnostic
+// Pure Multi-Table Supabase SQL Schema for Niramoy Clinic & Diagnostic
 
 export interface TableDef {
   name: string;
@@ -15,14 +15,14 @@ export const SUPABASE_TABLES_LIST: TableDef[] = [
   { name: 'reagents', department: 'ডায়াগনস্টিক (Lab)', description: 'রিএজেন্ট, কেমিক্যাল ও এক্স-রে ফিল্ম ইনভেন্টরি স্টক', keyFields: ['id', 'reagent_id', 'reagent_name', 'quantity', 'company'] },
   { name: 'employees', department: 'এইচআর ও পেরোল (HR)', description: 'কর্মকর্তা-কর্মচারীদের ব্যক্তিগত ও বেতন তথ্য', keyFields: ['id', 'emp_id', 'name', 'designation', 'basic_salary'] },
   { name: 'lab_invoices', department: 'ডায়াগনস্টিক (Billing)', description: 'প্যাথলজি ও টেস্টের বিস্তারিত বিল ও ইনভয়েস', keyFields: ['id', 'invoice_id', 'patient_name', 'net_payable', 'paid_amount'] },
-  { name: 'indoor_invoices', department: 'ক্লিনিক (Inpatient)', description: 'ক্লিনিকের ইনডোর ভর্তি রোগীর ফাইনাল বিল', keyFields: ['id', 'invoice_id', 'admission_id', 'total_bill', 'paid_amount'] },
+  { name: 'indoor_invoices', department: 'ক্লিনিক (Inpatient)', description: 'ক্লিনিকের ইনডোর ভর্তি রোগীর ফাইনাল বিল', keyFields: ['id', 'daily_id', 'admission_id', 'total_bill', 'paid_amount'] },
   { name: 'admissions', department: 'ক্লিনিক (Inpatient)', description: 'ভর্তি রোগী, বেড নম্বর ও চিকিৎসা স্ট্যাটাস', keyFields: ['id', 'admission_id', 'patient_name', 'bed_no', 'status'] },
   { name: 'due_collections', department: 'অ্যাকাউন্টিং (Accounts)', description: 'বকেয়া বিল আদায়ের তারিখভিত্তিক রেকর্ড', keyFields: ['id', 'collection_id', 'invoice_id', 'amount_collected'] },
   { name: 'detailed_expenses', department: 'অ্যাকাউন্টিং (Accounts)', description: 'দৈনিক খরচের খাত ও ভাউচার হিসেব', keyFields: ['id', 'date', 'category', 'description', 'paid_amount'] },
   { name: 'medicines', department: 'ফার্মেসি (Pharmacy)', description: 'ফার্মেসির সকল ঔষধ তালিকা, ক্রয়মূল্য ও স্টক', keyFields: ['id', 'trade_name', 'generic_name', 'stock', 'sale_price'] },
   { name: 'purchase_invoices', department: 'ফার্মেসি (Pharmacy)', description: 'কোম্পানি থেকে ঔষধ ক্রয়ের ইনভয়েস', keyFields: ['id', 'invoice_id', 'supplier', 'total_amount', 'paid_amount'] },
   { name: 'sales_invoices', department: 'ফার্মেসি (Pharmacy)', description: 'ফার্মেসি কাউন্টার ঔষধ বিক্রয় ইনভয়েস', keyFields: ['id', 'invoice_id', 'patient_name', 'total_amount', 'paid_amount'] },
-  { name: 'consolidated_clinic_entries', department: 'ক্লিনিক কনসোলিডেটেড (NEW)', description: 'ক্লিনিকের দৈনিক ও মাসিক ১১টি উপখাতের সমন্বিত ডাটা', keyFields: ['id', 'date', 'shift', 'total_indoor_revenue', 'admission_fee', 'normal_delivery', 'cesarean_operation', 'cash_collected'] },
+  { name: 'consolidated_clinic_entries', department: 'ক্লিনিক কনসোলিডেটেড', description: 'ক্লিনিকের দৈনিক ও মাসিক ১১টি উপখাতের সমন্বিত ডাটা', keyFields: ['id', 'date', 'shift', 'total_indoor_revenue', 'admission_fee', 'cash_collected'] },
   { name: 'consolidated_lab_entries', department: 'ডায়াগনস্টিক কনসোলিডেটেড', description: 'ডায়াগনস্টিকের দৈনিক ও মাসিক ৬টি উপখাতের সমন্বিত ডাটা', keyFields: ['id', 'date', 'shift', 'gross_amount', 'cash_collected'] },
   { name: 'monthly_adjustments', department: 'অ্যাকাউন্টিং (Accounts)', description: 'মাসিক লভ্যাংশ বণ্টন, বাড়ি ভাড়া ও লোন কিস্তি', keyFields: ['id', 'month_key', 'profit_dist', 'house_rent', 'loan_installment'] },
   { name: 'reports', department: 'ডায়াগনস্টিক (Lab)', description: 'রোগীদের টেস্ট রেজাল্ট ও ল্যাব রিপোর্ট', keyFields: ['id', 'report_id', 'test_name', 'results', 'delivery_status'] },
@@ -31,18 +31,34 @@ export const SUPABASE_TABLES_LIST: TableDef[] = [
   { name: 'attendance_log', department: 'এইচআর ও পেরোল (HR)', description: 'কর্মচারীদের দৈনিক ইন/আউট হাজিরা', keyFields: ['id', 'date', 'emp_id', 'status', 'in_time'] },
   { name: 'leave_log', department: 'এইচআর ও পেরোল (HR)', description: 'কর্মচারীদের ছুটির আবেদন ও মঞ্জুরি রেকর্ড', keyFields: ['id', 'emp_id', 'leave_type', 'start_date', 'status'] },
   { name: 'diagnostic_settings', department: 'সেটিংস (Settings)', description: 'ল্যাব অটোমেশন ও ছাড় সেটিংস', keyFields: ['id', 'key', 'value'] },
-  { name: 'app_settings', department: 'সেটিংস (Settings)', description: 'পাসওয়ার্ড, ক্লিনিক প্রোফাইল ও প্রিন্ট সেটিংস', keyFields: ['id', 'passwords', 'clinic_profile'] },
-  { name: 'ncd_state', department: 'ক্লাউড ব্যাকআপ (Vault)', description: 'সম্পূর্ণ সিস্টেমের রিয়েল-টাইম মাস্টার ব্যাকআপ রেকর্ড', keyFields: ['id', 'data', 'updated_at'] }
+  { name: 'app_settings', department: 'সেটিংস (Settings)', description: 'পাসওয়ার্ড, ক্লিনিক প্রোফাইল ও প্রিন্ট সেটিংস', keyFields: ['id', 'passwords', 'clinic_profile'] }
 ];
 
 export const SUPABASE_MULTI_TABLE_SCHEMA_SQL = `-- =========================================================================
--- NIRAMOY CLINIC & DIAGNOSTIC - FULL MULTI-TABLE DATABASE SCHEMA
--- For Supabase PostgreSQL Cloud Database
--- Instructions: Copy this entire script, open your Supabase Project Dashboard,
--- go to "SQL Editor", click "New Query", paste this SQL and click "RUN".
+-- NIRAMOY CLINIC & DIAGNOSTIC (NCD)
+-- CLEAN PURE MULTI-TABLE DATABASE SCHEMA (NO ncd_state)
+--
+-- Instructions:
+-- 1. Open your Supabase Project Dashboard (e.g. Ncd_Oct26)
+-- 2. Go to "SQL Editor" -> Click "New Query"
+-- 3. Copy & paste this entire script and click "RUN".
 -- =========================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Step A: Safely drop deprecated single-table and obsolete duplicate tables
+DROP TABLE IF EXISTS public.ncd_state CASCADE;
+DROP TABLE IF EXISTS public.invoices CASCADE;
+DROP TABLE IF EXISTS public.dues CASCADE;
+DROP TABLE IF EXISTS public.test CASCADE;
+DROP TABLE IF EXISTS public.lab_tests CASCADE;
+DROP TABLE IF EXISTS public.test_info CASCADE;
+DROP TABLE IF EXISTS public.referrers CASCADE;
+DROP TABLE IF EXISTS public.adjustments CASCADE;
+DROP TABLE IF EXISTS public.consolidated_entries CASCADE;
+DROP TABLE IF EXISTS public.ncd_monthly_adjustments CASCADE;
+
+-- Step B: Create 24 Standard Pure Multi-Tables
 
 -- 1. PATIENTS
 CREATE TABLE IF NOT EXISTS public.patients (
@@ -75,18 +91,6 @@ CREATE TABLE IF NOT EXISTS public.doctors (
 
 -- 3. REFERRARS
 CREATE TABLE IF NOT EXISTS public.referrars (
-  id TEXT PRIMARY KEY,
-  ref_id TEXT,
-  ref_name TEXT,
-  area TEXT,
-  ref_mobile TEXT,
-  commission_percent NUMERIC DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
-CREATE TABLE IF NOT EXISTS public.referrers (
   id TEXT PRIMARY KEY,
   ref_id TEXT,
   ref_name TEXT,
@@ -170,25 +174,6 @@ CREATE TABLE IF NOT EXISTS public.lab_invoices (
   data JSONB DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS public.invoices (
-  id TEXT PRIMARY KEY,
-  invoice_id TEXT,
-  daily_id TEXT,
-  patient_id TEXT,
-  patient_name TEXT,
-  invoice_date TEXT,
-  total_amount NUMERIC DEFAULT 0,
-  discount_amount NUMERIC DEFAULT 0,
-  net_payable NUMERIC DEFAULT 0,
-  paid_amount NUMERIC DEFAULT 0,
-  due_amount NUMERIC DEFAULT 0,
-  items JSONB DEFAULT '[]'::jsonb,
-  is_deleted BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
 -- 8. INDOOR_INVOICES
 CREATE TABLE IF NOT EXISTS public.indoor_invoices (
   id TEXT PRIMARY KEY,
@@ -197,20 +182,27 @@ CREATE TABLE IF NOT EXISTS public.indoor_invoices (
   admission_id TEXT,
   patient_id TEXT,
   patient_name TEXT,
-  invoice_date TEXT,
+  doctor_id TEXT,
+  doctor_name TEXT,
+  referrar_id TEXT,
+  referrar_name TEXT,
   admission_date TEXT,
+  discharge_date TEXT,
+  invoice_date TEXT,
+  indication TEXT,
+  service_category TEXT,
+  sub_category TEXT,
+  ot_details TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
   total_bill NUMERIC DEFAULT 0,
-  discount NUMERIC DEFAULT 0,
-  net_bill NUMERIC DEFAULT 0,
-  total_paid NUMERIC DEFAULT 0,
-  advance_paid NUMERIC DEFAULT 0,
-  final_paid NUMERIC DEFAULT 0,
-  due_amount NUMERIC DEFAULT 0,
-  doctor_fee NUMERIC DEFAULT 0,
-  ot_fee NUMERIC DEFAULT 0,
-  medicine_bill NUMERIC DEFAULT 0,
-  bed_charge NUMERIC DEFAULT 0,
-  services JSONB DEFAULT '[]'::jsonb,
+  total_discount NUMERIC DEFAULT 0,
+  net_payable NUMERIC DEFAULT 0,
+  paid_amount NUMERIC DEFAULT 0,
+  due_bill NUMERIC DEFAULT 0,
+  special_commission NUMERIC DEFAULT 0,
+  commission_paid NUMERIC DEFAULT 0,
+  bill_created_by TEXT,
+  status TEXT DEFAULT 'Posted',
   is_deleted BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
@@ -227,10 +219,23 @@ CREATE TABLE IF NOT EXISTS public.admissions (
   bed_no TEXT,
   doctor_id TEXT,
   doctor_name TEXT,
+  referrer_id TEXT,
+  referrer_name TEXT,
+  indication TEXT,
+  service_name TEXT,
+  service_category TEXT,
+  contract_type TEXT DEFAULT 'Non-Contact',
+  contract_amount NUMERIC DEFAULT 0,
+  discharge_date TEXT,
+  discharge_note TEXT,
+  patient_mobile TEXT,
   status TEXT,
   advance_paid NUMERIC DEFAULT 0,
   final_bill NUMERIC DEFAULT 0,
   due_amount NUMERIC DEFAULT 0,
+  clinical_orders JSONB DEFAULT '[]'::jsonb,
+  doctor_rounds JSONB DEFAULT '[]'::jsonb,
+  nurse_chart JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
@@ -255,18 +260,6 @@ CREATE TABLE IF NOT EXISTS public.due_collections (
   data JSONB DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS public.dues (
-  id TEXT PRIMARY KEY,
-  collection_id TEXT,
-  invoice_id TEXT,
-  daily_id TEXT,
-  collection_date TEXT,
-  amount_collected NUMERIC DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
 -- 11. DETAILED_EXPENSES
 CREATE TABLE IF NOT EXISTS public.detailed_expenses (
   id TEXT PRIMARY KEY,
@@ -276,7 +269,7 @@ CREATE TABLE IF NOT EXISTS public.detailed_expenses (
   description TEXT,
   bill_amount NUMERIC DEFAULT 0,
   paid_amount NUMERIC DEFAULT 0,
-  dept TEXT,
+  dept TEXT DEFAULT 'Diagnostic',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
@@ -287,13 +280,20 @@ CREATE TABLE IF NOT EXISTS public.medicines (
   id TEXT PRIMARY KEY,
   trade_name TEXT,
   generic_name TEXT,
-  form TEXT,
+  formulation TEXT,
   strength TEXT,
   company TEXT,
+  supplier TEXT,
   purchase_price NUMERIC DEFAULT 0,
+  unit_price_buy NUMERIC DEFAULT 0,
   sale_price NUMERIC DEFAULT 0,
+  unit_price_sell NUMERIC DEFAULT 0,
   stock NUMERIC DEFAULT 0,
   min_stock NUMERIC DEFAULT 0,
+  box_size NUMERIC DEFAULT 1,
+  expiry_date TEXT,
+  is_antibiotic BOOLEAN DEFAULT false,
+  requires_prescription BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
@@ -304,11 +304,19 @@ CREATE TABLE IF NOT EXISTS public.purchase_invoices (
   id TEXT PRIMARY KEY,
   invoice_id TEXT,
   supplier TEXT,
+  source TEXT,
   invoice_date TEXT,
   total_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
+  net_payable NUMERIC DEFAULT 0,
   paid_amount NUMERIC DEFAULT 0,
   due_amount NUMERIC DEFAULT 0,
   items JSONB DEFAULT '[]'::jsonb,
+  bill_created_by TEXT,
+  bill_paid_by TEXT,
+  received_by TEXT,
+  status TEXT DEFAULT 'Saved',
+  created_date TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
@@ -320,13 +328,21 @@ CREATE TABLE IF NOT EXISTS public.sales_invoices (
   invoice_id TEXT,
   patient_id TEXT,
   patient_name TEXT,
+  customer_name TEXT,
+  customer_mobile TEXT,
+  customer_age TEXT,
+  customer_gender TEXT,
+  ref_doctor_name TEXT,
   invoice_date TEXT,
   total_amount NUMERIC DEFAULT 0,
-  discount_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
   net_payable NUMERIC DEFAULT 0,
   paid_amount NUMERIC DEFAULT 0,
   due_amount NUMERIC DEFAULT 0,
   items JSONB DEFAULT '[]'::jsonb,
+  bill_created_by TEXT,
+  status TEXT DEFAULT 'Posted',
+  created_date TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
@@ -431,23 +447,6 @@ CREATE TABLE IF NOT EXISTS public.monthly_adjustments (
   data JSONB DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS public.adjustments (
-  id TEXT PRIMARY KEY,
-  month_key TEXT,
-  profit_dist NUMERIC DEFAULT 0,
-  house_rent NUMERIC DEFAULT 0,
-  loan_installment NUMERIC DEFAULT 0,
-  amount NUMERIC DEFAULT 0,
-  department TEXT,
-  category TEXT,
-  note TEXT,
-  date TEXT,
-  authorized_by TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
 -- 21. CONSOLIDATED_LAB_ENTRIES
 CREATE TABLE IF NOT EXISTS public.consolidated_lab_entries (
   id TEXT PRIMARY KEY,
@@ -474,32 +473,7 @@ CREATE TABLE IF NOT EXISTS public.consolidated_lab_entries (
   data JSONB DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS public.consolidated_entries (
-  id TEXT PRIMARY KEY,
-  date TEXT,
-  shift TEXT,
-  entry_time TEXT,
-  operator_name TEXT,
-  total_patients NUMERIC DEFAULT 0,
-  total_tests NUMERIC DEFAULT 0,
-  gross_amount NUMERIC DEFAULT 0,
-  discount_amount NUMERIC DEFAULT 0,
-  net_payable NUMERIC DEFAULT 0,
-  cash_collected NUMERIC DEFAULT 0,
-  due_amount NUMERIC DEFAULT 0,
-  doctor_commission_paid NUMERIC DEFAULT 0,
-  usg_doctor_fee_paid NUMERIC DEFAULT 0,
-  breakdown JSONB DEFAULT '{}'::jsonb,
-  notes TEXT,
-  entry_type TEXT,
-  month NUMERIC,
-  year NUMERIC,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
--- 22. CONSOLIDATED_CLINIC_ENTRIES (ক্লিনিক বিভাগ - ১১টি উপখাত)
+-- 22. CONSOLIDATED_CLINIC_ENTRIES
 CREATE TABLE IF NOT EXISTS public.consolidated_clinic_entries (
   id TEXT PRIMARY KEY,
   date TEXT,
@@ -554,27 +528,17 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 25. NCD_STATE
-CREATE TABLE IF NOT EXISTS public.ncd_state (
-  id BIGINT PRIMARY KEY,
-  data JSONB DEFAULT '{}'::jsonb,
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- PERMISSIONS & DISABLE RLS FOR FAST ONLINE ACCESS
+-- Step C: DISABLE ROW LEVEL SECURITY (RLS) FOR FAST RELIABLE APPLICATION ACCESS
 ALTER TABLE IF EXISTS public.patients DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.doctors DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.referrars DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.referrers DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.tests DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.reagents DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.employees DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.lab_invoices DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.invoices DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.indoor_invoices DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.admissions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.due_collections DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.dues DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.detailed_expenses DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.medicines DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.purchase_invoices DISABLE ROW LEVEL SECURITY;
@@ -585,14 +549,12 @@ ALTER TABLE IF EXISTS public.appointments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.attendance_log DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.leave_log DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.monthly_adjustments DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.adjustments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.consolidated_lab_entries DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.consolidated_entries DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.consolidated_clinic_entries DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.diagnostic_settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.app_settings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ncd_state DISABLE ROW LEVEL SECURITY;
 
+-- Step D: Grant all permissions to anon, authenticated, postgres, service_role
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, postgres, service_role;

@@ -2104,7 +2104,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 setSelectedYear(dateObj.getFullYear());
             }
 
-            // 1. Direct save to Supabase modular table & ncd_state dual persistence FIRST (Online check)
+            // 1. Direct save to Supabase modular table (detailed_expenses)
             let saveResult: any = { success: false, error: 'Connection error' };
             try {
                 saveResult = await dbService.saveExpensesDirectly(date, finalDiagItems, newState);

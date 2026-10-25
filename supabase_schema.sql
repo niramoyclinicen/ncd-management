@@ -1,14 +1,30 @@
 -- =========================================================================
--- NIRAMOY CLINIC & DIAGNOSTIC - FULL MULTI-TABLE DATABASE SCHEMA
--- For Supabase PostgreSQL Cloud Database
--- Instructions: Copy this entire script, open your Supabase Project Dashboard,
--- go to "SQL Editor", click "New Query", paste this SQL and click "RUN".
+-- NIRAMOY CLINIC & DIAGNOSTIC (NCD)
+-- CLEAN PURE MULTI-TABLE DATABASE SCHEMA (NO ncd_state)
+--
+-- Instructions:
+-- 1. Open your Supabase Project Dashboard (e.g. Ncd_Oct26)
+-- 2. Go to "SQL Editor" -> Click "New Query"
+-- 3. Copy & paste this entire script and click "RUN".
 -- =========================================================================
 
--- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. PATIENTS (রোগীর তালিকা ও রেকর্ড)
+-- Step A: Safely drop deprecated single-table and obsolete duplicate tables
+DROP TABLE IF EXISTS public.ncd_state CASCADE;
+DROP TABLE IF EXISTS public.invoices CASCADE;
+DROP TABLE IF EXISTS public.dues CASCADE;
+DROP TABLE IF EXISTS public.test CASCADE;
+DROP TABLE IF EXISTS public.lab_tests CASCADE;
+DROP TABLE IF EXISTS public.test_info CASCADE;
+DROP TABLE IF EXISTS public.referrers CASCADE;
+DROP TABLE IF EXISTS public.adjustments CASCADE;
+DROP TABLE IF EXISTS public.consolidated_entries CASCADE;
+DROP TABLE IF EXISTS public.ncd_monthly_adjustments CASCADE;
+
+-- Step B: Create 24 Standard Pure Multi-Tables
+
+-- 1. PATIENTS
 CREATE TABLE IF NOT EXISTS public.patients (
   id TEXT PRIMARY KEY,
   pt_id TEXT,
@@ -22,7 +38,7 @@ CREATE TABLE IF NOT EXISTS public.patients (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 2. DOCTORS (ডাক্তারদের তালিকা ও তথ্য)
+-- 2. DOCTORS
 CREATE TABLE IF NOT EXISTS public.doctors (
   id TEXT PRIMARY KEY,
   doctor_id TEXT,
@@ -37,8 +53,8 @@ CREATE TABLE IF NOT EXISTS public.doctors (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 3. REFERRERS (রেফারার ও এজেন্টদের তালিকা)
-CREATE TABLE IF NOT EXISTS public.referrers (
+-- 3. REFERRARS
+CREATE TABLE IF NOT EXISTS public.referrars (
   id TEXT PRIMARY KEY,
   ref_id TEXT,
   ref_name TEXT,
@@ -50,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.referrers (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 4. TESTS (ল্যাব টেস্ট তালিকা ও চার্জ)
+-- 4. TESTS
 CREATE TABLE IF NOT EXISTS public.tests (
   id TEXT PRIMARY KEY,
   test_id TEXT,
@@ -71,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.tests (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 5. REAGENTS (ল্যাব কেমিক্যাল, রিএজেন্ট ও এক্স-রে ফিল্ম ইনভেন্টরি)
+-- 5. REAGENTS
 CREATE TABLE IF NOT EXISTS public.reagents (
   id TEXT PRIMARY KEY,
   reagent_id TEXT,
@@ -86,7 +102,7 @@ CREATE TABLE IF NOT EXISTS public.reagents (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 6. EMPLOYEES (কর্মকর্তা-কর্মচারী তালিকা)
+-- 6. EMPLOYEES
 CREATE TABLE IF NOT EXISTS public.employees (
   id TEXT PRIMARY KEY,
   emp_id TEXT,
@@ -101,7 +117,7 @@ CREATE TABLE IF NOT EXISTS public.employees (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 7. LAB_INVOICES (ডায়াগনস্টিক ল্যাব টেস্ট ইনভয়েস)
+-- 7. LAB_INVOICES
 CREATE TABLE IF NOT EXISTS public.lab_invoices (
   id TEXT PRIMARY KEY,
   invoice_id TEXT,
@@ -122,27 +138,7 @@ CREATE TABLE IF NOT EXISTS public.lab_invoices (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- Alias for lab invoices
-CREATE TABLE IF NOT EXISTS public.invoices (
-  id TEXT PRIMARY KEY,
-  invoice_id TEXT,
-  daily_id TEXT,
-  patient_id TEXT,
-  patient_name TEXT,
-  invoice_date TEXT,
-  total_amount NUMERIC DEFAULT 0,
-  discount_amount NUMERIC DEFAULT 0,
-  net_payable NUMERIC DEFAULT 0,
-  paid_amount NUMERIC DEFAULT 0,
-  due_amount NUMERIC DEFAULT 0,
-  items JSONB DEFAULT '[]'::jsonb,
-  is_deleted BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
--- 8. INDOOR_INVOICES (ক্লিনিক বিভাগ ইনডোর ইনভয়েস)
+-- 8. INDOOR_INVOICES
 CREATE TABLE IF NOT EXISTS public.indoor_invoices (
   id TEXT PRIMARY KEY,
   daily_id TEXT,
@@ -150,27 +146,34 @@ CREATE TABLE IF NOT EXISTS public.indoor_invoices (
   admission_id TEXT,
   patient_id TEXT,
   patient_name TEXT,
-  invoice_date TEXT,
+  doctor_id TEXT,
+  doctor_name TEXT,
+  referrar_id TEXT,
+  referrar_name TEXT,
   admission_date TEXT,
+  discharge_date TEXT,
+  invoice_date TEXT,
+  indication TEXT,
+  service_category TEXT,
+  sub_category TEXT,
+  ot_details TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
   total_bill NUMERIC DEFAULT 0,
-  discount NUMERIC DEFAULT 0,
-  net_bill NUMERIC DEFAULT 0,
-  total_paid NUMERIC DEFAULT 0,
-  advance_paid NUMERIC DEFAULT 0,
-  final_paid NUMERIC DEFAULT 0,
-  due_amount NUMERIC DEFAULT 0,
-  doctor_fee NUMERIC DEFAULT 0,
-  ot_fee NUMERIC DEFAULT 0,
-  medicine_bill NUMERIC DEFAULT 0,
-  bed_charge NUMERIC DEFAULT 0,
-  services JSONB DEFAULT '[]'::jsonb,
+  total_discount NUMERIC DEFAULT 0,
+  net_payable NUMERIC DEFAULT 0,
+  paid_amount NUMERIC DEFAULT 0,
+  due_bill NUMERIC DEFAULT 0,
+  special_commission NUMERIC DEFAULT 0,
+  commission_paid NUMERIC DEFAULT 0,
+  bill_created_by TEXT,
+  status TEXT DEFAULT 'Posted',
   is_deleted BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 9. ADMISSIONS (ক্লিনিক ভর্তি রোগী ও বেড ম্যানেজমেন্ট)
+-- 9. ADMISSIONS
 CREATE TABLE IF NOT EXISTS public.admissions (
   id TEXT PRIMARY KEY,
   admission_id TEXT,
@@ -180,16 +183,29 @@ CREATE TABLE IF NOT EXISTS public.admissions (
   bed_no TEXT,
   doctor_id TEXT,
   doctor_name TEXT,
+  referrer_id TEXT,
+  referrer_name TEXT,
+  indication TEXT,
+  service_name TEXT,
+  service_category TEXT,
+  contract_type TEXT DEFAULT 'Non-Contact',
+  contract_amount NUMERIC DEFAULT 0,
+  discharge_date TEXT,
+  discharge_note TEXT,
+  patient_mobile TEXT,
   status TEXT,
   advance_paid NUMERIC DEFAULT 0,
   final_bill NUMERIC DEFAULT 0,
   due_amount NUMERIC DEFAULT 0,
+  clinical_orders JSONB DEFAULT '[]'::jsonb,
+  doctor_rounds JSONB DEFAULT '[]'::jsonb,
+  nurse_chart JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 10. DUE_COLLECTIONS (বকেয়া আদায় রেকর্ড)
+-- 10. DUE_COLLECTIONS
 CREATE TABLE IF NOT EXISTS public.due_collections (
   id TEXT PRIMARY KEY,
   collection_id TEXT,
@@ -208,19 +224,7 @@ CREATE TABLE IF NOT EXISTS public.due_collections (
   data JSONB DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS public.dues (
-  id TEXT PRIMARY KEY,
-  collection_id TEXT,
-  invoice_id TEXT,
-  daily_id TEXT,
-  collection_date TEXT,
-  amount_collected NUMERIC DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
--- 11. DETAILED_EXPENSES (দৈনিক খরচের খাত ও ভাউচার)
+-- 11. DETAILED_EXPENSES
 CREATE TABLE IF NOT EXISTS public.detailed_expenses (
   id TEXT PRIMARY KEY,
   date TEXT,
@@ -229,63 +233,86 @@ CREATE TABLE IF NOT EXISTS public.detailed_expenses (
   description TEXT,
   bill_amount NUMERIC DEFAULT 0,
   paid_amount NUMERIC DEFAULT 0,
-  dept TEXT,
+  dept TEXT DEFAULT 'Diagnostic',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 12. MEDICINES (ফার্মেসি ঔষধ ক্যাটালগ ও স্টক)
+-- 12. MEDICINES
 CREATE TABLE IF NOT EXISTS public.medicines (
   id TEXT PRIMARY KEY,
   trade_name TEXT,
   generic_name TEXT,
-  form TEXT,
+  formulation TEXT,
   strength TEXT,
   company TEXT,
+  supplier TEXT,
   purchase_price NUMERIC DEFAULT 0,
+  unit_price_buy NUMERIC DEFAULT 0,
   sale_price NUMERIC DEFAULT 0,
+  unit_price_sell NUMERIC DEFAULT 0,
   stock NUMERIC DEFAULT 0,
   min_stock NUMERIC DEFAULT 0,
+  box_size NUMERIC DEFAULT 1,
+  expiry_date TEXT,
+  is_antibiotic BOOLEAN DEFAULT false,
+  requires_prescription BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 13. PURCHASE_INVOICES (মেডিসিন ক্রয় ইনভয়েস)
+-- 13. PURCHASE_INVOICES
 CREATE TABLE IF NOT EXISTS public.purchase_invoices (
   id TEXT PRIMARY KEY,
   invoice_id TEXT,
   supplier TEXT,
+  source TEXT,
   invoice_date TEXT,
   total_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
+  net_payable NUMERIC DEFAULT 0,
   paid_amount NUMERIC DEFAULT 0,
   due_amount NUMERIC DEFAULT 0,
   items JSONB DEFAULT '[]'::jsonb,
+  bill_created_by TEXT,
+  bill_paid_by TEXT,
+  received_by TEXT,
+  status TEXT DEFAULT 'Saved',
+  created_date TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 14. SALES_INVOICES (মেডিসিন বিক্রয় ইনভয়েস)
+-- 14. SALES_INVOICES
 CREATE TABLE IF NOT EXISTS public.sales_invoices (
   id TEXT PRIMARY KEY,
   invoice_id TEXT,
   patient_id TEXT,
   patient_name TEXT,
+  customer_name TEXT,
+  customer_mobile TEXT,
+  customer_age TEXT,
+  customer_gender TEXT,
+  ref_doctor_name TEXT,
   invoice_date TEXT,
   total_amount NUMERIC DEFAULT 0,
-  discount_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
   net_payable NUMERIC DEFAULT 0,
   paid_amount NUMERIC DEFAULT 0,
   due_amount NUMERIC DEFAULT 0,
   items JSONB DEFAULT '[]'::jsonb,
+  bill_created_by TEXT,
+  status TEXT DEFAULT 'Posted',
+  created_date TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 15. REPORTS (ডায়াগনস্টিক টেস্ট রিপোর্ট)
+-- 15. REPORTS
 CREATE TABLE IF NOT EXISTS public.reports (
   id TEXT PRIMARY KEY,
   report_id TEXT,
@@ -302,7 +329,7 @@ CREATE TABLE IF NOT EXISTS public.reports (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 16. PRESCRIPTIONS (ডাক্তার প্রেসক্রিপশন)
+-- 16. PRESCRIPTIONS
 CREATE TABLE IF NOT EXISTS public.prescriptions (
   id TEXT PRIMARY KEY,
   doctor_id TEXT,
@@ -320,7 +347,7 @@ CREATE TABLE IF NOT EXISTS public.prescriptions (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 17. APPOINTMENTS (সিরিয়াল ও অ্যাপয়েন্টমেন্ট)
+-- 17. APPOINTMENTS
 CREATE TABLE IF NOT EXISTS public.appointments (
   id TEXT PRIMARY KEY,
   appointment_id TEXT,
@@ -338,7 +365,7 @@ CREATE TABLE IF NOT EXISTS public.appointments (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 18. ATTENDANCE_LOG (হাজিরা লগ)
+-- 18. ATTENDANCE_LOG
 CREATE TABLE IF NOT EXISTS public.attendance_log (
   id TEXT PRIMARY KEY,
   date TEXT,
@@ -352,7 +379,7 @@ CREATE TABLE IF NOT EXISTS public.attendance_log (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 19. LEAVE_LOG (ছুটি রেকর্ড)
+-- 19. LEAVE_LOG
 CREATE TABLE IF NOT EXISTS public.leave_log (
   id TEXT PRIMARY KEY,
   emp_id TEXT,
@@ -366,7 +393,7 @@ CREATE TABLE IF NOT EXISTS public.leave_log (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 20. MONTHLY_ADJUSTMENTS (মাসিক হিসাব সমন্বয় / লভ্যাংশ বণ্টন / বাড়ি ভাড়া / লোন কিস্তি)
+-- 20. MONTHLY_ADJUSTMENTS
 CREATE TABLE IF NOT EXISTS public.monthly_adjustments (
   id TEXT PRIMARY KEY,
   month_key TEXT,
@@ -384,24 +411,7 @@ CREATE TABLE IF NOT EXISTS public.monthly_adjustments (
   data JSONB DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS public.adjustments (
-  id TEXT PRIMARY KEY,
-  month_key TEXT,
-  profit_dist NUMERIC DEFAULT 0,
-  house_rent NUMERIC DEFAULT 0,
-  loan_installment NUMERIC DEFAULT 0,
-  amount NUMERIC DEFAULT 0,
-  department TEXT,
-  category TEXT,
-  note TEXT,
-  date TEXT,
-  authorized_by TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
--- 21. CONSOLIDATED_LAB_ENTRIES (ডায়াগনস্টিক কনসোলিডেটেড ডাটা এন্ট্রি)
+-- 21. CONSOLIDATED_LAB_ENTRIES
 CREATE TABLE IF NOT EXISTS public.consolidated_lab_entries (
   id TEXT PRIMARY KEY,
   date TEXT,
@@ -427,32 +437,7 @@ CREATE TABLE IF NOT EXISTS public.consolidated_lab_entries (
   data JSONB DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS public.consolidated_entries (
-  id TEXT PRIMARY KEY,
-  date TEXT,
-  shift TEXT,
-  entry_time TEXT,
-  operator_name TEXT,
-  total_patients NUMERIC DEFAULT 0,
-  total_tests NUMERIC DEFAULT 0,
-  gross_amount NUMERIC DEFAULT 0,
-  discount_amount NUMERIC DEFAULT 0,
-  net_payable NUMERIC DEFAULT 0,
-  cash_collected NUMERIC DEFAULT 0,
-  due_amount NUMERIC DEFAULT 0,
-  doctor_commission_paid NUMERIC DEFAULT 0,
-  usg_doctor_fee_paid NUMERIC DEFAULT 0,
-  breakdown JSONB DEFAULT '{}'::jsonb,
-  notes TEXT,
-  entry_type TEXT,
-  month NUMERIC,
-  year NUMERIC,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  data JSONB DEFAULT '{}'::jsonb
-);
-
--- 22. CONSOLIDATED_CLINIC_ENTRIES (ক্লিনিক ডিপার্টমেন্ট কনসোলিডেটেড ডাটা এন্ট্রি - ১১টি উপখাত সহ)
+-- 22. CONSOLIDATED_CLINIC_ENTRIES
 CREATE TABLE IF NOT EXISTS public.consolidated_clinic_entries (
   id TEXT PRIMARY KEY,
   date TEXT,
@@ -489,7 +474,7 @@ CREATE TABLE IF NOT EXISTS public.consolidated_clinic_entries (
   data JSONB DEFAULT '{}'::jsonb
 );
 
--- 23. DIAGNOSTIC_SETTINGS (ডায়াগনস্টিক ক্যালকুলেশন সেটিংস)
+-- 23. DIAGNOSTIC_SETTINGS
 CREATE TABLE IF NOT EXISTS public.diagnostic_settings (
   id TEXT PRIMARY KEY,
   key TEXT,
@@ -497,7 +482,7 @@ CREATE TABLE IF NOT EXISTS public.diagnostic_settings (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 24. APP_SETTINGS (পাসওয়ার্ড, ক্লিনিক প্রোফাইল, প্রিন্ট সেটিংস)
+-- 24. APP_SETTINGS
 CREATE TABLE IF NOT EXISTS public.app_settings (
   id TEXT PRIMARY KEY,
   passwords JSONB DEFAULT '{}'::jsonb,
@@ -507,31 +492,17 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 25. NCD_STATE (মাস্টার ক্লাউড ব্যাকআপ স্টেট)
-CREATE TABLE IF NOT EXISTS public.ncd_state (
-  id BIGINT PRIMARY KEY,
-  data JSONB DEFAULT '{}'::jsonb,
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- =========================================================================
--- PERMISSIONS & ROW LEVEL SECURITY (RLS)
--- Disable RLS on all tables so your web app can read and write online seamlessly
--- =========================================================================
-
+-- Step C: DISABLE ROW LEVEL SECURITY (RLS) FOR FAST RELIABLE APPLICATION ACCESS
 ALTER TABLE IF EXISTS public.patients DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.doctors DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.referrars DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.referrers DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.tests DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.reagents DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.employees DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.lab_invoices DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.invoices DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.indoor_invoices DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.admissions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.due_collections DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.dues DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.detailed_expenses DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.medicines DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.purchase_invoices DISABLE ROW LEVEL SECURITY;
@@ -542,18 +513,12 @@ ALTER TABLE IF EXISTS public.appointments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.attendance_log DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.leave_log DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.monthly_adjustments DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.adjustments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.consolidated_lab_entries DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.consolidated_entries DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.consolidated_clinic_entries DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.diagnostic_settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.app_settings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ncd_state DISABLE ROW LEVEL SECURITY;
 
--- Grant all permissions to anon and authenticated roles
+-- Step D: Grant all permissions to anon, authenticated, postgres, service_role
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, postgres, service_role;
-
--- Helpful comment:
-COMMENT ON TABLE public.consolidated_clinic_entries IS 'Niramoy Clinic Department Consolidated Daily and Monthly Service & Financial Entries';

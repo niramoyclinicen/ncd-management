@@ -5973,7 +5973,7 @@ const IndoorInvoicePage: React.FC<{
                                 <AlertCircle className="w-5 h-5 text-purple-400 shrink-0" />
                                 <div>
                                     <div className="text-xs font-black text-purple-300">ডুপ্লিকেট ইনভয়েস চিহ্নিত হয়েছে ({duplicateCount} টি অতিরিক্ত কপি)</div>
-                                    <div className="text-[11px] text-purple-300/80 font-medium">অতীতের সিঙ্গেল টেবিল (ncd_state) এ থাকা ট্রিপল বা ডুপ্লিকেট ইনভয়েসগুলো থেকে অতিরিক্ত কপি মুছে একটি সঠিক কপি রাখা হবে।</div>
+                                    <div className="text-[11px] text-purple-300/80 font-medium">ডাটাবেজে থাকা অতিরিক্ত কপি মুছে একটি সঠিক কপি নিশ্চিত করা হবে।</div>
                                 </div>
                             </div>
                             <button

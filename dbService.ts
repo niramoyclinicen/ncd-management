@@ -455,8 +455,8 @@ const fetchTableSafe = async (client: SupabaseClient, tableName: string): Promis
   }
 };
 
-const upsertTableSafe = async (client: SupabaseClient, tableName: string, rows: any[]): Promise<boolean> => {
-  if (!rows || rows.length === 0) return true;
+const upsertTableSafe = async (client: SupabaseClient, tableName: string, rows: any[]): Promise<{ success: boolean; error?: string }> => {
+  if (!rows || rows.length === 0) return { success: true };
   try {
     const chunkSize = 50;
     for (let i = 0; i < rows.length; i += chunkSize) {
@@ -496,18 +496,20 @@ const upsertTableSafe = async (client: SupabaseClient, tableName: string, rows: 
         const { error: insertErr } = await client.from(tableName).insert(sanitizedChunk);
         if (!insertErr) {
           error = null;
+        } else {
+          error = insertErr;
         }
       }
 
       if (error) {
         console.error(`[dbService] Upsert failed for table ${tableName}:`, error.message);
-        return false;
+        return { success: false, error: `Table [${tableName}]: ${error.message}` };
       }
     }
-    return true;
+    return { success: true };
   } catch (err: any) {
     console.error(`[dbService] Upsert exception for table ${tableName}:`, err?.message || err);
-    return false;
+    return { success: false, error: `Table [${tableName}]: ${err?.message || 'Unknown error'}` };
   }
 };
 
@@ -636,10 +638,10 @@ export const dbService = {
         fetchTableSafe(supabase, 'monthly_adjustments'),
         fetchTableSafe(supabase, 'consolidated_lab_entries'),
         fetchTableSafe(supabase, 'consolidated_clinic_entries'),
-        fetchTableSafe(supabase, 'doctor_appointments'),
+        fetchTableSafe(supabase, 'appointments'),
         fetchTableSafe(supabase, 'prescriptions'),
         fetchTableSafe(supabase, 'reports'),
-        fetchTableSafe(supabase, 'settings')
+        fetchTableSafe(supabase, 'app_settings')
       ]);
 
       const state: any = {};
@@ -1028,7 +1030,7 @@ export const dbService = {
     }
 
     try {
-      const syncPromises: Promise<boolean>[] = [];
+      const syncPromises: Promise<{ success: boolean; error?: string }>[] = [];
 
       if (Array.isArray(appState.patients) && appState.patients.length > 0) {
         syncPromises.push(dbService.syncPatientsToModularTable(appState.patients));
@@ -1083,15 +1085,15 @@ export const dbService = {
       }
 
       const results = await Promise.all(syncPromises);
-      const allSucceeded = results.every(r => r === true);
+      const failed = results.find(r => !r.success);
 
       // Cache locally
       try {
         localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(appState));
       } catch (e) {}
 
-      if (!allSucceeded) {
-        return { success: false, error: 'কিছু টেবিলে ডাটা সেভ হতে সমস্যা হয়েছে। অনুগ্রহ করে ইন্টারনেট ও সুপাবেজ কানেকশন চেক করুন।' };
+      if (failed) {
+        return { success: false, error: failed.error || 'কিছু টেবিলে ডাটা সেভ হতে সমস্যা হয়েছে। অনুগ্রহ করে ইন্টারনেট ও সুপাবেজ কানেকশন চেক করুন।' };
       }
 
       return { success: true };

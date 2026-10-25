@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Test, SubTest } from './components/DiagnosticData';
+import type { Test, SubTest, Patient } from './components/DiagnosticData';
 
 // Get URL and Key from env or localStorage
 const getStoredConfig = () => {
@@ -479,6 +479,43 @@ export const normalizeTestItem = (rawRow: any): Test | null => {
   };
 };
 
+// Safe helper to normalize any patient item from Supabase modular table or JSONB data
+export const normalizePatientItem = (rawRow: any): Patient | null => {
+  if (!rawRow || typeof rawRow !== 'object') return null;
+  let dataObj = rawRow.data;
+  if (typeof dataObj === 'string') {
+    try { dataObj = JSON.parse(dataObj); } catch { dataObj = {}; }
+  }
+  if (!dataObj || typeof dataObj !== 'object') dataObj = {};
+
+  const ptId = String(rawRow.pt_id || rawRow.id || dataObj.pt_id || dataObj.id || '').trim();
+  const ptName = String(rawRow.name || rawRow.pt_name || dataObj.pt_name || dataObj.name || '').trim();
+  if (!ptId && !ptName) return null;
+
+  const ageVal = String(dataObj.ageY ?? rawRow.age ?? dataObj.age ?? '').trim();
+
+  return {
+    ...dataObj,
+    pt_id: ptId,
+    pt_name: ptName,
+    ageY: ageVal,
+    ageM: String(dataObj.ageM ?? ''),
+    ageD: String(dataObj.ageD ?? ''),
+    gender: String(rawRow.gender || dataObj.gender || 'Male'),
+    mobile: String(rawRow.mobile || dataObj.mobile || '').trim(),
+    address: String(rawRow.address || dataObj.address || '').trim(),
+    thana: String(dataObj.thana || rawRow.thana || '').trim(),
+    district: String(dataObj.district || rawRow.district || 'Sirajganj').trim(),
+    co_pref: String(dataObj.co_pref || 'S/O'),
+    co_name: String(dataObj.co_name || '').trim(),
+    dobY: String(dataObj.dobY || ''),
+    dobM: String(dataObj.dobM || ''),
+    dobD: String(dataObj.dobD || ''),
+    relation: String(dataObj.relation || 'Self'),
+    date_modified: String(dataObj.date_modified || rawRow.updated_at || rawRow.created_at || '')
+  };
+};
+
 // Safe helper to fetch all rows from a table (with pagination beyond 5000 rows)
 const fetchTableSafe = async (client: SupabaseClient, tableName: string) => {
   try {
@@ -520,11 +557,15 @@ const upsertTableSafe = async (client: SupabaseClient, tableName: string, rows: 
       console.log(`[dbService] Upserting to ${tableName}`, chunk);
       let { error } = await client.from(tableName).upsert(chunk, { onConflict: 'id' });
 
-      // If missing column error in schema cache, iteratively remove bad columns and retry up to 5 times
+      // If missing column error in schema cache, iteratively remove bad columns and retry up to 25 times
       let colRetry = 0;
       let sanitizedChunk = chunk;
-      while (error && colRetry < 5) {
-        const colMatch = error.message ? error.message.match(/Could not find the '([^']+)' column/i) : null;
+      while (error && colRetry < 25) {
+        const colMatch = error.message 
+          ? (error.message.match(/Could not find the '([^']+)' column/i) || 
+             error.message.match(/column "([^"]+)" of relation "[^"]+" does not exist/i) ||
+             error.message.match(/column '([^']+)' does not exist/i))
+          : null;
         if (colMatch && colMatch[1]) {
           const badCol = colMatch[1];
           sanitizedChunk = sanitizedChunk.map(r => {
@@ -700,7 +741,10 @@ export const dbService = {
         state.labInvoices = labInvRows || [];
         state.dueCollections = dueColRows || [];
         state.indoorInvoices = indoorInvRows || [];
-        state.patients = patientRows || [];
+        const parsedPatients = (patientRows || [])
+          .map(r => normalizePatientItem(r))
+          .filter((p): p is Patient => p !== null && !!p.pt_id);
+        state.patients = parsedPatients;
         state.doctors = doctorRows || [];
         state.referrars = referrerRows || [];
         state.tests = testRows || [];
@@ -881,7 +925,7 @@ export const dbService = {
         }
 
         // B. Merge entity tables from modular Supabase tables
-        if (patientRows && patientRows.length > 0) state.patients = mergeEntityList(state.patients || [], patientRows, ['pt_id', 'patient_id', 'id']);
+        if (parsedPatients && parsedPatients.length > 0) state.patients = mergeEntityList(state.patients || [], parsedPatients, ['pt_id', 'id']);
         if (doctorRows && doctorRows.length > 0) state.doctors = mergeEntityList(state.doctors || [], doctorRows, ['doctor_id', 'id']);
         const combinedRefRows = [...(referrerRows || []), ...(altReferrerRows || [])];
         if (combinedRefRows.length > 0) state.referrars = mergeEntityList(state.referrars || [], combinedRefRows, ['ref_id', 'referrer_id', 'referrar_id', 'id']);
@@ -3736,18 +3780,47 @@ export const dbService = {
       const rows = patients.map((p: any) => {
         const ptId = String(p.pt_id || p.id || `PT-${Date.now()}`).trim();
         const ptName = String(p.pt_name || p.name || '').trim();
-        return {
+        const ageStr = String(p.ageY || p.age || '').trim();
+        const genderStr = String(p.gender || 'Male').trim();
+        const mobileStr = String(p.mobile || '').trim();
+        const addressStr = String(p.address || '').trim();
+
+        // Complete patient data packed safely into JSONB
+        const fullPatientData = {
           ...p,
           id: ptId,
           pt_id: ptId,
           pt_name: ptName,
           name: ptName,
-          ageY: String(p.ageY || p.age || ''),
-          gender: String(p.gender || ''),
-          mobile: String(p.mobile || '').trim(),
-          address: String(p.address || ''),
+          ageY: p.ageY || ageStr,
+          ageM: String(p.ageM || ''),
+          ageD: String(p.ageD || ''),
+          gender: genderStr,
+          mobile: mobileStr,
+          address: addressStr,
+          thana: String(p.thana || ''),
+          district: String(p.district || 'Sirajganj'),
+          co_pref: String(p.co_pref || 'S/O'),
+          co_name: String(p.co_name || ''),
+          dobY: String(p.dobY || ''),
+          dobM: String(p.dobM || ''),
+          dobD: String(p.dobD || ''),
+          relation: String(p.relation || 'Self'),
+          date_modified: p.date_modified || now
+        };
+
+        // Strict Supabase column mapping matching public.patients schema:
+        // id, pt_id, name, age, gender, mobile, address, updated_at, data
+        return {
+          id: ptId,
+          pt_id: ptId,
+          name: ptName,
+          age: ageStr,
+          gender: genderStr,
+          mobile: mobileStr,
+          address: addressStr,
           updated_at: now,
-          data: p
+          data: fullPatientData
         };
       });
       return await upsertTableSafe(supabase, 'patients', rows);

@@ -161,6 +161,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
   const [mobileError, setMobileError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // --- ID GENERATION LOGIC ---
@@ -364,33 +365,41 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
       newPatients = [updatedPatient, ...safePatients.filter(p => p && p.pt_id !== targetPtId)];
     }
 
+    setIsSaving(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
     // Persist to cloud with blocking sync first to ensure data is safely stored in Supabase
     let cloudSuccess = true;
-    if (performBlockingSync) {
-      try {
+    let syncErrorDetail = '';
+    try {
+      if (performBlockingSync) {
         const res = await performBlockingSync({ patients: newPatients });
         if (res === false) {
           cloudSuccess = false;
         }
-      } catch (err) {
-        console.error("Patient save sync error:", err);
-        cloudSuccess = false;
+      } else {
+        cloudSuccess = await dbService.syncPatientsToModularTable(newPatients);
       }
+    } catch (err: any) {
+      console.error("Patient save sync error:", err);
+      cloudSuccess = false;
+      syncErrorDetail = err?.message || '';
+    } finally {
+      setIsSaving(false);
     }
 
     if (!cloudSuccess) {
-      setErrorMessage(dbService.isSupabaseConnected() 
-        ? 'ক্লাউড ডাটাবেজে পেশেন্ট সেভ ব্যর্থ হয়েছে। দয়া করে ইন্টারনেট ও Supabase টেবিল কানেকশন চেক করুন।'
-        : 'আপনি বর্তমানে অফলাইনে আছেন। পেশেন্ট ডাটা শুধুমাত্র লোকাল ডিভাইসে সেভ হয়েছে (ক্লাউড সিঙ্ক ব্যর্থ)।');
-      
-      // Update local state anyway so user doesn't lose entry, but with error warning
-      setPatients(newPatients);
+      setErrorMessage(
+        `❌ সুপাবেজ ক্লাউড ডাটাবেজে রোগীর তথ্য সেভ হতে ব্যর্থ হয়েছে! ${syncErrorDetail ? `(${syncErrorDetail})` : ''} দয়া করে ইন্টারনেট ও Supabase কানেকশন চেক করে আবার চেষ্টা করুন।`
+      );
+      // Keep form intact so user doesn't lose inputs; do not silently fake success
       return;
     }
 
-    // Immediately update local state
+    // Immediately update local state on verified cloud success
     setPatients(newPatients);
-    setSuccessMessage('পেশেন্ট সফলভাবে ক্লাউডে সেভ হয়েছে!');
+    setSuccessMessage(`✓ রোগী "${trimmedName}" (ID: ${targetPtId}) সফলভাবে ক্লাউড ডাটাবেজে (Supabase) সংরক্ষিত হয়েছে!`);
 
     // Trigger parent selection callback
     if (isEmbedded && onSaveAndSelect) {
@@ -437,6 +446,12 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
   return (
     <div className={`bg-slate-900 text-slate-100 rounded-xl px-4 sm:px-6 pb-6 pt-2 space-y-6 ${isEmbedded ? '!p-0 !space-y-0 !bg-transparent' : ''}`}>
         {/* Notifications */}
+        {isSaving && (
+            <div className="fixed top-5 right-5 z-[999999] bg-cyan-700/95 backdrop-blur-md border border-cyan-400 text-white px-6 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 animate-pulse">
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span className="font-black text-sm tracking-wide">ডাটা সেভ হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন...</span>
+            </div>
+        )}
         {successMessage && (
             <div className="fixed bottom-5 right-5 z-[999999] bg-green-600/95 backdrop-blur-sm border border-green-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center transition-transform animate-fade-in-up">
                 <span className="font-semibold">{successMessage}</span>
@@ -545,8 +560,11 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                     </div>
                     
                     <div className="flex-1 flex gap-2 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar min-w-[280px]">
-                        <button type="button" onClick={handleGetNewId} className={`${actionButtonClasses} text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-900/20`}>Add New</button>
-                        <button type="submit" form="patient-form" className={`${actionButtonClasses} text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-900/20`}>Save</button>
+                        <button type="button" onClick={handleGetNewId} disabled={isSaving} className={`${actionButtonClasses} text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-900/20 disabled:opacity-50`}>Add New</button>
+                        <button type="submit" form="patient-form" disabled={isSaving} className={`${actionButtonClasses} text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5`}>
+                          {isSaving && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                          <span>{isSaving ? 'সেভ হচ্ছে...' : 'Save'}</span>
+                        </button>
                         <button type="button" onClick={() => { if(selectedPatientId) { const p = patients.find(x => x.pt_id === selectedPatientId); if(p) { setFormData(p); setIsEditing(true); } } }} disabled={!selectedPatientId} className={`${actionButtonClasses} text-slate-900 bg-amber-400 hover:bg-amber-500 disabled:opacity-30 disabled:bg-slate-700 disabled:text-slate-500`}>Edit</button>
                         <button type="button" onClick={() => setShowDeleteConfirm(true)} disabled={!selectedPatientId} className={`${actionButtonClasses} text-white bg-red-500 hover:bg-red-600 disabled:opacity-30 disabled:bg-slate-700 disabled:text-slate-500`}>Delete</button>
                     </div>
@@ -709,8 +727,11 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                 
                 {isEmbedded && (
                     <div className="flex justify-end gap-3 mt-6 pt-5 border-t border-slate-800/80">
-                        <button type="button" onClick={onClose} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg transition-colors">Cancel</button>
-                        <button type="submit" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors shadow-lg shadow-emerald-900/20">Save Patient</button>
+                        <button type="button" onClick={onClose} disabled={isSaving} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg transition-colors disabled:opacity-50">Cancel</button>
+                        <button type="submit" disabled={isSaving} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                          {isSaving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                          <span>{isSaving ? 'ডাটা সেভ হচ্ছে...' : 'Save Patient'}</span>
+                        </button>
                     </div>
                 )}
             </form>

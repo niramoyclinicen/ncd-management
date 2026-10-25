@@ -128,13 +128,26 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   // State for embedded forms
   const [showPatientSearchModal, setShowPatientSearchModal] = useState(false);
-  const [patientSearchFilters, setPatientSearchFilters] = useState({
+  const initialPatientSearchFilters = useMemo(() => ({
     name: '',
     mobile: '',
+    gender: 'Male',
+    ageY: '',
+    ageM: '',
+    ageD: '',
+    dobY: '',
+    dobM: '',
+    dobD: '',
+    co_pref: 'S/O',
+    co_name: '',
+    relation: '',
     address: '',
     thana: '',
-    age: ''
-  });
+    district: ''
+  }), []);
+  const [patientSearchFilters, setPatientSearchFilters] = useState(initialPatientSearchFilters);
+  const [isSavingPatient, setIsSavingPatient] = useState(false);
+  const [patientModalStatus, setPatientModalStatus] = useState<{ type: 'saving' | 'success' | 'error'; message: string } | null>(null);
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
   const [showNewDoctorForm, setShowNewDoctorForm] = useState(false);
   const [showNewReferrarForm, setShowNewReferrarForm] = useState(false);
@@ -528,28 +541,89 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     }));
   };
 
+  const handleQuickPatientAgeChange = (field: 'ageY' | 'ageM' | 'ageD', value: string) => {
+    setPatientSearchFilters(prev => {
+      const next = { ...prev, [field]: value };
+      const y = parseInt(field === 'ageY' ? value : prev.ageY, 10) || 0;
+      const m = parseInt(field === 'ageM' ? value : prev.ageM, 10) || 0;
+      const d = parseInt(field === 'ageD' ? value : prev.ageD, 10) || 0;
+      if (y === 0 && m === 0 && d === 0) {
+        return { ...next, dobY: '', dobM: '', dobD: '' };
+      }
+      const todayDate = new Date();
+      const dob = new Date();
+      dob.setFullYear(todayDate.getFullYear() - y);
+      dob.setMonth(todayDate.getMonth() - m);
+      dob.setDate(todayDate.getDate() - d);
+      return {
+        ...next,
+        dobY: String(dob.getFullYear()),
+        dobM: String(dob.getMonth() + 1).padStart(2, '0'),
+        dobD: String(dob.getDate()).padStart(2, '0')
+      };
+    });
+  };
+
+  const handleQuickPatientDobChange = (field: 'dobY' | 'dobM' | 'dobD', value: string) => {
+    setPatientSearchFilters(prev => {
+      const next = { ...prev, [field]: value };
+      const y = parseInt(field === 'dobY' ? value : prev.dobY, 10);
+      const m = parseInt(field === 'dobM' ? value : prev.dobM, 10) || 1;
+      const d = parseInt(field === 'dobD' ? value : prev.dobD, 10) || 1;
+      if (!y || isNaN(y) || y < 1900) return next;
+      const todayDate = new Date();
+      const birthDate = new Date(y, m - 1, d);
+      if (birthDate > todayDate) return { ...next, ageY: '0', ageM: '0', ageD: '0' };
+      let years = todayDate.getFullYear() - birthDate.getFullYear();
+      let months = todayDate.getMonth() - birthDate.getMonth();
+      let days = todayDate.getDate() - birthDate.getDate();
+      if (days < 0) {
+        months--;
+        days += new Date(todayDate.getFullYear(), todayDate.getMonth(), 0).getDate();
+      }
+      if (months < 0) {
+        years--;
+        months += 12;
+      }
+      return {
+        ...next,
+        ageY: String(Math.max(0, years)),
+        ageM: String(Math.max(0, months)),
+        ageD: String(Math.max(0, days))
+      };
+    });
+  };
+
   const filteredPatients = useMemo(() => {
     const safePatients = Array.isArray(patients) ? patients : [];
-    const filterName = (patientSearchFilters?.name || '').toLowerCase();
-    const filterMobile = (patientSearchFilters?.mobile || '').toLowerCase();
-    const filterAddress = (patientSearchFilters?.address || '').toLowerCase();
-    const filterThana = (patientSearchFilters?.thana || '').toLowerCase();
-    const filterAge = String(patientSearchFilters?.age || '');
+    const filterName = (patientSearchFilters?.name || '').toLowerCase().trim();
+    const filterMobile = (patientSearchFilters?.mobile || '').toLowerCase().trim();
+    const filterAddress = (patientSearchFilters?.address || '').toLowerCase().trim();
+    const filterThana = (patientSearchFilters?.thana || '').toLowerCase().trim();
+    const filterDistrict = (patientSearchFilters?.district || '').toLowerCase().trim();
+    const filterAge = String(patientSearchFilters?.ageY || '').trim();
     const seenIds = new Set<string>();
 
     return safePatients.filter(p => {
       if (!p) return false;
-      const pid = String(p.pt_id || '').trim();
+      const pid = String(p.pt_id || (p as any).id || '').trim();
       if (pid) {
         if (seenIds.has(pid)) return false;
         seenIds.add(pid);
       }
-      const pAge = String(p.ageY || '');
-      return (p.pt_name || '').toLowerCase().includes(filterName) &&
-             (p.mobile || '').toLowerCase().includes(filterMobile) &&
-             (p.address || '').toLowerCase().includes(filterAddress) &&
-             (p.thana || '').toLowerCase().includes(filterThana) &&
-             (pAge.includes(filterAge));
+      const pName = ((p.pt_name || (p as any).name || '') as string).toLowerCase();
+      const pMobile = (p.mobile || '').toLowerCase();
+      const pAddress = (p.address || '').toLowerCase();
+      const pThana = (p.thana || '').toLowerCase();
+      const pDistrict = (p.district || '').toLowerCase();
+      const pAge = String(p.ageY || (p as any).age || '');
+
+      return (!filterName || pName.includes(filterName)) &&
+             (!filterMobile || pMobile.includes(filterMobile)) &&
+             (!filterAddress || pAddress.includes(filterAddress)) &&
+             (!filterThana || pThana.includes(filterThana)) &&
+             (!filterDistrict || pDistrict.includes(filterDistrict)) &&
+             (!filterAge || pAge.includes(filterAge));
     });
   }, [patients, patientSearchFilters]);
 
@@ -558,19 +632,87 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     if (errors.patient_id) setErrors(prev => ({ ...prev, patient_id: false }));
     setShowPatientSearchModal(false);
     setShowNewPatientForm(false);
-    // Reset search filters for next time
-    setPatientSearchFilters({
-      name: '',
-      mobile: '',
-      address: '',
-      thana: '',
-      age: ''
-    });
+    setPatientSearchFilters(initialPatientSearchFilters);
+    setPatientModalStatus(null);
   };
 
   const openAdvancedPatientSearch = (currentTerm: string) => {
-     setPatientSearchFilters(prev => ({ ...prev, name: currentTerm }));
+     setPatientSearchFilters({ ...initialPatientSearchFilters, name: currentTerm });
+     setPatientModalStatus(null);
      setShowPatientSearchModal(true);
+  };
+
+  const handleQuickSavePatient = async () => {
+    const name = (patientSearchFilters.name || '').trim();
+    if (!name) {
+      setPatientModalStatus({ type: 'error', message: 'দয়া করে রোগীর নাম লিখুন।' });
+      return;
+    }
+
+    setIsSavingPatient(true);
+    setPatientModalStatus({ type: 'saving', message: 'ডাটা সেভ হচ্ছে... সুপাবেজ ক্লাউডে পাঠানো হচ্ছে...' });
+
+    const newPtId = `PT-${Date.now().toString().slice(-6)}`;
+    const ageYear = patientSearchFilters.ageY || '0';
+    const newPatientObj: any = {
+      pt_id: newPtId,
+      id: newPtId,
+      pt_name: name,
+      name: name,
+      gender: patientSearchFilters.gender || 'Male',
+      age: ageYear,
+      ageY: ageYear,
+      ageM: patientSearchFilters.ageM || '0',
+      ageD: patientSearchFilters.ageD || '0',
+      co_pref: patientSearchFilters.co_pref || 'S/O',
+      co_name: (patientSearchFilters.co_name || '').trim(),
+      relation: (patientSearchFilters.relation || '').trim(),
+      mobile: (patientSearchFilters.mobile || '').trim(),
+      address: (patientSearchFilters.address || '').trim(),
+      thana: (patientSearchFilters.thana || '').trim(),
+      district: (patientSearchFilters.district || '').trim(),
+      dobY: patientSearchFilters.dobY || '',
+      dobM: patientSearchFilters.dobM || '',
+      dobD: patientSearchFilters.dobD || '',
+      created_at: new Date().toISOString(),
+      date_modified: new Date().toISOString()
+    };
+
+    try {
+      // 1. Direct modular sync to Supabase patients table (packed with JSONB data)
+      const syncOk = await dbService.syncPatientsToModularTable([newPatientObj]);
+      if (!syncOk) {
+        throw new Error('সুপাবেজ ক্লাউড ডাটাবেজে রোগীর তথ্য সেভ হতে ব্যর্থ হয়েছে। দয়া করে ইন্টারনেট ও সেটিংস চেক করুন।');
+      }
+
+      const updatedPatients = [newPatientObj, ...(Array.isArray(patients) ? patients : [])];
+      setPatients(updatedPatients);
+
+      // 2. Perform blocking sync across state if available
+      if (performBlockingSync) {
+        await performBlockingSync({ patients: updatedPatients });
+      }
+
+      setPatientModalStatus({
+        type: 'success',
+        message: `✓ রোগী "${name}" (ID: ${newPtId}) সফলভাবে সুপাবেজে সংরক্ষিত হয়েছে!`
+      });
+
+      // Auto-select and close after brief moment
+      setTimeout(() => {
+        handlePatientSelect(newPtId, name);
+        setSuccessMessage(`✓ রোগী "${name}" সফলভাবে যুক্ত ও সিলেক্ট করা হয়েছে।`);
+        setIsSavingPatient(false);
+        setPatientModalStatus(null);
+      }, 700);
+    } catch (err: any) {
+      console.error('Quick patient save error:', err);
+      setIsSavingPatient(false);
+      setPatientModalStatus({
+        type: 'error',
+        message: `সেভ ব্যর্থ হয়েছে: ${err?.message || 'সুপাবেজ সংযোগ সমস্যা।'}`
+      });
+    }
   };
 
   const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1394,7 +1536,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                 <button 
                   onClick={() => {
                     setShowPatientSearchModal(false);
-                    setPatientSearchFilters({ name: '', mobile: '', address: '', thana: '', age: '' });
+                    setPatientSearchFilters(initialPatientSearchFilters);
+                    setPatientModalStatus(null);
                   }}
                   className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-xl transition-all duration-300"
                 >
@@ -1403,94 +1546,253 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               </div>
             </div>
 
-            {/* Modal Content - SEARCH FILTERS & QUICK ADD FORM */}
-            <div className="px-6 py-4 bg-slate-950/40 border-b border-white/5 shrink-0 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">রোগীর নাম (Search/Name)</label>
+            {/* Modal Content - SEARCH FILTERS & EXPANDED REGISTRATION FORM */}
+            <div className="px-6 py-4 bg-slate-950/50 border-b border-white/5 shrink-0 space-y-3">
+              {/* Live Status Message Banner */}
+              {patientModalStatus && (
+                <div className={`p-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-all ${
+                  patientModalStatus.type === 'saving'
+                    ? 'bg-amber-500/10 border border-amber-500/40 text-amber-300 animate-pulse'
+                    : patientModalStatus.type === 'success'
+                    ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 shadow-lg'
+                    : 'bg-rose-500/20 border border-rose-500/50 text-rose-300 shadow-lg'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {patientModalStatus.type === 'saving' && (
+                      <svg className="animate-spin h-4 w-4 text-amber-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                      </svg>
+                    )}
+                    <span>{patientModalStatus.message}</span>
+                  </div>
+                  {patientModalStatus.type !== 'saving' && (
+                    <button
+                      type="button"
+                      onClick={() => setPatientModalStatus(null)}
+                      className="text-slate-400 hover:text-white px-2 py-0.5 rounded text-[11px]"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Row 1: Patient Name, Gender, Age Breakdown, DOB, Mobile */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div className="md:col-span-3 space-y-1">
+                  <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest flex items-center gap-1">
+                    <span>রোগীর পুরো নাম (Full Name) *</span>
+                  </label>
                   <input 
                     type="text" 
                     placeholder="নাম লিখুন..."
                     value={patientSearchFilters.name || ''}
                     onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner font-bold"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner font-bold"
                     autoFocus
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">বয়স (Age)</label>
-                  <input 
-                    type="text" 
-                    placeholder="বয়স..."
-                    value={patientSearchFilters.age || ''}
-                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, age: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
-                  />
+
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">লিঙ্গ (Gender)</label>
+                  <select
+                    value={patientSearchFilters.gender || 'Male'}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, gender: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-2.5 text-xs text-white outline-none font-bold"
+                  >
+                    <option value="Male">পুরুষ (Male)</option>
+                    <option value="Female">মহিলা (Female)</option>
+                    <option value="Other">অন্যান্য (Other)</option>
+                  </select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">মোবাইল নম্বর (Mobile)</label>
+
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">বয়স (Y/M/D)</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    <input 
+                      type="number" 
+                      placeholder="বছর"
+                      value={patientSearchFilters.ageY || ''}
+                      onChange={(e) => handleQuickPatientAgeChange('ageY', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-1.5 text-center text-xs text-white font-bold placeholder:text-slate-600 outline-none"
+                    />
+                    <input 
+                      type="number" 
+                      placeholder="মাস"
+                      value={patientSearchFilters.ageM || ''}
+                      onChange={(e) => handleQuickPatientAgeChange('ageM', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-1.5 text-center text-xs text-white font-bold placeholder:text-slate-600 outline-none"
+                    />
+                    <input 
+                      type="number" 
+                      placeholder="দিন"
+                      value={patientSearchFilters.ageD || ''}
+                      onChange={(e) => handleQuickPatientAgeChange('ageD', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-1.5 text-center text-xs text-white font-bold placeholder:text-slate-600 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">জন্ম তারিখ (D/M/Y)</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    <input 
+                      type="text" 
+                      placeholder="দিন"
+                      maxLength={2}
+                      value={patientSearchFilters.dobD || ''}
+                      onChange={(e) => handleQuickPatientDobChange('dobD', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-1 text-center text-xs text-white placeholder:text-slate-600 outline-none font-mono"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="মাস"
+                      maxLength={2}
+                      value={patientSearchFilters.dobM || ''}
+                      onChange={(e) => handleQuickPatientDobChange('dobM', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-1 text-center text-xs text-white placeholder:text-slate-600 outline-none font-mono"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="বছর"
+                      maxLength={4}
+                      value={patientSearchFilters.dobY || ''}
+                      onChange={(e) => handleQuickPatientDobChange('dobY', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-1 text-center text-xs text-white placeholder:text-slate-600 outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="md:col-span-3 space-y-1">
+                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">মোবাইল নম্বর (Mobile)</label>
                   <input 
                     type="text" 
                     placeholder="017..."
                     value={patientSearchFilters.mobile || ''}
                     onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, mobile: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner font-mono"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner font-mono"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ঠিকানা / গ্রাম (Address)</label>
+              </div>
+
+              {/* Row 2: Care of / Guardian, Relation, Address, Thana, District */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div className="md:col-span-3 space-y-1">
+                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">অভিভাবক (Care Of / Guardian)</label>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={patientSearchFilters.co_pref || 'S/O'}
+                      onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, co_pref: e.target.value }))}
+                      className="w-20 bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-1.5 text-xs text-white font-bold outline-none"
+                    >
+                      <option value="S/O">S/O</option>
+                      <option value="D/O">D/O</option>
+                      <option value="W/O">W/O</option>
+                      <option value="C/O">C/O</option>
+                    </select>
+                    <input 
+                      type="text" 
+                      placeholder="অভিভাবকের নাম..."
+                      value={patientSearchFilters.co_name || ''}
+                      onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, co_name: e.target.value }))}
+                      className="flex-1 bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">সম্পর্ক (Relation)</label>
                   <input 
                     type="text" 
-                    placeholder="ঠিকানা..."
-                    value={patientSearchFilters.address || ''}
-                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, address: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
+                    placeholder="পিতা / স্বামী..."
+                    value={patientSearchFilters.relation || ''}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, relation: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">থানা / উপজেলা (Thana)</label>
+
+                <div className="md:col-span-3 space-y-1">
+                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">ঠিকানা / গ্রাম (Address)</label>
+                  <input 
+                    type="text" 
+                    placeholder="গ্রাম বা এলাকা..."
+                    value={patientSearchFilters.address || ''}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, address: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
+                  />
+                </div>
+
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">থানা / উপজেলা (Thana)</label>
                   <input 
                     type="text" 
                     placeholder="থানা..."
                     value={patientSearchFilters.thana || ''}
                     onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, thana: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-2 px-3 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
                   />
                 </div>
-                <div className="flex items-end">
+
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest">জেলা (District)</label>
+                  <input 
+                    type="text" 
+                    placeholder="জেলা..."
+                    value={patientSearchFilters.district || ''}
+                    onChange={(e) => setPatientSearchFilters(prev => ({ ...prev, district: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg py-1.5 px-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all shadow-inner"
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Action Toolbar & Info Badge */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-bold text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
+                    ফিল্টার অনুযায়ী প্রাপ্ত রোগী: <span className="text-cyan-400 font-mono font-black">{filteredPatients.length}</span> জন
+                  </span>
                   <button
                     type="button"
-                    onClick={async () => {
-                      const name = (patientSearchFilters.name || '').trim();
-                      if (!name) {
-                        alert('দয়া করে অন্তত রোগীর নাম লিখুন।');
-                        return;
-                      }
-                      const newPtId = `PT-${Date.now().toString().slice(-6)}`;
-                      const newPatientObj = {
-                        pt_id: newPtId,
-                        id: newPtId,
-                        pt_name: name,
-                        mobile: (patientSearchFilters.mobile || '').trim(),
-                        ageY: patientSearchFilters.age || '0',
-                        gender: 'Male',
-                        address: (patientSearchFilters.address || '').trim(),
-                        thana: (patientSearchFilters.thana || '').trim(),
-                        created_at: new Date().toISOString()
-                      };
-                      const updatedPatients = [newPatientObj, ...(Array.isArray(patients) ? patients : [])];
-                      setPatients(updatedPatients);
-                      try {
-                        await dbService.syncPatientsToModularTable([newPatientObj]);
-                      } catch (err) {
-                        console.warn("Quick save patient notice:", err);
-                      }
-                      handlePatientSelect(newPtId, name);
-                      setSuccessMessage(`নতুন রোগী "${name}" সফলভাবে তৈরি ও সিলেক্ট করা হয়েছে।`);
+                    onClick={() => {
+                      setShowPatientSearchModal(false);
+                      setShowNewPatientForm(true);
                     }}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 px-3 text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+                    className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 underline flex items-center gap-1 transition-colors"
                   >
-                    <span>💾 সংরক্ষণ ও সিলেক্ট</span>
+                    <span>📋 সম্পূর্ণ পেশেন্ট ফর্ম খুলুন</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPatientSearchFilters(initialPatientSearchFilters);
+                      setPatientModalStatus(null);
+                    }}
+                    disabled={isSavingPatient}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                  >
+                    ফিল্টার রিসেট
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingPatient}
+                    onClick={handleQuickSavePatient}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-1.5 px-4 text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isSavingPatient ? (
+                      <>
+                        <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span>সুপাবেজে সেভ হচ্ছে...</span>
+                      </>
+                    ) : (
+                      <span>💾 সুপাবেজে সংরক্ষণ ও ইনভয়েসে সিলেক্ট</span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1511,22 +1813,22 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               {filteredPatients.length > 0 ? (
                 filteredPatients.map((p, idx) => (
                   <div 
-                    key={`${p.pt_id || 'pt'}-${idx}`}
-                    onClick={() => handlePatientSelect(p.pt_id, p.pt_name)}
+                    key={`${p.pt_id || (p as any).id || 'pt'}-${idx}`}
+                    onClick={() => handlePatientSelect(p.pt_id || (p as any).id, p.pt_name || (p as any).name || '')}
                     className={`px-4 py-2 border rounded-lg grid grid-cols-12 gap-3 items-center cursor-pointer transition-all group ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-blue-50 dark:hover:bg-slate-800' : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:bg-blue-50 dark:hover:bg-slate-800'}`}
                   >
-                    <div className="col-span-2 font-mono text-xs font-bold text-slate-500 dark:text-slate-400">{p.pt_id}</div>
+                    <div className="col-span-2 font-mono text-xs font-bold text-slate-500 dark:text-slate-400">{p.pt_id || (p as any).id}</div>
                     <div className="col-span-3">
-                      <p className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 uppercase tracking-tight">{p.pt_name}</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 uppercase tracking-tight">{p.pt_name || (p as any).name}</p>
                     </div>
                     <div className="col-span-1">
-                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{p.ageY}য ({p.gender === 'Male' ? 'পুরুষ' : p.gender === 'Female' ? 'মহিলা' : p.gender})</span>
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{p.ageY || (p as any).age || '0'}য ({p.gender === 'Female' ? 'মহিলা' : 'পুরুষ'})</span>
                     </div>
                     <div className="col-span-2">
                       <p className="text-xs font-mono text-slate-700 dark:text-slate-300 font-semibold">{p.mobile || '---'}</p>
                     </div>
                     <div className="col-span-3">
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">{p.address}{p.thana ? `, ${p.thana}` : ''}</p>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">{p.address || ''}{p.thana ? `, ${p.thana}` : ''}{p.district ? `, ${p.district}` : ''}</p>
                     </div>
                     <div className="col-span-1 text-right">
                       <button className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-black uppercase transition-all shadow-sm">সিলেক্ট</button>

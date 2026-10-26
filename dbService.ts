@@ -1354,20 +1354,38 @@ export const dbService = {
         const invDate = normalizeDate(inv.admission_date || inv.invoice_date || inv.date || now);
         const bill = Number(inv.total_bill ?? inv.totalBill ?? 0);
         const paid = Number(inv.paid_amount ?? inv.paidAmount ?? 0);
-        const due = Number(inv.due_amount ?? inv.dueAmount ?? Math.max(0, bill - paid));
+        const due = Number(inv.due_amount ?? inv.dueAmount ?? inv.due_bill ?? inv.dueBill ?? Math.max(0, bill - paid));
+        const net = Number(inv.net_payable ?? inv.netPayable ?? bill);
+        const disc = Number(inv.total_discount ?? inv.totalDiscount ?? 0);
         return {
           id: id,
           daily_id: id,
-          admission_id: String(inv.admission_id || ''),
           invoice_id: id,
+          admission_id: String(inv.admission_id || ''),
+          patient_id: String(inv.patient_id || ''),
           patient_name: inv.patient_name || '',
+          doctor_id: String(inv.doctor_id || ''),
+          doctor_name: inv.doctor_name || '',
+          referrar_id: String(inv.referrar_id || inv.referrer_id || ''),
+          referrar_name: inv.referrar_name || inv.referrer_name || '',
           admission_date: invDate,
+          discharge_date: inv.discharge_date || '',
           invoice_date: invDate,
-          total_bill: bill,
-          paid_amount: paid,
-          due_amount: due,
-          status: inv.status || 'Posted',
+          indication: inv.indication || '',
+          service_category: inv.service_category || '',
+          sub_category: inv.subCategory || inv.sub_category || '',
+          ot_details: inv.ot_details || '',
           items: Array.isArray(inv.items) ? inv.items : [],
+          total_bill: bill,
+          total_discount: disc,
+          net_payable: net,
+          paid_amount: paid,
+          due_bill: due,
+          due_amount: due,
+          special_commission: Number(inv.special_commission ?? inv.specialCommission ?? 0),
+          commission_paid: Number(inv.commission_paid ?? inv.commissionPaid ?? 0),
+          bill_created_by: inv.bill_created_by || inv.billCreatedBy || 'Admin',
+          status: inv.status || 'Posted',
           updated_at: now,
           data: inv
         };

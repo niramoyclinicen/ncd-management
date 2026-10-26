@@ -751,9 +751,6 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const handleReferrarSelect = (id: string, name: string) => {
     setFormData(prev => ({ ...prev, referrar_id: id, referrar_name: name }));
-    if (id) {
-      setApplyPC(true);
-    }
     if (errors.referrar_id) setErrors(prev => ({ ...prev, referrar_id: false }));
     setShowNewReferrarForm(false);
   };
@@ -1869,23 +1866,30 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       )}
 
       {showNewPatientForm && (
-        <div className="fixed inset-0 z-[90000] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in slide-in-from-bottom-10 duration-500">
-          <div className="bg-slate-900 border-2 border-emerald-500/30 w-full max-w-5xl rounded-[3rem] shadow-[0_0_150px_rgba(16,185,129,0.3)] overflow-hidden flex flex-col max-h-[95vh]">
-             <div className="p-8 border-b border-white/5 bg-slate-950/40 flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-950/50">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+        <div className="fixed inset-0 z-[90000] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-[96vw] xl:max-w-[1440px] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+             {/* Compact Clean Header */}
+             <div className="px-5 py-3 bg-slate-950 border-b border-slate-850 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-sky-600/20 border border-sky-500/40 flex items-center justify-center text-sky-400 font-black text-sm">
+                    Pt
                   </div>
                   <div>
-                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Register New Patient</h2>
-                    <p className="text-xs text-emerald-500 font-bold uppercase tracking-widest leading-none mt-1">Add comprehensive details for medical records</p>
+                    <h2 className="text-base font-bold text-white tracking-tight">পেশেন্ট ইনফরমেশন ও লাইভ সার্চ (Patient Information & Search)</h2>
+                    <p className="text-[11px] text-slate-400">ফিল্ডে টাইপ করলে ডানপাশে লাইভ সার্চ হবে • নতুন রোগী হলে তথ্য পূরণ করে সেভ করুন</p>
                   </div>
                 </div>
-                <button onClick={() => setShowNewPatientForm(false)} className="w-12 h-12 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-white rounded-xl transition-all duration-300">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <button 
+                  onClick={() => setShowNewPatientForm(false)} 
+                  className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white rounded-lg transition-all text-xl font-bold"
+                  title="বন্ধ করুন (Close)"
+                >
+                  &times;
                 </button>
              </div>
-             <div className="flex-1 overflow-y-auto p-4">
+             
+             {/* Modal Body */}
+             <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-950/70 custom-scrollbar">
                 <PatientInfoPage 
                     patients={patients} 
                     setPatients={setPatients} 

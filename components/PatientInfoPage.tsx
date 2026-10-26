@@ -490,22 +490,8 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
               </div>
           )}
           
-          <div className={`flex-1 order-1 xl:order-2 bg-sky-950/70 rounded-xl p-4 sm:p-6 ${isEmbedded ? 'border-2 border-blue-700 mt-4' : 'border border-sky-700/80 shadow-xl'}`}>
+          <div className={`flex-1 order-1 xl:order-2 bg-sky-950/70 rounded-xl p-4 sm:p-6 ${isEmbedded ? '!p-0 !bg-transparent !border-0 !shadow-none' : 'border border-sky-700/80 shadow-xl'}`}>
             
-            {/* Embedded Mode Header Banner */}
-            {isEmbedded && (
-                <div className="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-sky-700/80">
-                    <div className="flex items-center gap-2.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
-                        <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">নতুন রোগী নিবন্ধন (New Patient)</h3>
-                    </div>
-                    <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-sky-700/60">
-                        <span className="text-[11px] font-semibold text-slate-400 uppercase">Patient ID:</span>
-                        <span className="font-mono text-xs sm:text-sm font-bold text-sky-300">{formData.pt_id || 'Generating...'}</span>
-                    </div>
-                </div>
-            )}
-
             {/* Inline Error Notice */}
             {errorMessage && (
                 <div className="mb-4 bg-red-950/60 border border-red-500/80 text-red-200 px-4 py-2.5 rounded-lg text-sm flex items-center justify-between">
@@ -571,170 +557,438 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                 </div>
             )}
             
-            <form id="patient-form" onSubmit={handleSavePatient}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-                    <div className="space-y-4">
-                        {/* Excel-style Instant Match Patient Name Input */}
-                        <div className="relative">
-                            <label className={labelBaseClasses}>Patient Name * (টাইপ করলেই অফ-হোয়াইট টেবিল শো হবে)</label>
-                            <input 
-                                type="text" 
-                                name="pt_name" 
-                                value={formData.pt_name} 
-                                onChange={(e) => {
-                                    handleInputChange(e);
-                                    setShowNameDropdown(true);
-                                }}
-                                onFocus={() => setShowNameDropdown(true)}
-                                required 
-                                autoComplete="off"
-                                className={`${inputBaseClasses} py-2 px-3`} 
-                                placeholder="নাম লিখে খুঁজুন বা নতুন নাম দিন..." 
-                            />
-                            
-                            {showNameDropdown && (
-                                <>
-                                    <div className="fixed inset-0 z-40" onClick={() => setShowNameDropdown(false)} />
-                                    <div className="absolute left-0 right-0 top-full mt-1 bg-[#faf9f6] border-2 border-sky-500 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto custom-scrollbar text-slate-900">
-                                        <table className="w-full text-left text-xs">
-                                            <thead className="bg-slate-200 text-slate-700 font-bold sticky top-0 border-b border-slate-300">
-                                                <tr>
-                                                    <th className="p-2">ID</th>
-                                                    <th className="p-2">Name</th>
-                                                    <th className="p-2">Age</th>
-                                                    <th className="p-2">Gender</th>
-                                                    <th className="p-2">Care Of</th>
-                                                    <th className="p-2">Mobile</th>
-                                                    <th className="p-2">Address</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-200 font-medium">
-                                                {safePatients
-                                                  .filter(p => p && p.pt_name && (!formData.pt_name || p.pt_name.toLowerCase().includes(formData.pt_name.toLowerCase()) || p.pt_id?.toLowerCase().includes(formData.pt_name.toLowerCase()) || p.mobile?.includes(formData.pt_name)))
-                                                  .slice(0, 20)
-                                                  .map((pat, pIdx) => (
-                                                    <tr 
-                                                        key={`${pat.pt_id || pIdx}-${pIdx}`}
-                                                        onClick={() => {
-                                                            setFormData(pat);
-                                                            setSelectedPatientId(pat.pt_id);
-                                                            setIsEditing(false);
-                                                            setShowNameDropdown(false);
-                                                        }}
-                                                        className="hover:bg-sky-100 cursor-pointer transition-colors"
-                                                    >
-                                                        <td className="p-2 font-mono text-blue-800 font-bold">{pat.pt_id}</td>
-                                                        <td className="p-2 font-bold text-slate-900">{pat.pt_name}</td>
-                                                        <td className="p-2 text-slate-700">{pat.ageY ? `${pat.ageY}Y` : ''}</td>
-                                                        <td className="p-2 text-slate-700">{pat.gender || ''}</td>
-                                                        <td className="p-2 text-slate-700">{pat.co_name ? `${pat.co_pref || 'S/O'} ${pat.co_name}` : ''}</td>
-                                                        <td className="p-2 font-mono text-emerald-800 font-semibold">{pat.mobile}</td>
-                                                        <td className="p-2 text-slate-600 truncate max-w-[120px]">{pat.address}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <div className="w-full sm:w-1/3">
-                                <label className={labelBaseClasses}>Gender</label>
-                                <select name="gender" value={formData.gender} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-2.5`}>
-                                    <option value="" className="bg-slate-900">Select</option>
-                                    <option value="Male" className="bg-slate-900">Male</option>
-                                    <option value="Female" className="bg-slate-900">Female</option>
-                                </select>
-                            </div>
-                            <div className="flex-1">
-                                <label className={labelBaseClasses}>Care Of</label>
+            {isEmbedded ? (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                    {/* Left Column: Patient Information Entry Box (Matching Main Patient Info Form) */}
+                    <div className="lg:col-span-5 bg-slate-900/95 p-4 sm:p-5 rounded-2xl border border-slate-700 shadow-2xl flex flex-col justify-between">
+                        <form id="patient-form" onSubmit={handleSavePatient}>
+                            {/* Top ID Bar with "Add New" button */}
+                            <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-800">
                                 <div className="flex items-center gap-2">
-                                    <select name="co_pref" value={formData.co_pref} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-2 w-[85px] shrink-0`}>
-                                        <option value="S/O" className="bg-slate-900">S/O</option>
-                                        <option value="D/O" className="bg-slate-900">D/O</option>
-                                        <option value="W/O" className="bg-slate-900">W/O</option>
-                                    </select>
-                                    <input type="text" name="co_name" value={formData.co_name} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3 flex-1 min-w-0`} placeholder="Guardian Name" />
+                                    <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">Patient ID:</span>
+                                    <span className="font-mono text-sm font-black text-sky-300 bg-slate-950 px-2.5 py-1 rounded border border-sky-800/60 shadow-inner">
+                                        {formData.pt_id || 'Generating...'}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleGetNewId}
+                                    className="px-3 py-1 bg-sky-700 hover:bg-sky-600 text-white text-xs font-bold rounded shadow transition-all flex items-center gap-1"
+                                    title="Generate new unique patient ID"
+                                >
+                                    <span>+ নতুন রোগী (New)</span>
+                                </button>
+                            </div>
+
+                            <div className="space-y-3.5">
+                                {/* Patient Name (Live Search indicator) */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-xs font-bold text-sky-200">Patient Name *</label>
+                                        <span className="text-[10px] text-emerald-400 font-medium">টাইপ করলে ডানে সার্চ হবে</span>
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        name="pt_name" 
+                                        value={formData.pt_name} 
+                                        onChange={handleInputChange} 
+                                        required 
+                                        autoComplete="off"
+                                        className={`${inputBaseClasses} py-2 px-3`} 
+                                        placeholder="রোগীর নাম লিখুন..." 
+                                    />
+                                </div>
+                                
+                                {/* Gender & Care Of */}
+                                <div className="grid grid-cols-12 gap-2">
+                                    <div className="col-span-4">
+                                        <label className="text-xs font-bold text-sky-200 mb-1 block">Gender</label>
+                                        <select name="gender" value={formData.gender} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-2`}>
+                                            <option value="" className="bg-slate-900">Select</option>
+                                            <option value="Male" className="bg-slate-900">Male</option>
+                                            <option value="Female" className="bg-slate-900">Female</option>
+                                        </select>
+                                    </div>
+                                    <div className="col-span-8">
+                                        <label className="text-xs font-bold text-sky-200 mb-1 block">Care Of (Guardian)</label>
+                                        <div className="flex items-center gap-1.5">
+                                            <select name="co_pref" value={formData.co_pref} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-1.5 w-[72px] shrink-0`}>
+                                                <option value="S/O" className="bg-slate-900">S/O</option>
+                                                <option value="D/O" className="bg-slate-900">D/O</option>
+                                                <option value="W/O" className="bg-slate-900">W/O</option>
+                                            </select>
+                                            <input type="text" name="co_name" value={formData.co_name} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-2.5 flex-1 min-w-0`} placeholder="অভিভাবকের নাম" />
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Age (Y / M / D) */}
+                                <div>
+                                  <label className="text-xs font-bold text-sky-200 mb-1 block">Age (বছর / মাস / দিন)</label>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <input type="number" min="0" max="150" name="ageY" placeholder="Years" value={formData.ageY} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-1.5 text-center font-bold text-sky-300`} />
+                                    <input type="number" min="0" max="11" name="ageM" placeholder="Months" value={formData.ageM} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-1.5 text-center text-slate-300`} />
+                                    <input type="number" min="0" max="30" name="ageD" placeholder="Days" value={formData.ageD} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-1.5 text-center text-slate-300`} />
+                                  </div>
+                                </div>
+
+                                {/* Address / Village / Area (Live Search) */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-xs font-bold text-sky-200">Address / Village / Area (গ্রাম / এলাকা)</label>
+                                        <span className="text-[10px] text-sky-400">গ্রাম লিখলে ডানে ফিল্টার হবে</span>
+                                    </div>
+                                    <input type="text" name="address" value={formData.address} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="addressOptions" placeholder="গ্রাম / মহল্লা / রোড নম্বর..." />
+                                </div>
+                                
+                                {/* Thana & District (Live Search) */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-xs font-bold text-sky-200 mb-1 block">Thana / Upazila (থানা)</label>
+                                        <input type="text" name="thana" value={formData.thana} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="thanaOptions" placeholder="থানা" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-sky-200 mb-1 block">District (জেলা)</label>
+                                        <input type="text" name="district" value={formData.district} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="districtOptions" placeholder="জেলা" />
+                                    </div>
+                                </div>
+                                
+                                {/* Mobile Number & Relation (Live Search) */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-xs font-bold text-sky-200">Mobile Number & Relation</label>
+                                        <span className="text-[10px] text-emerald-400 font-mono">01XXX-XXXXXX</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <select 
+                                            name="relation" 
+                                            value={formData.relation || 'Self'} 
+                                            onChange={handleInputChange} 
+                                            className={`${inputBaseClasses} py-2 px-2 w-[100px] shrink-0 text-xs`}
+                                        >
+                                            <option value="Self" className="bg-slate-900">Self (নিজের)</option>
+                                            <option value="Husband" className="bg-slate-900">Husband</option>
+                                            <option value="Father" className="bg-slate-900">Father</option>
+                                            <option value="Mother" className="bg-slate-900">Mother</option>
+                                            <option value="Guardian" className="bg-slate-900">Guardian</option>
+                                        </select>
+                                        <input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXXXXXXXX" className={`${inputBaseClasses} py-2 px-3 flex-1 font-mono tracking-wider text-emerald-300 font-bold`} />
+                                    </div>
+                                    {mobileError && <p className="text-red-400 text-xs mt-1 font-medium">{mobileError}</p>}
+                                </div>
+
+                                {/* Form Action Buttons */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 mt-5 pt-4 border-t border-slate-800">
+                                    <div className="flex gap-2">
+                                        <button 
+                                            type="button" 
+                                            onClick={handleGetNewId} 
+                                            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg border border-slate-700 transition-all"
+                                        >
+                                            Clear / New
+                                        </button>
+                                        {selectedPatientId && onSaveAndSelect && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => {
+                                                    const p = patients.find(x => x.pt_id === selectedPatientId);
+                                                    if (p) onSaveAndSelect(p.pt_id, p.pt_name);
+                                                }}
+                                                className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg shadow transition-all"
+                                            >
+                                                ইনভয়েসে নিন ✓
+                                            </button>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="flex gap-2">
+                                        <button 
+                                            type="button" 
+                                            onClick={onClose} 
+                                            disabled={isSaving} 
+                                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button 
+                                            type="submit" 
+                                            disabled={isSaving} 
+                                            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-lg transition-all shadow-lg shadow-emerald-900/30 flex items-center gap-1.5"
+                                        >
+                                            {isSaving && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                                            <span>{isSaving ? 'সেভ হচ্ছে...' : 'Save Patient (সেভ)'}</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div>
-                          <label className={labelBaseClasses}>Age (Y / M / D)</label>
-                          <div className="grid grid-cols-3 gap-2">
-                            <input type="number" min="0" max="150" name="ageY" placeholder="Years" value={formData.ageY} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
-                            <input type="number" min="0" max="11" name="ageM" placeholder="Months" value={formData.ageM} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
-                            <input type="number" min="0" max="30" name="ageD" placeholder="Days" value={formData.ageD} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className={labelBaseClasses}>Date of Birth (YYYY / MM / DD)</label>
-                          <div className="grid grid-cols-3 gap-2">
-                            <input type="number" name="dobY" placeholder="YYYY" value={formData.dobY} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
-                            <select name="dobM" value={formData.dobM} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-1`}>
-                              <option value="" className="bg-slate-900">MM</option>
-                              {Array.from({length: 12}, (_, i) => String(i + 1).padStart(2, '0')).map(m => <option key={m} value={m} className="bg-slate-900">{m}</option>)}
-                            </select>
-                            <select name="dobD" value={formData.dobD} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-1`}>
-                              <option value="" className="bg-slate-900">DD</option>
-                              {Array.from({length: 31}, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d} className="bg-slate-900">{d}</option>)}
-                            </select>
-                          </div>
-                        </div>
+                        </form>
                     </div>
-                    
-                    <div className="space-y-4">
-                        <div>
-                            <label className={labelBaseClasses}>Address / Village / Area</label>
-                            <input type="text" name="address" value={formData.address} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="addressOptions" placeholder="House / Area details" />
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <div className="w-full sm:w-1/2">
-                                <label className={labelBaseClasses}>Thana / Upazila</label>
-                                <input type="text" name="thana" value={formData.thana} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="thanaOptions" placeholder="Thana" />
-                            </div>
-                            <div className="w-full sm:w-1/2">
-                                <label className={labelBaseClasses}>District</label>
-                                <input type="text" name="district" value={formData.district} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="districtOptions" placeholder="District" />
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <label className={labelBaseClasses}>Mobile Number & Relation</label>
+
+                    {/* Right Column: Excel Sheet-like Patient Spreadsheet Table with Eye-protective Grey Theme */}
+                    <div className="lg:col-span-7 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[640px]">
+                        {/* Excel Table Header Bar */}
+                        <div className="bg-slate-850 px-4 py-2.5 border-b border-slate-700 flex justify-between items-center shrink-0">
                             <div className="flex items-center gap-2">
-                                <select 
-                                    name="relation" 
-                                    value={formData.relation || 'Self'} 
-                                    onChange={handleInputChange} 
-                                    className={`${inputBaseClasses} py-2 px-2 w-[115px] shrink-0`}
-                                >
-                                    <option value="Self" className="bg-slate-900">Self (নিজের)</option>
-                                    <option value="Husband" className="bg-slate-900">Husband (স্বামী)</option>
-                                    <option value="Father" className="bg-slate-900">Father (পিতা)</option>
-                                    <option value="Mother" className="bg-slate-900">Mother (মাতা)</option>
-                                    <option value="Guardian" className="bg-slate-900">Guardian (অভিভাবক)</option>
-                                </select>
-                                <input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXX-XXXXXX" className={`${inputBaseClasses} py-2 px-3 flex-1 font-mono tracking-wider`} />
+                                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>
+                                <span className="text-xs font-black text-slate-200 uppercase tracking-wider font-mono">
+                                    EXCEL PATIENT DATABASE ({filteredPatients.length} Entries)
+                                </span>
                             </div>
-                            {mobileError && <p className="text-red-400 text-xs mt-1.5 font-medium">{mobileError}</p>}
+                            <span className="text-[11px] text-sky-400 font-medium">
+                                রো-তে ক্লিক করলে ফর্ম ও ইনভয়েসে লোড হবে
+                            </span>
+                        </div>
+
+                        {/* Excel Grid Table with Eye-Protective Grey cells */}
+                        <div className="overflow-x-auto overflow-y-auto flex-1 custom-scrollbar bg-slate-900">
+                            <table className="w-full text-xs text-left border-collapse border border-slate-700 font-sans">
+                                <thead className="bg-slate-800 text-slate-200 font-bold sticky top-0 border-b-2 border-slate-600 shadow-sm z-10 select-none">
+                                    <tr className="divide-x divide-slate-700">
+                                        <th className="px-2.5 py-2 text-center w-10 text-[10px] text-slate-400">#</th>
+                                        <th className="px-2.5 py-2 text-sky-300 whitespace-nowrap">Pt. ID</th>
+                                        <th className="px-3 py-2 text-white whitespace-nowrap min-w-[130px]">Patient Name</th>
+                                        <th className="px-2.5 py-2 text-amber-300 whitespace-nowrap">Age/Sex</th>
+                                        <th className="px-2.5 py-2 text-slate-300 whitespace-nowrap">Care Of</th>
+                                        <th className="px-2.5 py-2 text-emerald-300 whitespace-nowrap font-mono">Mobile</th>
+                                        <th className="px-3 py-2 text-slate-300 whitespace-nowrap min-w-[120px]">Village / Address</th>
+                                        <th className="px-2.5 py-2 text-slate-300 whitespace-nowrap">Thana / District</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800 bg-slate-900 text-slate-200">
+                                    {filteredPatients.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="px-4 py-12 text-center text-slate-400 font-medium bg-slate-900/90">
+                                                <p className="text-sm font-semibold text-slate-300">কোনো রোগী পাওয়া যায়নি!</p>
+                                                <p className="text-xs text-slate-500 mt-1">বামপাশের ফর্মে নতুন তথ্য পূরণ করে "Save Patient" বাটনে ক্লিক করুন।</p>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredPatients.slice(0, 150).map((pat, pIdx) => {
+                                            const isSelected = selectedPatientId === pat.pt_id;
+                                            return (
+                                                <tr 
+                                                    key={pat.pt_id || pIdx}
+                                                    onClick={() => {
+                                                        setFormData(pat);
+                                                        setSelectedPatientId(pat.pt_id);
+                                                        setIsEditing(false);
+                                                    }}
+                                                    onDoubleClick={() => {
+                                                        setFormData(pat);
+                                                        setSelectedPatientId(pat.pt_id);
+                                                        if (onSaveAndSelect) {
+                                                            onSaveAndSelect(pat.pt_id, pat.pt_name);
+                                                        }
+                                                    }}
+                                                    className={`divide-x divide-slate-800 cursor-pointer transition-colors border-b border-slate-800 select-none ${
+                                                        isSelected 
+                                                            ? 'bg-blue-950/70 border-l-4 border-l-sky-400 font-semibold' 
+                                                            : 'hover:bg-slate-800/80 even:bg-slate-900 odd:bg-slate-850/40'
+                                                    }`}
+                                                    title="ডাবল ক্লিক করলে ইনভয়েসে চলে যাবে"
+                                                >
+                                                    <td className="px-2.5 py-2 text-center text-[10px] text-slate-500 font-mono">
+                                                        {pIdx + 1}
+                                                    </td>
+                                                    <td className="px-2.5 py-2 font-mono text-cyan-300 font-bold whitespace-nowrap">
+                                                        {pat.pt_id}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-white font-bold whitespace-nowrap">
+                                                        {pat.pt_name}
+                                                    </td>
+                                                    <td className="px-2.5 py-2 text-slate-200 whitespace-nowrap">
+                                                        {pat.gender ? `${pat.gender}, ` : ''}
+                                                        <span className="text-amber-300 font-bold">{pat.ageY ? `${pat.ageY}Y` : ''}</span>
+                                                    </td>
+                                                    <td className="px-2.5 py-2 text-slate-300 whitespace-nowrap text-xs">
+                                                        {pat.co_name ? `${pat.co_pref || 'S/O'} ${pat.co_name}` : '—'}
+                                                    </td>
+                                                    <td className="px-2.5 py-2 text-emerald-300 font-mono font-bold whitespace-nowrap">
+                                                        {pat.mobile || '—'}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-slate-300 truncate max-w-[140px]" title={pat.address}>
+                                                        {pat.address || '—'}
+                                                    </td>
+                                                    <td className="px-2.5 py-2 text-slate-300 whitespace-nowrap text-xs">
+                                                        {pat.thana || ''}
+                                                        {pat.district ? `, ${pat.district}` : ''}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Excel Status Bar Footer */}
+                        <div className="bg-slate-850 px-4 py-2 border-t border-slate-700 flex justify-between items-center text-[11px] text-slate-400 shrink-0">
+                            <span>মোট রেকর্ড: <strong className="text-white">{filteredPatients.length}</strong></span>
+                            {selectedPatientId && (
+                                <span className="text-emerald-400 font-medium">
+                                    নির্বাচিত: <strong className="font-mono">{selectedPatientId}</strong>
+                                </span>
+                            )}
+                            <span className="text-slate-400">ডাবল-ক্লিক = ইনভয়েসে ট্রান্সফার</span>
                         </div>
                     </div>
                 </div>
-                
-                {isEmbedded && (
-                    <div className="flex justify-end gap-3 mt-6 pt-5 border-t border-slate-800/80">
-                        <button type="button" onClick={onClose} disabled={isSaving} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg transition-colors disabled:opacity-50">Cancel</button>
-                        <button type="submit" disabled={isSaving} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-                          {isSaving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-                          <span>{isSaving ? 'ডাটা সেভ হচ্ছে...' : 'Save Patient'}</span>
-                        </button>
+            ) : (
+                <form id="patient-form" onSubmit={handleSavePatient}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                        <div className="space-y-4">
+                            {/* Excel-style Instant Match Patient Name Input */}
+                            <div className="relative">
+                                <label className={labelBaseClasses}>Patient Name * (টাইপ করলেই অফ-হোয়াইট টেবিল শো হবে)</label>
+                                <input 
+                                    type="text" 
+                                    name="pt_name" 
+                                    value={formData.pt_name} 
+                                    onChange={(e) => {
+                                        handleInputChange(e);
+                                        setShowNameDropdown(true);
+                                    }}
+                                    onFocus={() => setShowNameDropdown(true)}
+                                    required 
+                                    autoComplete="off"
+                                    className={`${inputBaseClasses} py-2 px-3`} 
+                                    placeholder="নাম লিখে খুঁজুন বা নতুন নাম দিন..." 
+                                />
+                                
+                                {showNameDropdown && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setShowNameDropdown(false)} />
+                                        <div className="absolute left-0 right-0 top-full mt-1 bg-[#faf9f6] border-2 border-sky-500 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto custom-scrollbar text-slate-900">
+                                            <table className="w-full text-left text-xs">
+                                                <thead className="bg-slate-200 text-slate-700 font-bold sticky top-0 border-b border-slate-300">
+                                                    <tr>
+                                                        <th className="p-2">ID</th>
+                                                        <th className="p-2">Name</th>
+                                                        <th className="p-2">Age</th>
+                                                        <th className="p-2">Gender</th>
+                                                        <th className="p-2">Care Of</th>
+                                                        <th className="p-2">Mobile</th>
+                                                        <th className="p-2">Address</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200 font-medium">
+                                                    {safePatients
+                                                      .filter(p => p && p.pt_name && (!formData.pt_name || p.pt_name.toLowerCase().includes(formData.pt_name.toLowerCase()) || p.pt_id?.toLowerCase().includes(formData.pt_name.toLowerCase()) || p.mobile?.includes(formData.pt_name)))
+                                                      .slice(0, 20)
+                                                      .map((pat, pIdx) => (
+                                                        <tr 
+                                                            key={`${pat.pt_id || pIdx}-${pIdx}`}
+                                                            onClick={() => {
+                                                                setFormData(pat);
+                                                                setSelectedPatientId(pat.pt_id);
+                                                                setIsEditing(false);
+                                                                setShowNameDropdown(false);
+                                                            }}
+                                                            className="hover:bg-sky-100 cursor-pointer transition-colors"
+                                                        >
+                                                            <td className="p-2 font-mono text-blue-800 font-bold">{pat.pt_id}</td>
+                                                            <td className="p-2 font-bold text-slate-900">{pat.pt_name}</td>
+                                                            <td className="p-2 text-slate-700">{pat.ageY ? `${pat.ageY}Y` : ''}</td>
+                                                            <td className="p-2 text-slate-700">{pat.gender || ''}</td>
+                                                            <td className="p-2 text-slate-700">{pat.co_name ? `${pat.co_pref || 'S/O'} ${pat.co_name}` : ''}</td>
+                                                            <td className="p-2 font-mono text-emerald-800 font-semibold">{pat.mobile}</td>
+                                                            <td className="p-2 text-slate-600 truncate max-w-[120px]">{pat.address}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                            
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <div className="w-full sm:w-1/3">
+                                    <label className={labelBaseClasses}>Gender</label>
+                                    <select name="gender" value={formData.gender} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-2.5`}>
+                                        <option value="" className="bg-slate-900">Select</option>
+                                        <option value="Male" className="bg-slate-900">Male</option>
+                                        <option value="Female" className="bg-slate-900">Female</option>
+                                    </select>
+                                </div>
+                                <div className="flex-1">
+                                    <label className={labelBaseClasses}>Care Of</label>
+                                    <div className="flex items-center gap-2">
+                                        <select name="co_pref" value={formData.co_pref} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-2 w-[85px] shrink-0`}>
+                                            <option value="S/O" className="bg-slate-900">S/O</option>
+                                            <option value="D/O" className="bg-slate-900">D/O</option>
+                                            <option value="W/O" className="bg-slate-900">W/O</option>
+                                        </select>
+                                        <input type="text" name="co_name" value={formData.co_name} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3 flex-1 min-w-0`} placeholder="Guardian Name" />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                              <label className={labelBaseClasses}>Age (Y / M / D)</label>
+                              <div className="grid grid-cols-3 gap-2">
+                                <input type="number" min="0" max="150" name="ageY" placeholder="Years" value={formData.ageY} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
+                                <input type="number" min="0" max="11" name="ageM" placeholder="Months" value={formData.ageM} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
+                                <input type="number" min="0" max="30" name="ageD" placeholder="Days" value={formData.ageD} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <label className={labelBaseClasses}>Date of Birth (YYYY / MM / DD)</label>
+                              <div className="grid grid-cols-3 gap-2">
+                                <input type="number" name="dobY" placeholder="YYYY" value={formData.dobY} onChange={handleInputChange} onFocus={e => e.target.select()} className={`${inputBaseClasses} py-2 text-center`} />
+                                <select name="dobM" value={formData.dobM} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-1`}>
+                                  <option value="" className="bg-slate-900">MM</option>
+                                  {Array.from({length: 12}, (_, i) => String(i + 1).padStart(2, '0')).map(m => <option key={m} value={m} className="bg-slate-900">{m}</option>)}
+                                </select>
+                                <select name="dobD" value={formData.dobD} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-1`}>
+                                  <option value="" className="bg-slate-900">DD</option>
+                                  {Array.from({length: 31}, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d} className="bg-slate-900">{d}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className={labelBaseClasses}>Address / Village / Area</label>
+                                <input type="text" name="address" value={formData.address} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="addressOptions" placeholder="House / Area details" />
+                            </div>
+                            
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <div className="w-full sm:w-1/2">
+                                    <label className={labelBaseClasses}>Thana / Upazila</label>
+                                    <input type="text" name="thana" value={formData.thana} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="thanaOptions" placeholder="Thana" />
+                                </div>
+                                <div className="w-full sm:w-1/2">
+                                    <label className={labelBaseClasses}>District</label>
+                                    <input type="text" name="district" value={formData.district} onChange={handleInputChange} className={`${inputBaseClasses} py-2 px-3`} list="districtOptions" placeholder="District" />
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className={labelBaseClasses}>Mobile Number & Relation</label>
+                                <div className="flex items-center gap-2">
+                                    <select 
+                                        name="relation" 
+                                        value={formData.relation || 'Self'} 
+                                        onChange={handleInputChange} 
+                                        className={`${inputBaseClasses} py-2 px-2 w-[115px] shrink-0`}
+                                    >
+                                        <option value="Self" className="bg-slate-900">Self (নিজের)</option>
+                                        <option value="Husband" className="bg-slate-900">Husband (স্বামী)</option>
+                                        <option value="Father" className="bg-slate-900">Father (পিতা)</option>
+                                        <option value="Mother" className="bg-slate-900">Mother (মাতা)</option>
+                                        <option value="Guardian" className="bg-slate-900">Guardian (অভিভাবক)</option>
+                                    </select>
+                                    <input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXX-XXXXXX" className={`${inputBaseClasses} py-2 px-3 flex-1 font-mono tracking-wider`} />
+                                </div>
+                                {mobileError && <p className="text-red-400 text-xs mt-1.5 font-medium">{mobileError}</p>}
+                            </div>
+                        </div>
                     </div>
-                )}
-            </form>
+                </form>
+            )}
           </div>
       </div>
 

@@ -8,6 +8,9 @@
 -- 3. Copy & paste this entire script and click "RUN".
 -- =========================================================================
 
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Step A: Safely drop deprecated single-table and obsolete duplicate tables

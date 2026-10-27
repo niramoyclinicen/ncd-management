@@ -3329,7 +3329,10 @@ const DEFAULT_HOSPITAL_RATES: StandardRateItem[] = [
     { id: 'nvd_charge', name: 'Normal Vaginal Delivery (NVD) Charge', category: 'প্রসব ও প্রসিডিউর', defaultRate: 4000, isClinicFund: true, note: 'লেবার রুম ও ডেলিভারি চার্জ' },
     { id: 'dc_charge', name: 'D&C / MVA Procedure Charge', category: 'প্রসব ও প্রসিডিউর', defaultRate: 3000, isClinicFund: true, note: 'ডিএন্ডসি চার্জ' },
     { id: 'discharge_fee', name: 'Discharge Slip & File Charge', category: 'অন্যান্য', defaultRate: 200, isClinicFund: true, note: 'ডিসচার্জ ফাইল ও প্রসেসিং' },
-    // Staff Cost / Doctor Fees - Default unticked (isClinicFund: false)
+    // Non-clinic / Default unticked items (isClinicFund: false)
+    { id: 'discharge_writing_fee', name: 'Discharge writing fee', category: 'অন্যান্য', defaultRate: 200, isClinicFund: false, note: 'ডিসচার্জ রাইটিং ফি' },
+    { id: 'assistant_1', name: 'Assistant_1', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 1500, isClinicFund: false, note: 'সহকারী ১ সম্মাননা' },
+    { id: 'assistant_2', name: 'Assistant_2', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 1000, isClinicFund: false, note: 'সহকারী ২ সম্মাননা' },
     { id: 'staff_cost', name: 'Staff Cost / স্টাফ কস্ট', category: 'স্টাফ ও অন্যান্য খরচ', defaultRate: 500, isClinicFund: false, note: 'স্টাফ খরচ ও বকশিশ (ক্লিনিক ফান্ডের টাকা নয়)' },
     { id: 'ot_staff_cost', name: 'OT Staff Cost / ওটি স্টাফ কস্ট', category: 'স্টাফ ও অন্যান্য খরচ', defaultRate: 1000, isClinicFund: false, note: 'ওটি স্টাফ খরচ (ক্লিনিক ফান্ডে জমা হবে না)' },
     { id: 'surgeon_fee', name: 'Surgeon Fee', category: 'সার্জন ও স্পেশালিস্ট', defaultRate: 6000, isClinicFund: false, note: 'চিফ সার্জন সম্মাননা' },
@@ -3360,6 +3363,16 @@ const IndoorInvoicePage: React.FC<{
     const [selectedAdmission, setSelectedAdmission] = useState<AdmissionRecord | null>(null);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [applyPC, setApplyPC] = useState(false); 
+    const [missingFields, setMissingFields] = useState({
+        name: false,
+        mobile: false,
+        address: false,
+        category: false,
+        subCategory: false
+    });
+    const getInputClass = (isError: boolean) => isError 
+        ? "w-full h-10 px-3 bg-rose-950/50 border-2 border-rose-500 ring-2 ring-rose-500/50 rounded-xl text-white text-xs font-bold outline-none transition-all animate-pulse shadow-[0_0_15px_rgba(244,63,94,0.4)]"
+        : "w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all";
     const [invoiceSubTab, setInvoiceSubTab] = useState<'both' | 'form' | 'journal'>('both');
     const [showRateChart, setShowRateChart] = useState(false);
     const [rateSearchTerm, setRateSearchTerm] = useState('');
@@ -4127,10 +4140,30 @@ const IndoorInvoicePage: React.FC<{
     const handleSaveInvoice = (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (!formData.daily_id) return alert("Generate ID first");
-        if (!formData.subCategory) {
-            alert("সাব-ক্যাটাগরি লিস্ট (Sub_Category) এন্ট্রি করা বাধ্যতামূলক।");
+
+        const missing = {
+            name: !formData.patient_name || !formData.patient_name.trim(),
+            mobile: !formData.patient_mobile || !formData.patient_mobile.trim(),
+            address: !formData.patient_address || !formData.patient_address.trim(),
+            category: !formData.serviceCategory || !formData.serviceCategory.trim(),
+            subCategory: !formData.subCategory || !formData.subCategory.trim()
+        };
+
+        setMissingFields(missing);
+
+        if (missing.name || missing.mobile || missing.address || missing.category || missing.subCategory) {
+            const missingNames: string[] = [];
+            if (missing.name) missingNames.push("রোগীর নাম (Patient Name)");
+            if (missing.mobile) missingNames.push("মোবাইল নাম্বার (Mobile)");
+            if (missing.address) missingNames.push("এড্রেস (Address)");
+            if (missing.category) missingNames.push("ক্যাটাগরি (Category)");
+            if (missing.subCategory) missingNames.push("সাব ক্যাটাগরি (Sub_Category)");
+            
+            alert(`দয়া করে ইনভয়েস সেভ করার পূর্বে নিচের বাধ্যতামূলক ফিল্ডগুলো পূরণ করুন:\n• ${missingNames.join('\n• ')}`);
             return;
         }
+
+        setMissingFields({ name: false, mobile: false, address: false, category: false, subCategory: false });
 
         setConfirmModal({
             isOpen: true,
@@ -5124,7 +5157,7 @@ const IndoorInvoicePage: React.FC<{
 
                             {/* 3-Row Grid Layout */}
                             <div className="p-4 sm:p-5 space-y-3">
-                                {/* Row 1: 6 columns (Dates, ID & Contact) */}
+                                 {/* Row 1: 6 columns (Invoice ID, Invoice Date, Patient Name, Patient Mobile, Admission Date, Discharge Date) */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                                     <div>
                                         <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Invoice ID</label>
@@ -5135,8 +5168,12 @@ const IndoorInvoicePage: React.FC<{
                                         <input type="date" name="invoice_date" value={formData.invoice_date} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Entry Date (System)</label>
-                                        <input type="text" value={formData.created_at ? new Date(formData.created_at).toLocaleString() : 'Not Saved Yet'} disabled className="w-full h-10 px-3 bg-slate-900/60 border border-slate-800 rounded-xl text-slate-400 text-[10px] font-medium" />
+                                        <label className="block text-[10px] text-rose-300 font-black uppercase tracking-wider mb-1">Patient Name *</label>
+                                        <input type="text" name="patient_name" value={formData.patient_name || ''} onChange={handleInputChange} className={getInputClass(missingFields.name)} placeholder="রোগীর নাম..." />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-rose-300 font-black uppercase tracking-wider mb-1">Patient Mobile *</label>
+                                        <input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className={getInputClass(missingFields.mobile)} placeholder="017XX XXXXXX" />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Admission Date</label>
@@ -5146,40 +5183,38 @@ const IndoorInvoicePage: React.FC<{
                                         <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Discharge Date</label>
                                         <input type="date" name="discharge_date" value={formData.discharge_date} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" />
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Patient Mobile</label>
-                                        <input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" placeholder="017XX XXXXXX" />
-                                    </div>
                                 </div>
 
-                                {/* Row 2: 6 columns (Address, DOB, Category, Sub-Category, PC Apply & Referrer Side-by-Side!) */}
+                                {/* Row 2: 6 columns (Patient Address, DOB, Category, Sub-Category, PC Apply & Referrer Side-by-Side!) */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
                                     <div>
-                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Patient Address</label>
-                                        <input type="text" name="patient_address" value={formData.patient_address || ''} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" placeholder="গ্রাম / থানা" />
+                                        <label className="block text-[10px] text-rose-300 font-black uppercase tracking-wider mb-1">Patient Address *</label>
+                                        <input type="text" name="patient_address" value={formData.patient_address || ''} onChange={handleInputChange} className={getInputClass(missingFields.address)} placeholder="গ্রাম / থানা" />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Patient DOB / Age</label>
                                         <input type="text" name="patient_dob" value={formData.patient_dob || ''} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all" placeholder="YYYY-MM-DD" />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Category</label>
-                                        <select name="serviceCategory" value={formData.serviceCategory || ''} onChange={handleInputChange} className="w-full h-10 px-3 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs font-medium focus:border-sky-400 focus:ring-1 focus:ring-sky-400/40 outline-none transition-all">
+                                        <label className="block text-[10px] text-rose-300 font-black uppercase tracking-wider mb-1">Category *</label>
+                                        <select name="serviceCategory" value={formData.serviceCategory || ''} onChange={handleInputChange} className={getInputClass(missingFields.category)}>
                                             {(Array.isArray(serviceCategoriesList) ? serviceCategoriesList : []).map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}
                                         </select>
                                     </div>
                                     <div>
-                                        <SearchableSelect 
-                                            theme="dark" 
-                                            label="Sub_Category" 
-                                            options={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).filter(s => s && s.id && s.name).map(s => ({id: s.id, name: s.name}))} 
-                                            value={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).find(s => s && s.name === formData.subCategory)?.id || ''} 
-                                            onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
-                                            onAddNew={() => setShowSubCategoryManager(true)}
-                                            required={true}
-                                            inputHeightClass="h-10 bg-slate-950 border-slate-700/80 rounded-xl text-xs"
-                                            allowCustom={true}
-                                        />
+                                        <div className={missingFields.subCategory ? "p-0.5 rounded-xl border-2 border-rose-500 bg-rose-950/30 animate-pulse" : ""}>
+                                            <SearchableSelect 
+                                                theme="dark" 
+                                                label="Sub_Category *" 
+                                                options={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).filter(s => s && s.id && s.name).map(s => ({id: s.id, name: s.name}))} 
+                                                value={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).find(s => s && s.name === formData.subCategory)?.id || ''} 
+                                                onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
+                                                onAddNew={() => setShowSubCategoryManager(true)}
+                                                required={true}
+                                                inputHeightClass="h-10 bg-slate-950 border-slate-700/80 rounded-xl text-xs"
+                                                allowCustom={true}
+                                            />
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">PC (Apply?)</label>
@@ -5260,17 +5295,6 @@ const IndoorInvoicePage: React.FC<{
                                         className="bg-gradient-to-r from-teal-600 to-emerald-700 hover:from-teal-500 hover:to-emerald-600 text-white px-3.5 py-2 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-1.5 shadow-lg shadow-teal-950/40 border border-teal-400/40 cursor-pointer"
                                     >
                                         📋 Rate Sheet
-                                    </button>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => {
-                                            setTargetRowIdForRate(null);
-                                            handleStartEditingRates();
-                                        }} 
-                                        className="bg-gradient-to-r from-sky-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white px-3.5 py-2 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-1.5 shadow-lg shadow-sky-950/40 border border-sky-400/40 cursor-pointer"
-                                        title="রেট তালিকা ও ডিফল্ট টাকা এডিট করুন"
-                                    >
-                                        ⚙️ রেট চার্ট এডিট (Edit Rates)
                                     </button>
                                     <div className="w-64">
                                         <SearchableSelect 

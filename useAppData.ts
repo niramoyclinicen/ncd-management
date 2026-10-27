@@ -298,6 +298,7 @@ export function useAppData() {
             date: normKey,
             paidAmount: expPaid,
             paid_amount: expPaid,
+            amount: expPaid,
             billAmount: expBill,
             bill_amount: expBill,
             category: it.category || 'General',

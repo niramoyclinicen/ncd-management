@@ -2161,41 +2161,12 @@ const ClinicAccountsPage: React.FC<any> = ({
                                 <div className="flex flex-wrap items-center gap-3">
                                     <h3 className="text-xl font-black text-white uppercase tracking-tighter">Patient Collection Report</h3>
                                     <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-700">
-                                        <button onClick={() => setIsTodayFilter(true)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${isTodayFilter && selectedDate === new Date().toISOString().split('T')[0] ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Today's Collection</button>
-                                        <button onClick={() => setIsTodayFilter(false)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${!isTodayFilter ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Monthly View</button>
+                                        <button onClick={() => setIsTodayFilter(true)} className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all ${isTodayFilter && selectedDate === new Date().toISOString().split('T')[0] ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Today's Collection</button>
+                                        <button onClick={() => setIsTodayFilter(false)} className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all ${!isTodayFilter ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Monthly View</button>
                                     </div>
-                                    
-                                    {/* Top Summary Cards (Collection, PC, and Clinic Net) */}
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <div className="flex flex-col items-start bg-emerald-900/25 border border-emerald-500/40 px-3.5 py-1 rounded-2xl shadow-sm">
-                                            <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Total Collection</span>
-                                            <span className="text-sm font-black text-emerald-300">৳{reportTotals.paidTotal.toLocaleString()}</span>
-                                        </div>
-                                        <div className="flex flex-col items-start bg-rose-900/25 border border-rose-500/40 px-3.5 py-1 rounded-2xl shadow-sm">
-                                            <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest">Total PC</span>
-                                            <span className="text-sm font-black text-rose-300">৳{reportTotals.pc.toLocaleString()}</span>
-                                        </div>
-                                        <div className="flex flex-col items-start bg-sky-900/35 border-2 border-sky-400/60 px-4 py-1 rounded-2xl shadow-md ring-2 ring-sky-500/20">
-                                            <span className="text-[8px] font-black text-sky-300 uppercase tracking-widest flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
-                                                Clinic Net (হসপিটাল নিট)
-                                            </span>
-                                            <span className="text-base font-black text-sky-200">৳{reportTotals.netClinic.toLocaleString()}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Cancelled/Deleted toggle button */}
-                                    <button
-                                        type="button"
-                                        onClick={() => setHideCancelledInCollection(prev => !prev)}
-                                        className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border ${hideCancelledInCollection ? 'bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-700' : 'bg-amber-900/30 text-amber-300 border-amber-500/50'}`}
-                                        title="বাতিল ও ডিলিট ইনভয়েস দেখানো বা লুকানোর অপশন"
-                                    >
-                                        {hideCancelledInCollection ? '👁️ বাতিল/ডিলিট লুকানো আছে' : '👁️ বাতিল/ডিলিট দেখানো হচ্ছে'}
-                                    </button>
 
                                     <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-2xl border border-slate-700">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase ml-2">Custom Date:</label>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Date:</label>
                                         <input 
                                             type="date" 
                                             value={selectedDate} 
@@ -2203,21 +2174,14 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 setSelectedDate(e.target.value);
                                                 setIsTodayFilter(true);
                                             }} 
-                                            className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                                            className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1 text-xs text-white font-bold focus:ring-1 focus:ring-blue-500 outline-none"
                                         />
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <button 
-                                        onClick={handlePrintCollectionReport}
-                                        className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95"
-                                    >
-                                        <PrinterIcon size={14}/> Print A4 Landscape
-                                    </button>
+
                                     {!isTodayFilter && (
-                                        <div className="flex gap-2 mx-2">
-                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-xs font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                                            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded text-white text-xs font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                                        <div className="flex gap-2">
+                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                                            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
                                         </div>
                                     )}
 
@@ -2242,26 +2206,43 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     </div>
 
                                     {/* Enhanced Search Input */}
-                                    <div className="relative w-64 md:w-72">
-                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <div className="relative w-56 md:w-64">
+                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                         <input 
                                             type="text" 
                                             placeholder="রোগীর নাম, আইডি, অপারেশন বা 'PC'..." 
                                             value={invoiceSearch} 
                                             onChange={e => setInvoiceSearch(e.target.value)} 
-                                            className="w-full bg-slate-950 border border-slate-700 rounded-full pl-9 pr-8 py-2 text-xs text-white placeholder:text-slate-500 focus:border-blue-500 outline-none" 
+                                            className="w-full bg-slate-950 border border-slate-700 rounded-full pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-slate-500 focus:border-blue-500 outline-none" 
                                         />
                                         {invoiceSearch && (
                                             <button 
                                                 type="button" 
                                                 onClick={() => setInvoiceSearch('')} 
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white font-bold text-xs"
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white font-bold text-xs"
                                                 title="Clear search"
                                             >
                                                 ✕
                                             </button>
                                         )}
                                     </div>
+
+                                    {/* Cancelled/Deleted toggle button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setHideCancelledInCollection(prev => !prev)}
+                                        className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border ${hideCancelledInCollection ? 'bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-700' : 'bg-amber-900/30 text-amber-300 border-amber-500/50'}`}
+                                        title="বাতিল ও ডিলিট ইনভয়েস দেখানো বা লুকানোর অপশন"
+                                    >
+                                        {hideCancelledInCollection ? '👁️ বাতিল/ডিলিট লুকানো' : '👁️ বাতিল/ডিলিট দৃশ্যমান'}
+                                    </button>
+
+                                    <button 
+                                        onClick={handlePrintCollectionReport}
+                                        className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                                    >
+                                        <PrinterIcon size={14}/> Print
+                                    </button>
                                 </div>
                             </div>
 
@@ -2349,13 +2330,13 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <th className="p-2 text-center whitespace-nowrap">Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-800">
+                                    <tbody className="divide-y divide-stone-300">
                                         {collectionReportData.length > 0 ? collectionReportData.map((inv: any, idx: number) => (
                                             <tr 
                                                 key={inv.daily_id} 
                                                 onDoubleClick={() => handleOpenInvoicePreview(inv)}
                                                 title="ডাবল ক্লিক করুন ইনভয়েস দেখতে ও প্রিন্ট/এডিট করতে"
-                                                className={`cursor-pointer hover:bg-slate-700/50 hover:text-white transition-all ${inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-30 line-through grayscale' : inv.status === 'Returned' ? 'bg-rose-900/10' : ''}`}
+                                                className={`cursor-pointer transition-all ${inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-30 line-through grayscale bg-stone-200 text-stone-500' : inv.status === 'Returned' ? 'bg-rose-100 text-rose-900' : 'bg-[#f4f5f7] text-slate-900 hover:bg-[#e2e6ed]'}`}
                                             >
                                                 <td className="p-2 border-r border-slate-800/50 text-slate-500 font-mono">{idx + 1}</td>
                                                 <td className="p-2 font-mono text-sky-400 font-bold border-r border-slate-800/50">{inv.admission_id}</td>

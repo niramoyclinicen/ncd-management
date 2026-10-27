@@ -832,7 +832,16 @@ const DailyExpenseForm: React.FC<any> = ({
     // Initialize items: Empty row or the specific item being edited
     useEffect(() => {
         if (editingItem && editingItem.date === selectedDate) {
-            setItems([{ ...editingItem }]);
+            const pAmt = Number(editingItem.paidAmount ?? (editingItem as any).paid_amount ?? (editingItem as any).amount ?? 0);
+            const bAmt = Number(editingItem.billAmount ?? (editingItem as any).bill_amount ?? pAmt);
+            setItems([{ 
+                ...editingItem,
+                paidAmount: pAmt,
+                paid_amount: pAmt,
+                amount: pAmt,
+                billAmount: bAmt,
+                bill_amount: bAmt
+            }]);
         } else {
             setItems([{
                 id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, 
@@ -840,7 +849,10 @@ const DailyExpenseForm: React.FC<any> = ({
                 subCategory: '', 
                 description: '', 
                 billAmount: 0, 
+                bill_amount: 0,
                 paidAmount: 0, 
+                paid_amount: 0,
+                amount: 0,
                 dept: 'Diagnostic'
             }]);
         }
@@ -901,13 +913,24 @@ const DailyExpenseForm: React.FC<any> = ({
                     newValue: value
                 };
 
-                return { 
+                const updated: any = { 
                     ...item, 
                     [field]: value, 
                     isEdited: true, 
                     lastEditedAt: new Date().toISOString(),
                     editHistory: [...history, newLog]
                 };
+                if (field === "paidAmount") {
+                    const numVal = parseFloat(value) || 0;
+                    updated.paidAmount = numVal;
+                    updated.paid_amount = numVal;
+                    updated.amount = numVal;
+                    if (!updated.billAmount || updated.billAmount === 0) {
+                        updated.billAmount = numVal;
+                        updated.bill_amount = numVal;
+                    }
+                }
+                return updated;
             }
             return item;
         }));
@@ -1076,12 +1099,24 @@ const DailyExpenseForm: React.FC<any> = ({
 
     const handleSave = () => {
         const targetDate = (localDate && localDate.length === 10) ? localDate : selectedDate;
-        if (items.every(it => it.paidAmount <= 0 && !it.subCategory && !it.description)) {
+        const getRowAmount = (it: any) => Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? 0);
+        if (items.every(it => getRowAmount(it) <= 0 && !it.subCategory && !it.description)) {
             alert("দয়া করে অন্তত একটি খরচের হিসাব সঠিকভাবে লিখুন।");
             return;
         }
 
-        const validItems = items.filter(it => it.paidAmount > 0 || it.subCategory || it.description);
+        const validItems = items.filter(it => getRowAmount(it) > 0 || it.subCategory || it.description).map(it => {
+            const p = getRowAmount(it);
+            const b = Number(it.billAmount ?? (it as any).bill_amount ?? p);
+            return {
+                ...it,
+                paidAmount: p,
+                paid_amount: p,
+                amount: p,
+                billAmount: b,
+                bill_amount: b
+            };
+        });
         onDateChange(targetDate);
         setSearchDate(targetDate);
         const d = new Date(targetDate);
@@ -1520,35 +1555,35 @@ const DailyExpenseForm: React.FC<any> = ({
                                 }
                             }
                         }}
-                        className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black focus:ring-2 focus:ring-sky-500 focus:outline-none" 
+                        className="bg-slate-800 border border-slate-700 rounded-lg h-8 py-1 px-3 text-white text-xs font-bold focus:ring-1 focus:ring-sky-500 focus:outline-none" 
                     />
                 </div></div>
                 <div className="overflow-x-auto min-h-[150px]">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="text-xs bg-slate-800 text-sky-200 uppercase font-bold tracking-wider border-b border-slate-700">
-                                <th className="py-3 px-3">বিভাগ (Category)</th>
-                                <th className="py-3 px-3">কর্মচারী / বিবরণ (Employee / Details)</th>
-                                <th className="py-3 px-3">বর্ণনা (Description)</th>
-                                <th className="py-3 px-3 text-right">পরিশোধিত টাকা (Paid Amount)</th>
-                                <th className="py-3 px-3 text-center">X</th>
+                            <tr className="text-xs bg-gradient-to-r from-emerald-950/90 via-slate-800/95 to-cyan-950/90 text-emerald-300 uppercase font-bold tracking-wider border-b-2 border-emerald-500/50 shadow-sm">
+                                <th className="py-2.5 px-3">বিভাগ (Category)</th>
+                                <th className="py-2.5 px-3">কর্মচারী / বিবরণ (Employee / Details)</th>
+                                <th className="py-2.5 px-3">বর্ণনা (Description)</th>
+                                <th className="py-2.5 px-3 text-right">পরিশোধের টাকা (Paid Amount ৳)</th>
+                                <th className="py-2.5 px-3 text-center w-12">✕</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
                             {items.map(item => (
                                 <React.Fragment key={item.id}>
                                     <tr>
-                                        <td className="py-3 pr-2">
-                                            <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-blue-500">
+                                        <td className="py-1.5 pr-2">
+                                            <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg h-8 py-1 px-2.5 text-white text-xs font-bold outline-none focus:border-cyan-500">
                                                 {expenseCategories.map(cat => <option key={cat} value={cat}>{expenseCategoryBanglaMap[cat] ? `${expenseCategoryBanglaMap[cat]} (${cat})` : cat}</option>)}
                                             </select>
                                         </td>
-                                        <td className="py-3 pr-2">
+                                        <td className="py-1.5 pr-2">
                                             {item.category === 'Stuff salary' ? (
                                                 <select 
                                                     value={item.subCategory} 
                                                     onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                                    className="w-full bg-slate-800 border-2 border-amber-600/50 rounded-xl p-2.5 text-white text-sm font-black outline-none focus:border-amber-500"
+                                                    className="w-full bg-slate-800 border-2 border-amber-600/50 rounded-lg h-8 py-1 px-2.5 text-white text-xs font-bold outline-none focus:border-amber-500"
                                                 >
                                                     <option value="">-- Select Employee --</option>
                                                     {filteredEmployees.map((e:any) => <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}
@@ -1559,7 +1594,7 @@ const DailyExpenseForm: React.FC<any> = ({
                                                         list={`list-${item.id}`} 
                                                         value={item.subCategory} 
                                                         onChange={e => handleItemChange(item.id, 'subCategory', e.target.value)} 
-                                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 pr-10 text-white text-sm font-black outline-none focus:border-blue-500" 
+                                                        className="w-full bg-slate-800 border border-slate-700 rounded-lg h-8 py-1 px-2.5 pr-8 text-white text-xs font-bold outline-none focus:border-cyan-500" 
                                                         placeholder="Sub-category..." 
                                                     />
                                                     <datalist id={`list-${item.id}`}>
@@ -1576,12 +1611,12 @@ const DailyExpenseForm: React.FC<any> = ({
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="py-3 pr-2">
+                                        <td className="py-1.5 pr-2">
                                             <input 
                                                 list={`desc-list-${item.id}`}
                                                 value={item.description} 
                                                 onChange={e => handleItemChange(item.id, 'description', e.target.value)} 
-                                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold" 
+                                                className="w-full bg-slate-800 border border-slate-700 rounded-lg h-8 py-1 px-2.5 text-white text-xs font-medium outline-none focus:border-cyan-500" 
                                                 placeholder="Additional details..." 
                                             />
                                             <datalist id={`desc-list-${item.id}`}>
@@ -1658,8 +1693,8 @@ const DailyExpenseForm: React.FC<any> = ({
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="py-3 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-base font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>
-                                        <td className="py-3 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 font-bold text-2xl hover:text-red-400">×</button></td>
+                                        <td className="py-1.5 pr-2"><input type="number" value={item.paidAmount} onChange={e => handleItemChange(item.id, 'paidAmount', parseFloat(e.target.value) || 0)} className="w-28 bg-slate-800 border border-slate-700 rounded-lg h-8 py-1 px-2 text-emerald-400 text-sm font-black text-right outline-none focus:border-emerald-500" onFocus={e => e.target.select()} /></td>
+                                        <td className="py-1.5 text-center"><button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-400 font-bold text-lg p-1 hover:bg-red-500/10 rounded transition-colors" title="মুছে ফেলুন">✕</button></td>
                                     </tr>
                                     {item.category === 'Stuff salary' && item.subCategory && (
                                         <tr className="bg-slate-950/80">
@@ -1966,12 +2001,21 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             const otherDeptItems = existingItems.filter((it: any) => it.dept !== 'Diagnostic');
             const prevDiagItems = existingItems.filter((it: any) => it.dept === 'Diagnostic');
 
-            const incomingItems = (items || []).map((it, idx) => ({ 
-                ...it, 
-                id: it.id ? String(it.id) : `exp_${date.replace(/-/g, '')}_${idx}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                dept: 'Diagnostic' as const,
-                date: date
-            }));
+            const incomingItems = (items || []).map((it, idx) => {
+                const paidVal = Number(it.paidAmount ?? (it as any).paid_amount ?? (it as any).amount ?? 0);
+                const billVal = Number(it.billAmount ?? (it as any).bill_amount ?? paidVal);
+                return { 
+                    ...it, 
+                    id: it.id ? String(it.id) : `exp_${date.replace(/-/g, '')}_${idx}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                    paidAmount: paidVal,
+                    paid_amount: paidVal,
+                    amount: paidVal,
+                    billAmount: billVal,
+                    bill_amount: billVal,
+                    dept: 'Diagnostic' as const,
+                    date: date
+                };
+            });
 
             // Logic: 
             // If editingItem exists, find and replace IT specifically in the list.

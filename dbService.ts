@@ -908,23 +908,27 @@ export const dbService = {
       const cleanExpenses: Record<string, ExpenseItem[]> = {};
       (detailedExpensesRes || []).forEach((row: any) => {
         const raw = row.data && typeof row.data === 'object' ? row.data : {};
-        const dateKey = normalizeDate(row.date || row.expense_date || raw.date || '');
+        const dateKey = normalizeDate(row.date || row.expense_date || raw.date || raw.expense_date || '');
         if (!dateKey) return;
 
         if (!cleanExpenses[dateKey]) cleanExpenses[dateKey] = [];
         const expId = String(row.id || raw.id || `exp_${dateKey}_${Date.now()}`);
-        const bill = Number(row.bill_amount ?? row.amount ?? raw.billAmount ?? 0);
-        const paid = Number(row.paid_amount ?? row.amount ?? raw.paidAmount ?? bill);
+        const bill = Number(row.bill_amount ?? raw.billAmount ?? raw.bill_amount ?? row.amount ?? raw.amount ?? 0);
+        const paid = Number(row.paid_amount ?? row.amount ?? row.total_amount ?? raw.paidAmount ?? raw.paid_amount ?? raw.amount ?? bill);
 
         const expItem: ExpenseItem = {
           ...raw,
+          ...row,
           id: expId,
           date: dateKey,
           category: row.category || raw.category || 'General',
-          subCategory: row.sub_category || raw.subCategory || '',
+          subCategory: row.sub_category || raw.subCategory || raw.sub_category || '',
           description: row.description || raw.description || '',
           billAmount: bill,
+          bill_amount: bill,
           paidAmount: paid,
+          paid_amount: paid,
+          amount: paid,
           dept: row.dept || raw.dept || 'Diagnostic'
         };
 
@@ -1556,8 +1560,8 @@ export const dbService = {
       const rows = flatList.map(it => {
         const dateKey = normalizeDate(it.date || now);
         const id = String(it.id || `exp_${dateKey}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`);
-        const bill = Number(it.billAmount ?? (it as any).bill_amount ?? it.paidAmount ?? 0);
-        const paid = Number(it.paidAmount ?? (it as any).paid_amount ?? bill);
+        const bill = Number(it.billAmount ?? (it as any).bill_amount ?? it.paidAmount ?? (it as any).paid_amount ?? (it as any).amount ?? 0);
+        const paid = Number(it.paidAmount ?? (it as any).paid_amount ?? (it as any).amount ?? bill);
         return {
           id: id,
           date: dateKey,
@@ -1567,9 +1571,20 @@ export const dbService = {
           description: it.description || '',
           bill_amount: bill,
           paid_amount: paid,
+          amount: paid,
+          total_amount: paid,
           dept: it.dept || 'Diagnostic',
           updated_at: now,
-          data: it
+          data: {
+            ...it,
+            id: id,
+            date: dateKey,
+            billAmount: bill,
+            bill_amount: bill,
+            paidAmount: paid,
+            paid_amount: paid,
+            amount: paid
+          }
         };
       });
 

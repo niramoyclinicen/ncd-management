@@ -127,6 +127,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [reportDate, setReportDate] = useState<string>(todayDateString);
 
   // State for embedded forms
+  const [patientInitialSearch, setPatientInitialSearch] = useState('');
   const [showPatientSearchModal, setShowPatientSearchModal] = useState(false);
   const initialPatientSearchFilters = useMemo(() => ({
     name: '',
@@ -149,6 +150,12 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [isSavingPatient, setIsSavingPatient] = useState(false);
   const [patientModalStatus, setPatientModalStatus] = useState<{ type: 'saving' | 'success' | 'error'; message: string } | null>(null);
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
+
+  const openNewPatientModal = (initialTerm: string = '') => {
+    setPatientInitialSearch(initialTerm || '');
+    setShowPatientSearchModal(false);
+    setShowNewPatientForm(true);
+  };
   const [showNewDoctorForm, setShowNewDoctorForm] = useState(false);
   const [showNewReferrarForm, setShowNewReferrarForm] = useState(false);
   const [showNewTestForm, setShowNewTestForm] = useState(false);
@@ -637,9 +644,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   };
 
   const openAdvancedPatientSearch = (currentTerm: string) => {
-     setPatientSearchFilters({ ...initialPatientSearchFilters, name: currentTerm });
-     setPatientModalStatus(null);
-     setShowPatientSearchModal(true);
+    openNewPatientModal(currentTerm);
   };
 
   const handleQuickSavePatient = async () => {
@@ -1867,7 +1872,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
       {showNewPatientForm && (
         <div className="fixed inset-0 z-[90000] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-[96vw] xl:max-w-[1440px] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-[92vw] xl:max-w-[1240px] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
              {/* Compact Clean Header */}
              <div className="px-5 py-3 bg-slate-950 border-b border-slate-850 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
@@ -1900,6 +1905,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                         setShowNewPatientForm(false);
                     }}
                     performBlockingSync={performBlockingSync}
+                    initialSearchName={patientInitialSearch}
                 />
              </div>
           </div>
@@ -2063,7 +2069,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               <label className="text-[10px] font-bold text-slate-300">রোগী নির্বাচন</label>
               <button
                 type="button"
-                onClick={() => setShowNewPatientForm(true)}
+                onClick={() => openNewPatientModal('')}
                 className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300"
               >
                 + নতুন রোগী
@@ -2079,8 +2085,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               }))}
               value={formData.patient_id || ''}
               onChange={handlePatientSelect}
-              onAddNew={() => openAdvancedPatientSearch('')}
-              onEnter={(term) => openAdvancedPatientSearch(term)}
+              onAddNew={() => openNewPatientModal('')}
+              onEnter={(term) => openNewPatientModal(term)}
               placeholder="রোগীর নাম বা মোবাইল দিয়ে সার্চ..."
               required
               inputHeightClass="h-8.5"
@@ -2602,19 +2608,19 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     </div>
       <form id="invoice-form" onSubmit={handleSaveInvoice}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-x-4 gap-y-5 items-start">
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-2">
             <label htmlFor="invoice_date" className={commonLabelClasses}>Date</label>
             <input type="date" id="invoice_date" name="invoice_date" value={formData.invoice_date || ''} onChange={handleInputChange} required className={`${commonInputClasses} h-10 px-1 text-[10px] ${errors.invoice_date ? 'border-red-500 ring-2 ring-red-500' : ''}`} />
           </div>
-          <div className={`lg:col-span-4 rounded-md ${errors.patient_id ? 'ring-2 ring-red-500' : ''}`}>
+          <div className={`lg:col-span-3 rounded-md ${errors.patient_id ? 'ring-2 ring-red-500' : ''}`}>
              <SearchableSelect
                 theme="dark"
                 label="Patient"
                 options={(Array.isArray(patients) ? patients : []).map(p => ({ id: p.pt_id, name: p.pt_name, details: `ID: ${p.pt_id} | ${p.gender}, ${p.ageY}Y | ${p.address} | ${p.mobile}` }))}
                 value={formData.patient_id || ''}
                 onChange={handlePatientSelect}
-                onAddNew={() => openAdvancedPatientSearch('')}
-                onEnter={(term) => openAdvancedPatientSearch(term)}
+                onAddNew={() => openNewPatientModal('')}
+                onEnter={(term) => openNewPatientModal(term)}
                 placeholder="Search or add new patient"
                 required
                 inputHeightClass="h-10"

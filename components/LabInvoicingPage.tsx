@@ -323,9 +323,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [tableFilterMonth, setTableFilterMonth] = useState('');
   const [tableFilterYear, setTableFilterYear] = useState('');
   const [tableFilterDoctorId, setTableFilterDoctorId] = useState('');
+  const [tableFilterDoctor, setTableFilterDoctor] = useState('');
   const [tableFilterReferrarId, setTableFilterReferrarId] = useState('');
+  const [tableFilterReferrar, setTableFilterReferrar] = useState('');
   const [tableFilterPatientName, setTableFilterPatientName] = useState('');
   const [tableFilterDueOnly, setTableFilterDueOnly] = useState(false);
+  const [tableFilterDiscountOnly, setTableFilterDiscountOnly] = useState(false);
+  const [tableFilterPcOnly, setTableFilterPcOnly] = useState(false);
   const [invoiceSortOrder, setInvoiceSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const doctorFilterOptions = useMemo<FilterOption[]>(() => {
@@ -556,6 +560,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     const safeInvs = Array.isArray(invoices) ? invoices : [];
     const cleanSearch = (searchTerm || '').toLowerCase();
     const cleanFilterPatient = (tableFilterPatientName || '').toLowerCase();
+    const cleanFilterDoctor = (tableFilterDoctor || '').toLowerCase();
+    const cleanFilterReferrar = (tableFilterReferrar || '').toLowerCase();
 
     const filtered = safeInvs.filter(invoice => {
       if (!invoice) return false;
@@ -573,12 +579,24 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       const matchesMonth = !tableFilterMonth || String(invDateParts.m).padStart(2, '0') === tableFilterMonth;
       const matchesYear = !tableFilterYear || String(invDateParts.y) === tableFilterYear;
       
-      const matchesDoctor = !tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId;
-      const matchesReferrar = !tableFilterReferrarId || invoice.referrar_id === tableFilterReferrarId;
-      const matchesPatient = !cleanFilterPatient || (invoice.patient_name || '').toLowerCase().includes(cleanFilterPatient);
+      const matchesDoctor = (!tableFilterDoctorId || invoice.doctor_id === tableFilterDoctorId) &&
+        (!cleanFilterDoctor || (invoice.doctor_name || '').toLowerCase().includes(cleanFilterDoctor) || (invoice.doctor_id || '').toLowerCase().includes(cleanFilterDoctor));
+
+      const matchesReferrar = (!tableFilterReferrarId || invoice.referrar_id === tableFilterReferrarId) &&
+        (!cleanFilterReferrar || (invoice.referrar_name || '').toLowerCase().includes(cleanFilterReferrar) || (invoice.referrar_id || '').toLowerCase().includes(cleanFilterReferrar));
+
+      const matchesPatient = !cleanFilterPatient || 
+        (invoice.patient_name || '').toLowerCase().includes(cleanFilterPatient) ||
+        (invoice.patient_id || '').toLowerCase().includes(cleanFilterPatient);
+
       const matchesDue = !tableFilterDueOnly || ((Number(invoice.due_amount) || 0) > 0 && invoice.status !== 'Cancelled' && invoice.status !== 'Returned');
 
-      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesReferrar && matchesPatient && matchesDue;
+      const matchesDiscount = !tableFilterDiscountOnly || ((Number(invoice.discount_amount) || 0) > 0 && invoice.status !== 'Cancelled');
+
+      const invComm = Number(invoice.commission_paid ?? (invoice as any).commissionPaid) || 0;
+      const matchesPc = !tableFilterPcOnly || (invComm > 0 || (Boolean(invoice.referrar_name) && invoice.referrar_name !== '-' && invoice.referrar_name !== 'None' && invoice.referrar_name !== 'Self/Walk-in'));
+
+      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesReferrar && matchesPatient && matchesDue && matchesDiscount && matchesPc;
     });
 
     const extractSerialNum = (idStr: string | undefined): number => {
@@ -610,7 +628,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
       return invoiceSortOrder === 'asc' ? diff : -diff;
     });
-  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterReferrarId, tableFilterPatientName, tableFilterDueOnly, invoices, invoiceSortOrder]);
+  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterDoctor, tableFilterReferrarId, tableFilterReferrar, tableFilterPatientName, tableFilterDueOnly, tableFilterDiscountOnly, tableFilterPcOnly, invoices, invoiceSortOrder]);
 
 
   const allAvailableTestCategories = useMemo(() => {
@@ -1092,8 +1110,14 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setFormData(prev => ({ ...prev, items: (prev.items || []).filter(item => item && item.test_id !== testId) }));
   };
   
-  const handleSaveInvoice = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveInvoice = (e?: React.FormEvent) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+
+    if (selectedInvoiceId && !isEditing) {
+      alert('সতর্কবার্তা: আপনি একটি বিদ্যমান ইনভয়েস দেখছেন। নতুন হিসেবে সেভ করতে চাইলে আগে "+ Get New ID" নিন, অথবা পরিবর্তন করতে চাইলে "Edit Invoice" এ ক্লিক করুন।');
+      return;
+    }
+
     const validationErrors: Record<string, boolean> = {};
     if (!formData.invoice_id) validationErrors.invoice_id = true;
     if (!formData.invoice_date) validationErrors.invoice_date = true;
@@ -1133,8 +1157,8 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
     setConfirmModal({
         isOpen: true,
-        title: 'Confirm Save',
-        message: 'আপনি কি এই ল্যাব ইনভয়েসটি সেভ করতে চান?',
+        title: isEditing ? 'Confirm Update' : 'Confirm Save',
+        message: isEditing ? `আপনি কি ইনভয়েস #${formData.invoice_id} এর সংশোধিত তথ্য আপডেট করতে চান?` : 'আপনি কি এই ল্যাব ইনভয়েসটি সেভ করতে চান?',
         onConfirm: () => executeSave()
     });
   };
@@ -1223,8 +1247,10 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       // 3. Immediately update UI state
       setInvoices(newInvoices);
       if (reagentsChanged && setReagents) setReagents(updatedReagents);
-      setSuccessMessage('ডাটা সফলভাবে সেভ হয়েছে');
+      setSuccessMessage(isEditing ? 'ইনভয়েস সফলভাবে আপডেট হয়েছে' : 'ডাটা সফলভাবে সেভ হয়েছে');
       resetForm();
+      setIsEditing(false);
+      setSelectedInvoiceId(null);
       setPendingFilmSelections(null);
 
       // 4. Background non-blocking sync to keep global cache aligned
@@ -1641,9 +1667,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setTableFilterMonth('');
     setTableFilterYear('');
     setTableFilterDoctorId('');
+    setTableFilterDoctor('');
     setTableFilterReferrarId('');
+    setTableFilterReferrar('');
     setTableFilterPatientName('');
     setTableFilterDueOnly(false);
+    setTableFilterDiscountOnly(false);
+    setTableFilterPcOnly(false);
   };
 
   return (
@@ -1751,13 +1781,45 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     </div>
                     
                     <div className="flex items-center gap-2.5 pl-3 border-l border-slate-700/50">
-                        <button type="button" onClick={handleGetNewId} disabled={readOnly} className="min-w-[100px] px-4 py-1.5 text-[10px] font-black text-white bg-blue-600 rounded-md hover:bg-blue-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-blue-400/20 active:scale-95">Get New ID</button>
-                        <button type="submit" form="invoice-form" disabled={readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-emerald-600 rounded-md hover:bg-emerald-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-emerald-400/20 active:scale-95">Save Invoice</button>
-                        <button type="button" onClick={resetForm} disabled={readOnly} className="min-w-[90px] px-4 py-1.5 text-[10px] font-black text-slate-200 bg-slate-700 rounded-md hover:bg-slate-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-slate-600/50 active:scale-95">Clear Form</button>
-                        <button type="button" onClick={handleEditInvoice} disabled={!selectedInvoiceId || readOnly} className="min-w-[90px] px-4 py-1.5 text-[10px] font-black text-white bg-amber-500 rounded-md hover:bg-amber-400 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-amber-400/20 active:scale-95">Edit Invoice</button>
-                        <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || (Array.isArray(invoices) ? invoices : []).find(inv => inv && inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-rose-400/20 active:scale-95">Cancel Invoice</button>
-                        <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || (Array.isArray(invoices) ? invoices : []).find(inv => inv && inv.invoice_id === selectedInvoiceId)?.status === 'Returned' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-pink-700 rounded-md hover:bg-pink-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-pink-400/20 active:scale-95">Return Invoice</button>
-                        <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="min-w-[100px] px-4 py-1.5 text-[10px] font-black text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md transition-all border border-indigo-400/20 active:scale-95">Print Invoice</button>
+                        <button type="button" onClick={handleGetNewId} disabled={readOnly} className="min-w-[100px] px-4 py-1.5 text-[10px] font-black text-white bg-blue-600 rounded-md hover:bg-blue-500 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-blue-400/20 active:scale-95 cursor-pointer">Get New ID</button>
+                        <button 
+                          type="submit" 
+                          form="invoice-form" 
+                          disabled={readOnly || Boolean(selectedInvoiceId)} 
+                          className={`min-w-[110px] px-4 py-1.5 text-[10px] font-black uppercase tracking-tighter shadow-md transition-all border rounded-md active:scale-95 ${
+                            selectedInvoiceId 
+                              ? 'bg-slate-700 text-slate-400 border-slate-600 cursor-not-allowed opacity-50' 
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/20 cursor-pointer'
+                          }`}
+                          title={selectedInvoiceId ? 'তালিকা থেকে ইনভয়েস সিলেক্ট করা আছে। সেভ বাটন নিষ্ক্রিয়। পরিবর্তন করতে Edit Invoice এ ক্লিক করুন।' : 'নতুন ইনভয়েস সেভ করুন'}
+                        >
+                          Save Invoice
+                        </button>
+                        <button type="button" onClick={resetForm} disabled={readOnly} className="min-w-[90px] px-4 py-1.5 text-[10px] font-black text-slate-200 bg-slate-700 rounded-md hover:bg-slate-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-slate-600/50 active:scale-95 cursor-pointer">Clear Form</button>
+                        {isEditing ? (
+                          <button 
+                            type="button" 
+                            onClick={() => handleSaveInvoice()} 
+                            disabled={readOnly} 
+                            className="min-w-[120px] px-4 py-1.5 text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-500 rounded-md uppercase tracking-tighter shadow-md transition-all border border-emerald-400 ring-2 ring-emerald-400/50 active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                            title="সংশোধিত ইনভয়েস আপডেট করুন"
+                          >
+                            <span>💾 Update Invoice</span>
+                          </button>
+                        ) : (
+                          <button 
+                            type="button" 
+                            onClick={handleEditInvoice} 
+                            disabled={!selectedInvoiceId || readOnly} 
+                            className="min-w-[90px] px-4 py-1.5 text-[10px] font-black text-white bg-amber-500 hover:bg-amber-400 rounded-md uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-amber-400/20 active:scale-95 cursor-pointer"
+                            title={selectedInvoiceId ? 'ইনভয়েস এডিট মোড চালু করুন' : 'আগে তালিকা থেকে একটি ইনভয়েস সিলেক্ট করুন'}
+                          >
+                            Edit Invoice
+                          </button>
+                        )}
+                        <button type="button" onClick={handleCancelInvoice} disabled={!selectedInvoiceId || (Array.isArray(invoices) ? invoices : []).find(inv => inv && inv.invoice_id === selectedInvoiceId)?.status === 'Cancelled' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-rose-600 rounded-md hover:bg-rose-700 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-rose-400/20 active:scale-95 cursor-pointer">Cancel Invoice</button>
+                        <button type="button" onClick={handleReturnInvoice} disabled={!selectedInvoiceId || (Array.isArray(invoices) ? invoices : []).find(inv => inv && inv.invoice_id === selectedInvoiceId)?.status === 'Returned' || readOnly} className="min-w-[110px] px-4 py-1.5 text-[10px] font-black text-white bg-pink-700 rounded-md hover:bg-pink-600 uppercase tracking-tighter shadow-md disabled:opacity-50 transition-all border border-pink-400/20 active:scale-95 cursor-pointer">Return Invoice</button>
+                        <button type="button" onClick={handlePrintInvoice} disabled={!selectedInvoiceId} className="min-w-[100px] px-4 py-1.5 text-[10px] font-black text-white bg-indigo-600 rounded-md hover:bg-indigo-500 uppercase tracking-tighter shadow-md transition-all border border-indigo-400/20 active:scale-95 cursor-pointer">Print Invoice</button>
                     </div>
                 </div>
 
@@ -2273,14 +2335,36 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
             >
               🔄 ক্লিয়ার
             </button>
-            <button
-              type="button"
-              onClick={() => handleSaveInvoice()}
-              disabled={readOnly}
-              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black uppercase flex items-center gap-1 shadow-md shadow-emerald-950 active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              💾 সেভ
-            </button>
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={() => handleSaveInvoice()}
+                disabled={readOnly}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black uppercase flex items-center gap-1 shadow-md shadow-emerald-950 active:scale-95 cursor-pointer ring-1 ring-emerald-300"
+                title="আপডেট করুন"
+              >
+                💾 আপডেট
+              </button>
+            ) : selectedInvoiceId ? (
+              <button
+                type="button"
+                onClick={handleEditInvoice}
+                disabled={readOnly}
+                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-black uppercase flex items-center gap-1 shadow-md active:scale-95 cursor-pointer"
+                title="এডিট করুন"
+              >
+                ✏️ এডিট
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleSaveInvoice()}
+                disabled={readOnly}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black uppercase flex items-center gap-1 shadow-md shadow-emerald-950 active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                💾 সেভ
+              </button>
+            )}
           </div>
         </div>
 
@@ -2695,14 +2779,41 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         {/* STICKY FLOATING QUICK ACTION BAR (Right Above Bottom Nav) */}
         {/* ------------------------------------------------------------- */}
         <div className="sticky bottom-14 z-30 bg-slate-950/95 backdrop-blur-md border border-cyan-800/80 rounded-xl p-2 shadow-2xl flex items-center justify-between gap-1.5">
-          <button
-            type="button"
-            onClick={() => handleSaveInvoice()}
-            disabled={readOnly}
-            className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-lg text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950 active:scale-95 disabled:opacity-50 cursor-pointer"
-          >
-            <span>💾 সেভ করুন</span>
-          </button>
+          {isEditing ? (
+            <button
+              type="button"
+              onClick={() => handleSaveInvoice()}
+              disabled={readOnly}
+              className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-lg text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950 active:scale-95 cursor-pointer ring-2 ring-emerald-400"
+            >
+              <span>💾 আপডেট ইনভয়েস</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleSaveInvoice()}
+              disabled={readOnly || Boolean(selectedInvoiceId)}
+              className={`flex-1 py-2.5 font-black rounded-lg text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-all ${
+                selectedInvoiceId 
+                  ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-50' 
+                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-950 cursor-pointer'
+              }`}
+            >
+              <span>💾 সেভ করুন</span>
+            </button>
+          )}
+
+          {selectedInvoiceId && !isEditing && (
+            <button
+              type="button"
+              onClick={handleEditInvoice}
+              disabled={readOnly}
+              className="py-2.5 px-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1 shadow-md active:scale-95 cursor-pointer"
+              title="এডিট মোড চালু করুন"
+            >
+              <span>✏️ এডিট</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -2732,18 +2843,6 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
           >
             <span>🔄 ক্লিয়ার</span>
           </button>
-
-          {selectedInvoiceId && (
-            <button
-              type="button"
-              onClick={handleEditInvoice}
-              disabled={readOnly}
-              className="py-2.5 px-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[11px] flex items-center justify-center active:scale-95 cursor-pointer"
-              title="এডিট মোড"
-            >
-              <span>✏️ এডিট</span>
-            </button>
-          )}
         </div>
 
         {/* ------------------------------------------------------------- */}
@@ -3142,97 +3241,19 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       {/* ========================================================================= */}
       <div className="mt-8 bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 shadow-xl space-y-3.5 text-slate-800">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 border-b border-slate-300 pb-3">
-          <div className="shrink-0">
+          <div className="shrink-0 flex items-center gap-3">
             <h3 className="text-sm md:text-base font-black text-slate-900 uppercase tracking-wide flex items-center gap-2 whitespace-nowrap font-['Hind_Siliguri']">
-              <FileSpreadsheet className="text-emerald-700" size={18} /> ইনভয়েস তালিকা ({filteredInvoices.length} টি)
+              <FileSpreadsheet className="text-emerald-700" size={18} /> ইনভয়েস তালিকা
             </h3>
-            <p className="text-xs text-slate-600 mt-0.5 font-medium">
-              পূর্বের সকল সংরক্ষিত ভাউচার ও ইনভয়েস দেখুন, সিরিয়াল সাজান, ফিল্টার করুন এবং এডিট বা প্রিন্ট করুন।
-            </p>
+            <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-2.5 py-1 rounded-lg border border-emerald-300 shadow-sm font-['Hind_Siliguri']">
+              মোট ভাউচার: {filteredInvoices.length} টি
+            </span>
           </div>
           
-          {/* Filter & Sorting Controls */}
+          {/* Filter Controls (Strict Left-to-Right Order: Patient -> Doctor -> Referrer -> Month -> Year -> Reset) */}
           <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end no-print">
-            {/* Invoice Serial Sort Toggle (Click to toggle Asc/Desc with arrow icon) */}
-            <button
-              type="button"
-              onClick={() => setInvoiceSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-              className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 text-teal-950 border border-teal-300 hover:border-teal-500 rounded-xl px-3 py-1.5 shadow-sm transition-all cursor-pointer select-none active:scale-95 text-xs font-black"
-              title={`সিরিয়াল সাজান: বর্তমানে ${invoiceSortOrder === 'asc' ? 'ছোট থেকে বড়' : 'বড় থেকে ছোট'} (ক্লিক করে পরিবর্তন করুন)`}
-            >
-              <span>সিরিয়াল</span>
-              <ArrowUpDown size={14} className={`text-teal-700 transition-transform duration-200 ${invoiceSortOrder === 'desc' ? 'rotate-180' : ''}`} />
-            </button>
-
-            {/* Searchable Doctor Select */}
-            <CompactSearchableFilter
-              placeholder="সকল ডাক্তার"
-              allLabel="সকল ডাক্তার"
-              options={doctorFilterOptions}
-              value={tableFilterDoctorId}
-              onChange={(id) => setTableFilterDoctorId(id)}
-              icon={<Stethoscope size={13} />}
-              themeColor="sky"
-              widthClass="w-36 sm:w-44"
-            />
-
-            {/* Searchable Referrer Select */}
-            <CompactSearchableFilter
-              placeholder="সকল রেফারার"
-              allLabel="সকল রেফারার"
-              options={referrarFilterOptions}
-              value={tableFilterReferrarId}
-              onChange={(id) => setTableFilterReferrarId(id)}
-              icon={<Users size={13} />}
-              themeColor="purple"
-              widthClass="w-36 sm:w-44"
-            />
-
-            {/* Month Filter */}
-            <select 
-              value={tableFilterMonth} 
-              onChange={(e) => { setTableFilterMonth(e.target.value); setTableFilterDate(''); }}
-              className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-amber-950 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400 shadow-sm cursor-pointer"
-            >
-              <option value="">সকল মাস</option>
-              {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
-            </select>
-
-            {/* Year Filter */}
-            <select 
-              value={tableFilterYear} 
-              onChange={(e) => { setTableFilterYear(e.target.value); setTableFilterDate(''); }}
-              className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-amber-950 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400 shadow-sm cursor-pointer"
-            >
-              <option value="">সকল সন</option>
-              {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y} সন</option>)}
-            </select>
-
-            {/* Date Filter */}
-            <input 
-              type="date" 
-              value={tableFilterDate} 
-              onChange={(e) => { setTableFilterDate(e.target.value); setTableFilterMonth(''); setTableFilterYear(''); }}
-              className="bg-indigo-50/80 hover:bg-indigo-100/80 border border-indigo-300 rounded-xl px-2.5 py-1.5 text-xs text-indigo-950 font-bold font-mono outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 shadow-sm cursor-pointer"
-              title="নির্দিষ্ট তারিখ"
-            />
-
-            {/* Due Filter */}
-            <button 
-              type="button"
-              onClick={() => setTableFilterDueOnly(!tableFilterDueOnly)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 border shadow-sm cursor-pointer active:scale-95 ${
-                tableFilterDueOnly 
-                  ? 'bg-rose-600 border-rose-700 text-white shadow-md ring-2 ring-rose-300' 
-                  : 'bg-rose-50/80 hover:bg-rose-100 border-rose-300 text-rose-900'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${tableFilterDueOnly ? 'bg-white animate-pulse' : 'bg-rose-500'}`}></span>
-              বকেয়া (Dues)
-            </button>
-
-            {/* Patient Search Input */}
-            <div className="relative flex-1 min-w-[170px] sm:w-48 xl:w-56">
+            {/* 1. Patient Search Input */}
+            <div className="relative min-w-[170px] sm:w-48 xl:w-56">
               <input 
                 type="text" 
                 placeholder="রোগীর নাম বা আইডি..." 
@@ -3253,13 +3274,113 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               )}
             </div>
 
-            {/* Reset Button */}
-            {(tableFilterPatientName || tableFilterDoctorId || tableFilterReferrarId || tableFilterDate || tableFilterMonth || tableFilterYear || tableFilterDueOnly) && (
+            {/* 2. Searchable Doctor Input */}
+            <div className="relative min-w-[145px] sm:w-40 xl:w-48">
+              <input 
+                type="text" 
+                list="table-filter-doctor-datalist"
+                placeholder="সকল ডাক্তার..." 
+                value={tableFilterDoctor} 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'সকল ডাক্তার') {
+                    setTableFilterDoctor('');
+                  } else {
+                    setTableFilterDoctor(val);
+                  }
+                }}
+                className="w-full bg-sky-50/80 focus:bg-white border border-sky-300 focus:border-sky-600 rounded-xl pl-8 pr-7 py-1.5 text-xs text-sky-950 font-bold outline-none focus:ring-2 focus:ring-sky-200 shadow-sm placeholder:text-sky-700/60 transition-all"
+              />
+              <Stethoscope className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-sky-700" />
+              <datalist id="table-filter-doctor-datalist">
+                <option value="সকল ডাক্তার" />
+                {doctors.map(d => (
+                  <option key={d.doctor_id} value={d.doctor_name}>
+                    {d.speciality ? `${d.speciality} (ID: ${d.doctor_id})` : `ID: ${d.doctor_id}`}
+                  </option>
+                ))}
+              </datalist>
+              {tableFilterDoctor && (
+                <button
+                  type="button"
+                  onClick={() => setTableFilterDoctor('')}
+                  className="absolute right-2 top-2 text-sky-700 hover:text-sky-900 p-0.5 cursor-pointer"
+                  title="ক্লিয়ার"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* 3. Searchable Referrer Input */}
+            <div className="relative min-w-[145px] sm:w-40 xl:w-48">
+              <input 
+                type="text" 
+                list="table-filter-referrer-datalist"
+                placeholder="সকল রেফারার..." 
+                value={tableFilterReferrar} 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'সকল রেফারার') {
+                    setTableFilterReferrar('');
+                  } else {
+                    setTableFilterReferrar(val);
+                  }
+                }}
+                className="w-full bg-purple-50/80 focus:bg-white border border-purple-300 focus:border-purple-600 rounded-xl pl-8 pr-7 py-1.5 text-xs text-purple-950 font-bold outline-none focus:ring-2 focus:ring-purple-200 shadow-sm placeholder:text-purple-700/60 transition-all"
+              />
+              <Users className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-purple-700" />
+              <datalist id="table-filter-referrer-datalist">
+                <option value="সকল রেফারার" />
+                {referrars.map(r => {
+                  const refId = r.ref_id || (r as any).referrar_id || '';
+                  const refName = r.ref_name || (r as any).referrar_name || '';
+                  return (
+                    <option key={refId} value={refName}>
+                      {r.area ? `${r.area} (ID: ${refId})` : `ID: ${refId}`}
+                    </option>
+                  );
+                })}
+              </datalist>
+              {tableFilterReferrar && (
+                <button
+                  type="button"
+                  onClick={() => setTableFilterReferrar('')}
+                  className="absolute right-2 top-2 text-purple-700 hover:text-purple-900 p-0.5 cursor-pointer"
+                  title="ক্লিয়ার"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* 4. Month Filter */}
+            <select 
+              value={tableFilterMonth} 
+              onChange={(e) => { setTableFilterMonth(e.target.value); setTableFilterDate(''); }}
+              className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-amber-950 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400 shadow-sm cursor-pointer"
+            >
+              <option value="">সকল মাস</option>
+              {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+            </select>
+
+            {/* 5. Year Filter */}
+            <select 
+              value={tableFilterYear} 
+              onChange={(e) => { setTableFilterYear(e.target.value); setTableFilterDate(''); }}
+              className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-amber-950 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400 shadow-sm cursor-pointer"
+            >
+              <option value="">সকল সন</option>
+              {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y} সন</option>)}
+            </select>
+
+            {/* 6. Reset / Clear Button */}
+            {(tableFilterPatientName || tableFilterDoctor || tableFilterReferrar || tableFilterDoctorId || tableFilterReferrarId || tableFilterMonth || tableFilterYear || tableFilterDate || tableFilterDueOnly || tableFilterDiscountOnly || tableFilterPcOnly) && (
               <button 
                 type="button"
                 onClick={resetTableFilters}
-                className="px-2.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
-                title="রিসেট ফিল্টার"
+                className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95 whitespace-nowrap"
+                title="সকল ফিল্টার রিসেট করুন"
               >
                 ✕ রিসেট
               </button>
@@ -3267,42 +3388,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
           </div>
         </div>
 
-        {/* Live Summary Stats Ribbon (Exact match to uploaded image) */}
-        <div className="flex flex-wrap items-center gap-4 text-xs font-bold bg-white px-5 py-2.5 rounded-xl border border-slate-300 shadow-sm justify-around">
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট ভাউচার:</span>
-            <span className="text-slate-950 font-mono font-black text-sm">{filteredInvoices.length} টি</span>
-          </div>
-          <div className="h-5 w-px bg-slate-300"></div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট রোগী:</span>
-            <span className="text-slate-950 font-mono font-black text-sm">{filteredInvoices.length} জন</span>
-          </div>
-          <div className="h-5 w-px bg-slate-300"></div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট গ্রস বিল:</span>
-            <span className="text-slate-900 font-mono font-black text-sm">৳{Number(tableTotals.total || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
-          </div>
-          <div className="h-5 w-px bg-slate-300"></div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট ছাড়:</span>
-            <span className="text-rose-700 font-mono font-black text-sm">৳{Number(tableTotals.discount || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
-          </div>
-          <div className="h-5 w-px bg-slate-300"></div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট ক্যাশ আদায়:</span>
-            <span className="text-emerald-700 font-mono font-black text-base">৳{Number(tableTotals.paid || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
-          </div>
-          <div className="h-5 w-px bg-slate-300"></div>
-          <div>
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট বকেয়া :</span>
-            <span className="text-rose-700 font-mono font-black text-base">৳{Number(tableTotals.due || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
-          </div>
-        </div>
-
         {/* Embedded Excel-Grid Table */}
         <div className="bg-white border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto max-h-[520px]">
+          <div className="overflow-x-auto max-h-[560px]">
             <table className="w-full text-left border-collapse text-xs border border-slate-300 font-sans">
               <thead className="bg-[#dce6f1] text-slate-800 uppercase font-black tracking-wider border-b-2 border-slate-400 sticky top-0 z-10 select-none text-[11px]">
                 <tr className="divide-x divide-slate-300">
@@ -3321,18 +3409,75 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                   <th scope="col" className="border border-slate-300 p-2.5 text-left">তারিখ / মাস-বছর</th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-left">রোগীর নাম</th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-left">ডাক্তার</th>
-                  <th scope="col" className="border border-slate-300 p-2.5 text-left">রেফারার</th>
+                  <th scope="col" className={`border border-slate-300 p-2.5 text-left cursor-pointer transition-colors ${tableFilterPcOnly ? 'bg-purple-200 text-purple-950 font-black' : 'hover:bg-purple-100'}`} onClick={() => setTableFilterPcOnly(prev => !prev)} title="ক্লিক করে রেফারার / পিসি যুক্ত ইনভয়েস ফিল্টার করুন">
+                    <span className="flex items-center gap-1">
+                      রেফারার {tableFilterPcOnly && <span className="text-[9px] bg-purple-600 text-white px-1 rounded">সক্রিয়</span>}
+                    </span>
+                  </th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-right">গ্রস বিল</th>
-                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-rose-700">ছাড়</th>
+                  <th scope="col" className={`border border-slate-300 p-2.5 text-right cursor-pointer transition-colors ${tableFilterDiscountOnly ? 'bg-rose-200 text-rose-950 font-black' : 'text-rose-700 hover:bg-rose-100'}`} onClick={() => setTableFilterDiscountOnly(prev => !prev)} title="ক্লিক করে শুধু ছাড়যুক্ত ইনভয়েস ফিল্টার করুন">
+                    <span className="inline-flex items-center justify-end gap-1">
+                      ছাড় {tableFilterDiscountOnly && <span className="text-[9px] bg-rose-600 text-white px-1 rounded">সক্রিয়</span>}
+                    </span>
+                  </th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-right text-sky-800">নিট বিল</th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-right text-emerald-800">ক্যাশ আদায়</th>
-                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-rose-800">বাকি (DUE)</th>
+                  <th scope="col" className={`border border-slate-300 p-2.5 text-right cursor-pointer transition-colors ${tableFilterDueOnly ? 'bg-rose-600 text-white font-black' : 'text-rose-800 hover:bg-rose-100'}`} onClick={() => setTableFilterDueOnly(prev => !prev)} title="ক্লিক করে শুধু বকেয়া (Due) ইনভয়েস ফিল্টার করুন">
+                    <span className="inline-flex items-center justify-end gap-1">
+                      বাকি (DUE) {tableFilterDueOnly && <span className="text-[9px] bg-white text-rose-700 px-1 rounded font-black">সক্রিয়</span>}
+                    </span>
+                  </th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-right text-sky-800">Usg_Fee</th>
-                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-purple-800">PC</th>
+                  <th scope="col" className={`border border-slate-300 p-2.5 text-right cursor-pointer transition-colors ${tableFilterPcOnly ? 'bg-purple-200 text-purple-950 font-black' : 'text-purple-800 hover:bg-purple-100'}`} onClick={() => setTableFilterPcOnly(prev => !prev)} title="ক্লিক করে শুধু পিসি (PC) যুক্ত ইনভয়েস ফিল্টার করুন">
+                    <span className="inline-flex items-center justify-end gap-1">
+                      PC {tableFilterPcOnly && <span className="text-[9px] bg-purple-600 text-white px-1 rounded">সক্রিয়</span>}
+                    </span>
+                  </th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-right text-cyan-900 bg-cyan-50/50">নিট ইনকাম</th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-center">স্ট্যাটাস</th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-left">লাস্ট মডিফাইড</th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-center w-16">অ্যাকশন</th>
+                </tr>
+
+                {/* Top Column Totals Row (Directly Aligned Above Data Rows) */}
+                <tr className="divide-x divide-slate-300 bg-[#e7edf5] text-slate-900 font-black border-b-2 border-slate-400 select-none text-[11px]">
+                  <td className="border border-slate-300 p-2 text-center text-[10px] text-slate-700 font-black bg-slate-200">মোট</td>
+                  <td className="border border-slate-300 p-2 text-left font-mono font-black text-sky-900 whitespace-nowrap">
+                    {filteredInvoices.length} টি
+                  </td>
+                  <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
+                  <td className="border border-slate-300 p-2 text-left font-bold text-slate-800 whitespace-nowrap">
+                    {filteredInvoices.length} জন
+                  </td>
+                  <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
+                  <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
+                  <td className="border border-slate-300 p-2 text-right font-mono font-black text-slate-950 whitespace-nowrap">
+                    {Number(tableTotals.total || 0).toFixed(2)}
+                  </td>
+                  <td className="border border-slate-300 p-2 text-right font-mono font-black text-rose-700 whitespace-nowrap">
+                    {Number(tableTotals.discount || 0).toFixed(2)}
+                  </td>
+                  <td className="border border-slate-300 p-2 text-right font-mono font-black text-sky-900 whitespace-nowrap">
+                    {Math.max(0, (Number(tableTotals.total) || 0) - (Number(tableTotals.discount) || 0)).toFixed(2)}
+                  </td>
+                  <td className="border border-slate-300 p-2 text-right font-mono font-black text-emerald-800 whitespace-nowrap">
+                    {Number(tableTotals.paid || 0).toFixed(2)}
+                  </td>
+                  <td className="border border-slate-300 p-2 text-right font-mono font-black text-rose-700 whitespace-nowrap">
+                    {Number(tableTotals.due || 0).toFixed(2)}
+                  </td>
+                  <td className="border border-slate-300 p-2 text-right font-mono font-black text-sky-800 whitespace-nowrap">
+                    {Number(tableTotals.usgFee || 0).toFixed(2)}
+                  </td>
+                  <td className="border border-slate-300 p-2 text-right font-mono font-black text-purple-800 whitespace-nowrap">
+                    {Number(tableTotals.pc || 0).toFixed(2)}
+                  </td>
+                  <td className="border border-slate-300 p-2 text-right font-mono font-black text-cyan-900 bg-cyan-100/70 whitespace-nowrap">
+                    {Number(tableTotals.income || 0).toFixed(2)}
+                  </td>
+                  <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
+                  <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
+                  <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
                 </tr>
               </thead>
               <tbody className="font-semibold text-slate-800 divide-y divide-slate-300">
@@ -3463,10 +3608,17 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               </tbody>
               {filteredInvoices.length > 0 && (
                 <tfoot className="bg-slate-200 text-slate-900 border-t-2 border-slate-400 font-black">
-                  <tr className="divide-x divide-slate-300">
-                    <td colSpan={6} className="border border-slate-300 p-2.5 text-right text-xs uppercase tracking-wider text-slate-800">
-                      Total Summary:
+                  <tr className="divide-x divide-slate-300 text-[11px]">
+                    <td className="border border-slate-300 p-2 text-center text-[10px] text-slate-700 font-black bg-slate-300/70">মোট</td>
+                    <td className="border border-slate-300 p-2 text-left font-mono font-black text-sky-900 whitespace-nowrap">
+                      {filteredInvoices.length} টি
                     </td>
+                    <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
+                    <td className="border border-slate-300 p-2 text-left font-bold text-slate-800 whitespace-nowrap">
+                      {filteredInvoices.length} জন
+                    </td>
+                    <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
+                    <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
                     <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-slate-950 text-right font-mono font-black">
                       {Number(tableTotals.total || 0).toFixed(2)}
                     </td>
@@ -3491,7 +3643,9 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                     <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-cyan-900 text-right font-mono font-black bg-cyan-100/60">
                       {Number(tableTotals.income || 0).toFixed(2)}
                     </td>
-                    <td colSpan={3} className="border border-slate-300 p-2.5"></td>
+                    <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
+                    <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
+                    <td className="border border-slate-300 p-2 text-center text-slate-400">-</td>
                   </tr>
                 </tfoot>
               )}

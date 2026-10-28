@@ -2202,6 +2202,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     };
 
     const executeDeleteExpense = async (date: string, id: any) => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
             const targetIdStr = String(id).trim();
             const safeDetailedExpenses = detailedExpenses || {};
@@ -3119,8 +3120,16 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             {successMessage && (
                 <div className="fixed top-24 right-8 z-50 animate-bounce">
                     <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black shadow-2xl flex items-center gap-3 border border-emerald-400">
-                        <Activity className="w-5 h-5" />
-                        {successMessage}
+                        <Activity className="w-5 h-5 shrink-0" />
+                        <span>{successMessage}</span>
+                        <button 
+                            type="button"
+                            onClick={() => setSuccessMessage('')} 
+                            className="ml-2 bg-emerald-700/60 hover:bg-emerald-800 text-white rounded-lg p-1 text-xs"
+                            title="বন্ধ করুন"
+                        >
+                            ✕
+                        </button>
                     </div>
                 </div>
             )}
@@ -3635,13 +3644,17 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                     onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
                                     className="flex-1 px-6 py-3.5 text-sm font-black text-slate-300 bg-slate-800 rounded-2xl hover:bg-slate-700 transition-all border border-slate-700 uppercase tracking-widest active:scale-95"
                                 >
-                                    No
+                                    না (No)
                                 </button>
                                 <button 
-                                    onClick={() => { confirmModal.onConfirm(); }} 
-                                    className="flex-1 px-6 py-3.5 text-sm font-black text-white bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl hover:from-emerald-500 hover:to-teal-600 transition-all shadow-[0_10px_20px_rgba(16,185,129,0.3)] uppercase tracking-widest active:scale-95"
+                                    onClick={() => { 
+                                        const action = confirmModal.onConfirm;
+                                        setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+                                        if (action) action(); 
+                                    }} 
+                                    className="flex-1 px-6 py-3.5 text-sm font-black text-white bg-gradient-to-br from-rose-600 to-red-700 rounded-2xl hover:from-rose-500 hover:to-red-600 transition-all shadow-[0_10px_20px_rgba(225,29,72,0.3)] uppercase tracking-widest active:scale-95"
                                 >
-                                    Yes
+                                    হ্যাঁ (Yes)
                                 </button>
                             </div>
                         </div>

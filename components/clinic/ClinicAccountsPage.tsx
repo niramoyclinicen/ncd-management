@@ -2602,7 +2602,11 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     No, Cancel
                                 </button>
                                 <button 
-                                    onClick={confirmModal.onConfirm}
+                                    onClick={() => {
+                                        const action = confirmModal.onConfirm;
+                                        setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+                                        if (action) action();
+                                    }}
                                     className="flex-1 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-900/40 transition-all active:scale-95 border border-emerald-400/30"
                                 >
                                     Yes, Confirm

@@ -10,6 +10,216 @@ import DoctorInfoPage from './DoctorInfoPage';
 import ReferrerInfoPage from './ReferrerInfoPage';
 import TestInfoPage from './TestInfoPage';
 import { TrashIcon, DnaIcon, Activity, FileTextIcon } from './Icons';
+import { FileSpreadsheet, ArrowUpDown, Search as SearchIcon, ChevronDown, Check, X, Stethoscope, Users, Calendar } from 'lucide-react';
+
+interface FilterOption {
+  id: string;
+  name: string;
+  details?: string;
+}
+
+interface CompactSearchableFilterProps {
+  placeholder: string;
+  allLabel: string;
+  options: FilterOption[];
+  value: string;
+  onChange: (id: string) => void;
+  icon?: React.ReactNode;
+  themeColor: 'sky' | 'purple' | 'emerald';
+  widthClass?: string;
+}
+
+const CompactSearchableFilter: React.FC<CompactSearchableFilterProps> = ({
+  placeholder,
+  allLabel,
+  options,
+  value,
+  onChange,
+  icon,
+  themeColor,
+  widthClass = 'w-36 sm:w-44'
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const selectedOption = useMemo(() => {
+    return options.find(o => o.id === value);
+  }, [options, value]);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm.trim()) return options;
+    const q = searchTerm.toLowerCase();
+    return options.filter(o => 
+      (o.name || '').toLowerCase().includes(q) || 
+      (o.details && o.details.toLowerCase().includes(q)) ||
+      (o.id || '').toLowerCase().includes(q)
+    );
+  }, [options, searchTerm]);
+
+  const themeClasses = {
+    sky: {
+      button: value 
+        ? 'bg-sky-100 border-sky-400 text-sky-950 ring-1 ring-sky-300' 
+        : 'bg-sky-50/90 hover:bg-sky-100 border-sky-300 text-sky-950',
+      popover: 'border-sky-300 shadow-sky-900/10',
+      searchInput: 'border-sky-300 focus:border-sky-500 focus:ring-sky-300 bg-sky-50/50 text-sky-950 placeholder:text-sky-600/70',
+      activeItem: 'bg-sky-100 text-sky-950 font-bold',
+      hoverItem: 'hover:bg-sky-50',
+      iconColor: 'text-sky-600',
+    },
+    purple: {
+      button: value 
+        ? 'bg-purple-100 border-purple-400 text-purple-950 ring-1 ring-purple-300' 
+        : 'bg-purple-50/90 hover:bg-purple-100 border-purple-300 text-purple-950',
+      popover: 'border-purple-300 shadow-purple-900/10',
+      searchInput: 'border-purple-300 focus:border-purple-500 focus:ring-purple-300 bg-purple-50/50 text-purple-950 placeholder:text-purple-600/70',
+      activeItem: 'bg-purple-100 text-purple-950 font-bold',
+      hoverItem: 'hover:bg-purple-50',
+      iconColor: 'text-purple-600',
+    },
+    emerald: {
+      button: value 
+        ? 'bg-emerald-100 border-emerald-400 text-emerald-950 ring-1 ring-emerald-300' 
+        : 'bg-emerald-50/90 hover:bg-emerald-100 border-emerald-300 text-emerald-950',
+      popover: 'border-emerald-300 shadow-emerald-900/10',
+      searchInput: 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-300 bg-emerald-50/50 text-emerald-950 placeholder:text-emerald-600/70',
+      activeItem: 'bg-emerald-100 text-emerald-950 font-bold',
+      hoverItem: 'hover:bg-emerald-50',
+      iconColor: 'text-emerald-600',
+    }
+  }[themeColor];
+
+  return (
+    <div className={`relative ${widthClass}`} ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setSearchTerm('');
+        }}
+        className={`w-full flex items-center justify-between gap-1.5 border rounded-xl px-2.5 py-1.5 text-xs font-bold shadow-sm transition-all cursor-pointer ${themeClasses.button}`}
+        title={selectedOption ? `${selectedOption.name}` : placeholder}
+      >
+        <div className="flex items-center gap-1.5 overflow-hidden">
+          {icon && <span className={`shrink-0 ${themeClasses.iconColor}`}>{icon}</span>}
+          <span className="truncate text-left">
+            {selectedOption ? selectedOption.name : placeholder}
+          </span>
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          {value ? (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+                setIsOpen(false);
+              }}
+              className="p-0.5 hover:bg-rose-100 hover:text-rose-600 rounded-full text-slate-400 transition-colors cursor-pointer"
+              title="মুছে ফেলুন"
+            >
+              <X size={12} />
+            </span>
+          ) : (
+            <ChevronDown size={13} className={`text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+          )}
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className={`absolute left-0 mt-1.5 w-64 max-w-[90vw] bg-white border-2 ${themeClasses.popover} rounded-2xl shadow-2xl p-2 z-[9999] animate-fade-in`}>
+          <div className="relative mb-2">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="সার্চ করুন..."
+              className={`w-full pl-7 pr-7 py-1 text-xs rounded-lg border outline-none font-bold ${themeClasses.searchInput}`}
+            />
+            <SearchIcon size={12} className={`absolute left-2 top-2 ${themeClasses.iconColor}`} />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-56 overflow-y-auto space-y-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                !value ? themeClasses.activeItem : `${themeClasses.hoverItem} text-slate-700`
+              }`}
+            >
+              <span>{allLabel}</span>
+              {!value && <Check size={13} className={themeClasses.iconColor} />}
+            </button>
+
+            {filteredOptions.length === 0 ? (
+              <div className="py-3 text-center text-xs text-slate-400 font-medium">
+                কোনো ফলাফল পাওয়া যায়নি
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = opt.id === value;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.id);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                      isSelected ? themeClasses.activeItem : `${themeClasses.hoverItem} text-slate-800`
+                    }`}
+                  >
+                    <div className="flex flex-col truncate pr-2">
+                      <span className="truncate">{opt.name}</span>
+                      {opt.details && (
+                        <span className="text-[10px] text-slate-500 font-normal truncate">
+                          {opt.details}
+                        </span>
+                      )}
+                    </div>
+                    {isSelected && <Check size={13} className={`shrink-0 ${themeClasses.iconColor}`} />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface LabInvoicingPageProps {
   patients?: Patient[];
@@ -116,6 +326,27 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [tableFilterReferrarId, setTableFilterReferrarId] = useState('');
   const [tableFilterPatientName, setTableFilterPatientName] = useState('');
   const [tableFilterDueOnly, setTableFilterDueOnly] = useState(false);
+  const [invoiceSortOrder, setInvoiceSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  const doctorFilterOptions = useMemo<FilterOption[]>(() => {
+    return (Array.isArray(doctors) ? doctors : []).map(d => ({
+      id: d.doctor_id,
+      name: d.doctor_name || '',
+      details: [d.qualification, d.speciality].filter(Boolean).join(' | ') || d.mobile || ''
+    }));
+  }, [doctors]);
+
+  const referrarFilterOptions = useMemo<FilterOption[]>(() => {
+    return (Array.isArray(referrars) ? referrars : []).map(r => {
+      const refId = r.ref_id || (r as any).referrar_id || '';
+      const refName = r.ref_name || (r as any).referrar_name || '';
+      return {
+        id: refId,
+        name: refName,
+        details: [r.area, r.mobile, (r as any).hospital].filter(Boolean).join(' | ') || ''
+      };
+    });
+  }, [referrars]);
 
   // Local state for the "Paid Amount (BDT)" input to allow free typing
   const [displayPaidAmount, setDisplayPaidAmount] = useState<string>('');
@@ -320,13 +551,13 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     return { y: 0, m: 0, d: 0, isoDate: dateOnly };
   }
 
-  // Filter invoices when search term or invoices state changes
+  // Filter and sort invoices sequentially by invoice ID serial
   const filteredInvoices = useMemo(() => {
     const safeInvs = Array.isArray(invoices) ? invoices : [];
     const cleanSearch = (searchTerm || '').toLowerCase();
     const cleanFilterPatient = (tableFilterPatientName || '').toLowerCase();
 
-    return safeInvs.filter(invoice => {
+    const filtered = safeInvs.filter(invoice => {
       if (!invoice) return false;
       if (invoice.status === 'Deleted' || (invoice as any).isDeleted || (invoice as any).is_deleted) return false;
       const matchesSearch = !cleanSearch ||
@@ -349,7 +580,37 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
       return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesReferrar && matchesPatient && matchesDue;
     });
-  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterReferrarId, tableFilterPatientName, tableFilterDueOnly, invoices]);
+
+    const extractSerialNum = (idStr: string | undefined): number => {
+      if (!idStr) return 0;
+      const clean = String(idStr).trim();
+      const match = clean.match(/(\d+)$/);
+      if (match) return parseInt(match[1], 10);
+      const anyNum = clean.match(/\d+/g);
+      if (anyNum && anyNum.length > 0) return parseInt(anyNum[anyNum.length - 1], 10);
+      return 0;
+    };
+
+    return filtered.sort((a, b) => {
+      const idA = String(a?.invoice_id || (a as any)?.id || '').trim();
+      const idB = String(b?.invoice_id || (b as any)?.id || '').trim();
+
+      const numA = extractSerialNum(idA);
+      const numB = extractSerialNum(idB);
+
+      const prefixA = idA.replace(/\d+$/, '');
+      const prefixB = idB.replace(/\d+$/, '');
+
+      let diff = 0;
+      if (prefixA === prefixB && numA !== numB) {
+        diff = numA - numB;
+      } else {
+        diff = idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+      }
+
+      return invoiceSortOrder === 'asc' ? diff : -diff;
+    });
+  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterReferrarId, tableFilterPatientName, tableFilterDueOnly, invoices, invoiceSortOrder]);
 
 
   const allAvailableTestCategories = useMemo(() => {
@@ -2876,317 +3137,366 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
         </div>
       </div>
 
-      {/* All Invoices Table Section with Distinct High-Contrast Styling */}
-      <div className="mt-8 p-6 rounded-2xl bg-gradient-to-b from-[#0b1329] via-[#0d1730] to-[#080d1e] border-2 border-cyan-900/50 shadow-2xl shadow-black/60">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-cyan-900/40 pb-4">
-            <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-cyan-950/80 rounded-xl text-cyan-400 border border-cyan-700/60 shadow-inner">
-                    <FileTextIcon size={20} />
-                </div>
-                <div>
-                    <h3 className="text-xl font-black text-white flex items-center gap-3 tracking-tight">
-                        All Invoices
-                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-900/80 text-cyan-300 border border-cyan-600/60 font-mono font-bold">
-                          {(Array.isArray(filteredInvoices) ? filteredInvoices : []).length} Invoices
-                        </span>
-                    </h3>
-                    <p className="text-xs text-slate-400 font-medium mt-0.5">ল্যাব ইনভয়েস হিস্ট্রি তালিকা — ক্লিক করে বিস্তারিত দেখুন বা সংশোধন করুন</p>
-                </div>
-            </div>
-            
-            {/* TABLE FILTER CONTROLS */}
-            <div className="flex flex-wrap items-center justify-end gap-2.5 bg-[#0e1a38] p-2.5 rounded-xl border border-cyan-900/60 shadow-inner no-print w-full md:w-auto">
-                <div className="w-36">
-                    <input 
-                        type="text" 
-                        placeholder="Search Patient..." 
-                        value={tableFilterPatientName} 
-                        onChange={(e) => setTableFilterPatientName(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
-                    />
-                </div>
-                <div className="w-36">
-                    <select 
-                        value={tableFilterDoctorId} 
-                        onChange={(e) => setTableFilterDoctorId(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
-                    >
-                        <option value="">Filter Doctor...</option>
-                        {(Array.isArray(doctors) ? doctors : []).map(d => <option key={d.doctor_id} value={d.doctor_id}>{d.doctor_name}</option>)}
-                    </select>
-                </div>
-                <div className="w-36">
-                    <select 
-                        value={tableFilterReferrarId} 
-                        onChange={(e) => setTableFilterReferrarId(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
-                    >
-                        <option value="">Filter Referrer...</option>
-                        {(Array.isArray(referrars) ? referrars : []).map(r => {
-                          const refId = r.ref_id || (r as any).referrar_id || '';
-                          const refName = r.ref_name || (r as any).referrar_name || '';
-                          return <option key={refId} value={refId}>{refName}</option>;
-                        })}
-                    </select>
-                </div>
-                <div className="flex items-center gap-1.5">
-                    <input 
-                        type="date" 
-                        value={tableFilterDate} 
-                        onChange={(e) => { setTableFilterDate(e.target.value); setTableFilterMonth(''); setTableFilterYear(''); }}
-                        className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
-                        title="Filter by Specific Date"
-                    />
-                </div>
-                <div className="flex items-center gap-1.5">
-                    <select 
-                        value={tableFilterMonth} 
-                        onChange={(e) => { setTableFilterMonth(e.target.value); setTableFilterDate(''); }}
-                        className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
-                    >
-                        <option value="">Month...</option>
-                        {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
-                    </select>
-                </div>
-                <div className="flex items-center gap-1.5">
-                    <select 
-                        value={tableFilterYear} 
-                        onChange={(e) => { setTableFilterYear(e.target.value); setTableFilterDate(''); }}
-                        className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
-                    >
-                        <option value="">Year...</option>
-                        {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
-                </div>
-                <button 
-                  onClick={() => setTableFilterDueOnly(!tableFilterDueOnly)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${tableFilterDueOnly ? 'bg-rose-600 text-white border-rose-400 shadow-[0_0_12px_rgba(225,29,72,0.5)]' : 'bg-slate-950 text-slate-300 border-slate-700 hover:border-rose-500 hover:text-rose-400'}`}
+      {/* ========================================================================= */}
+      {/* BOTTOM INVOICE / VOUCHER LIST (EXCEL-LIKE EYE-PROTECTIVE CANVAS) */}
+      {/* ========================================================================= */}
+      <div className="mt-8 bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 shadow-xl space-y-3.5 text-slate-800">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 border-b border-slate-300 pb-3">
+          <div className="shrink-0">
+            <h3 className="text-sm md:text-base font-black text-slate-900 uppercase tracking-wide flex items-center gap-2 whitespace-nowrap font-['Hind_Siliguri']">
+              <FileSpreadsheet className="text-emerald-700" size={18} /> ইনভয়েস তালিকা ({filteredInvoices.length} টি)
+            </h3>
+            <p className="text-xs text-slate-600 mt-0.5 font-medium">
+              পূর্বের সকল সংরক্ষিত ভাউচার ও ইনভয়েস দেখুন, সিরিয়াল সাজান, ফিল্টার করুন এবং এডিট বা প্রিন্ট করুন।
+            </p>
+          </div>
+          
+          {/* Filter & Sorting Controls */}
+          <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start xl:justify-end no-print">
+            {/* Invoice Serial Sort Toggle (Click to toggle Asc/Desc with arrow icon) */}
+            <button
+              type="button"
+              onClick={() => setInvoiceSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+              className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 text-teal-950 border border-teal-300 hover:border-teal-500 rounded-xl px-3 py-1.5 shadow-sm transition-all cursor-pointer select-none active:scale-95 text-xs font-black"
+              title={`সিরিয়াল সাজান: বর্তমানে ${invoiceSortOrder === 'asc' ? 'ছোট থেকে বড়' : 'বড় থেকে ছোট'} (ক্লিক করে পরিবর্তন করুন)`}
+            >
+              <span>সিরিয়াল</span>
+              <ArrowUpDown size={14} className={`text-teal-700 transition-transform duration-200 ${invoiceSortOrder === 'desc' ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Searchable Doctor Select */}
+            <CompactSearchableFilter
+              placeholder="সকল ডাক্তার"
+              allLabel="সকল ডাক্তার"
+              options={doctorFilterOptions}
+              value={tableFilterDoctorId}
+              onChange={(id) => setTableFilterDoctorId(id)}
+              icon={<Stethoscope size={13} />}
+              themeColor="sky"
+              widthClass="w-36 sm:w-44"
+            />
+
+            {/* Searchable Referrer Select */}
+            <CompactSearchableFilter
+              placeholder="সকল রেফারার"
+              allLabel="সকল রেফারার"
+              options={referrarFilterOptions}
+              value={tableFilterReferrarId}
+              onChange={(id) => setTableFilterReferrarId(id)}
+              icon={<Users size={13} />}
+              themeColor="purple"
+              widthClass="w-36 sm:w-44"
+            />
+
+            {/* Month Filter */}
+            <select 
+              value={tableFilterMonth} 
+              onChange={(e) => { setTableFilterMonth(e.target.value); setTableFilterDate(''); }}
+              className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-amber-950 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400 shadow-sm cursor-pointer"
+            >
+              <option value="">সকল মাস</option>
+              {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+            </select>
+
+            {/* Year Filter */}
+            <select 
+              value={tableFilterYear} 
+              onChange={(e) => { setTableFilterYear(e.target.value); setTableFilterDate(''); }}
+              className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-amber-950 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400 shadow-sm cursor-pointer"
+            >
+              <option value="">সকল সন</option>
+              {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y} সন</option>)}
+            </select>
+
+            {/* Date Filter */}
+            <input 
+              type="date" 
+              value={tableFilterDate} 
+              onChange={(e) => { setTableFilterDate(e.target.value); setTableFilterMonth(''); setTableFilterYear(''); }}
+              className="bg-indigo-50/80 hover:bg-indigo-100/80 border border-indigo-300 rounded-xl px-2.5 py-1.5 text-xs text-indigo-950 font-bold font-mono outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 shadow-sm cursor-pointer"
+              title="নির্দিষ্ট তারিখ"
+            />
+
+            {/* Due Filter */}
+            <button 
+              type="button"
+              onClick={() => setTableFilterDueOnly(!tableFilterDueOnly)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 border shadow-sm cursor-pointer active:scale-95 ${
+                tableFilterDueOnly 
+                  ? 'bg-rose-600 border-rose-700 text-white shadow-md ring-2 ring-rose-300' 
+                  : 'bg-rose-50/80 hover:bg-rose-100 border-rose-300 text-rose-900'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${tableFilterDueOnly ? 'bg-white animate-pulse' : 'bg-rose-500'}`}></span>
+              বকেয়া (Dues)
+            </button>
+
+            {/* Patient Search Input */}
+            <div className="relative flex-1 min-w-[170px] sm:w-48 xl:w-56">
+              <input 
+                type="text" 
+                placeholder="রোগীর নাম বা আইডি..." 
+                value={tableFilterPatientName} 
+                onChange={(e) => setTableFilterPatientName(e.target.value)}
+                className="w-full bg-emerald-50/80 focus:bg-white border border-emerald-300 focus:border-emerald-600 rounded-xl pl-8 pr-7 py-1.5 text-xs text-emerald-950 font-bold outline-none focus:ring-2 focus:ring-emerald-200 shadow-sm placeholder:text-emerald-700/60 transition-all"
+              />
+              <SearchIcon className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-emerald-700" />
+              {tableFilterPatientName && (
+                <button
+                  type="button"
+                  onClick={() => setTableFilterPatientName('')}
+                  className="absolute right-2 top-2 text-emerald-700 hover:text-emerald-900 p-0.5 cursor-pointer"
+                  title="ক্লিয়ার"
                 >
-                    <div className={`w-2 h-2 rounded-full ${tableFilterDueOnly ? 'bg-white animate-pulse' : 'bg-rose-500'}`}></div>
-                    Dues Invoices
+                  <X size={12} />
                 </button>
-                <button 
-                    onClick={resetTableFilters}
-                    className="px-3 py-1.5 bg-slate-950 border border-slate-700 text-slate-300 hover:text-white hover:border-cyan-500 rounded-lg flex items-center gap-1.5 text-xs font-black uppercase tracking-wider transition-all"
-                    title="Clear All Table Filters"
-                >
-                    <TrashIcon size={12} />
-                    Clear
-                </button>
+              )}
             </div>
+
+            {/* Reset Button */}
+            {(tableFilterPatientName || tableFilterDoctorId || tableFilterReferrarId || tableFilterDate || tableFilterMonth || tableFilterYear || tableFilterDueOnly) && (
+              <button 
+                type="button"
+                onClick={resetTableFilters}
+                className="px-2.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
+                title="রিসেট ফিল্টার"
+              >
+                ✕ রিসেট
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Eye-Protective Table Canvas */}
-        <div className="overflow-x-auto rounded-xl border border-cyan-900/60 shadow-xl bg-[#080e1e]">
-          <table className="min-w-full divide-y divide-slate-700/70 font-sans">
-            <thead>
-              {/* COLUMN-WISE TOTALS SUMMARY ROW */}
-              <tr className="bg-[#050a16] border-b-2 border-cyan-900/80 text-xs no-print">
-                <th colSpan={6} className="px-3 py-2.5 text-right text-[11px] font-black text-cyan-300 uppercase tracking-widest">
-                    Summary Totals:
-                </th>
-                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-slate-100 bg-[#0a1329] border-l border-slate-800">
-                    {Number(tableTotals.total || 0).toFixed(2)}
-                </th>
-                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-amber-300 bg-amber-950/30 border-l border-slate-800">
-                    {Number(tableTotals.discount || 0).toFixed(2)}
-                </th>
-                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-emerald-400 bg-emerald-950/30 border-l border-slate-800">
-                    {Number(tableTotals.paid || 0).toFixed(2)}
-                </th>
-                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-rose-400 bg-rose-900/30 border-l border-slate-800">
-                    {Number(tableTotals.due || 0).toFixed(2)}
-                </th>
-                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-sky-300 bg-sky-950/40 border-l border-slate-800">
-                    {Number(tableTotals.usgFee || 0).toFixed(2)}
-                </th>
-                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-purple-300 bg-purple-950/40 border-l border-slate-800">
-                    {Number(tableTotals.pc || 0).toFixed(2)}
-                </th>
-                <th className="px-3 py-2.5 text-right text-xs font-mono font-black text-cyan-300 bg-cyan-950/50 border-l border-slate-800">
-                    {Number(tableTotals.income || 0).toFixed(2)}
-                </th>
-                <th colSpan={3} className="px-3 py-2.5 text-left text-xs font-black text-cyan-300 border-l border-slate-800 bg-[#0a1329]">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1.5">Net Realized Income:</span>
-                    <span className="font-mono text-emerald-400 font-bold">{Number(tableTotals.income || 0).toFixed(2)}</span>
-                </th>
-              </tr>
-              {/* MAIN COLUMN HEADERS */}
-              <tr className="bg-[#0d1935] border-b border-cyan-900 text-slate-200">
-                <th scope="col" className="px-2.5 py-3 text-center text-[11px] font-black text-cyan-400 uppercase tracking-wider w-10">SL</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Invoice ID</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Date</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Patient Name</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Doctor</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-cyan-400 uppercase tracking-wider">Referrar</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-cyan-400 uppercase tracking-wider">Total</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-amber-400 uppercase tracking-wider">Discount</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-emerald-400 uppercase tracking-wider">Paid</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-rose-400 uppercase tracking-wider">Due</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-sky-300 uppercase tracking-wider">Usg_Fee</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-purple-300 uppercase tracking-wider">PC</th>
-                <th scope="col" className="px-3 py-3 text-right text-[11px] font-black text-cyan-300 uppercase tracking-wider bg-cyan-950/40">Net_Income</th>
-                <th scope="col" className="px-3 py-3 text-center text-[11px] font-black text-cyan-400 uppercase tracking-wider">Status</th>
-                <th scope="col" className="px-3 py-3 text-left text-[11px] font-black text-slate-400 uppercase tracking-wider">Last Modified</th>
-                <th scope="col" className="px-3 py-3 text-center text-[11px] font-black text-rose-400 uppercase tracking-wider w-16">অ্যাকশন</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-cyan-950/60">
-              {(Array.isArray(filteredInvoices) ? filteredInvoices : []).map((invoice, index) => {
-                const isSelected = selectedInvoiceId === invoice.invoice_id;
-                const isEven = index % 2 === 0;
-                
-                const invItems = Array.isArray(invoice.items) ? invoice.items : [];
-                const invUsgFee = invItems.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
-                const invLabFee = invItems.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
-                const invCommPaid = Number(invoice.commission_paid ?? (invoice as any).commissionPaid) || 0;
-                const invDiscount = Number(invoice.discount_amount) || 0;
-                const invPaidAmt = Number(invoice.paid_amount) || 0;
-                const rowNetIncome = (invoice.status === 'Cancelled' || invoice.status === 'Returned') ? 0 : Math.max(0, invPaidAmt - invUsgFee - invLabFee - invCommPaid);
+        {/* Live Summary Stats Ribbon (Exact match to uploaded image) */}
+        <div className="flex flex-wrap items-center gap-4 text-xs font-bold bg-white px-5 py-2.5 rounded-xl border border-slate-300 shadow-sm justify-around">
+          <div>
+            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট ভাউচার:</span>
+            <span className="text-slate-950 font-mono font-black text-sm">{filteredInvoices.length} টি</span>
+          </div>
+          <div className="h-5 w-px bg-slate-300"></div>
+          <div>
+            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট রোগী:</span>
+            <span className="text-slate-950 font-mono font-black text-sm">{filteredInvoices.length} জন</span>
+          </div>
+          <div className="h-5 w-px bg-slate-300"></div>
+          <div>
+            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট গ্রস বিল:</span>
+            <span className="text-slate-900 font-mono font-black text-sm">৳{Number(tableTotals.total || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
+          </div>
+          <div className="h-5 w-px bg-slate-300"></div>
+          <div>
+            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট ছাড়:</span>
+            <span className="text-rose-700 font-mono font-black text-sm">৳{Number(tableTotals.discount || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
+          </div>
+          <div className="h-5 w-px bg-slate-300"></div>
+          <div>
+            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট ক্যাশ আদায়:</span>
+            <span className="text-emerald-700 font-mono font-black text-base">৳{Number(tableTotals.paid || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
+          </div>
+          <div className="h-5 w-px bg-slate-300"></div>
+          <div>
+            <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট বকেয়া :</span>
+            <span className="text-rose-700 font-mono font-black text-base">৳{Number(tableTotals.due || 0).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
+          </div>
+        </div>
 
-                return (
-                  <tr 
-                    key={invoice.invoice_id} 
-                    onClick={() => handleRowClick(invoice)} 
-                    className={`
-                      cursor-pointer transition-all duration-150 ease-in-out select-none
-                      ${isSelected 
-                        ? 'bg-cyan-950/90 border-l-4 border-l-cyan-400 shadow-md text-white' 
-                        : isEven 
-                          ? 'bg-[#0a1224] text-slate-200 hover:bg-[#132247] hover:text-white' 
-                          : 'bg-[#0e172e] text-slate-200 hover:bg-[#132247] hover:text-white'
-                      }
-                      hover:shadow-md hover:translate-x-0.5
-                    `} 
-                    aria-selected={isSelected} 
-                    tabIndex={0} 
-                    onKeyDown={(e) => e.key === 'Enter' && handleRowClick(invoice)}
-                  >
-                    <td className="px-2.5 py-2.5 whitespace-nowrap text-xs text-slate-400 font-mono font-bold text-center">
-                      {index + 1}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className="font-mono font-black text-xs text-sky-400 bg-sky-950/90 px-2 py-0.5 rounded border border-sky-800/60 shadow-sm inline-block">
-                        #{invoice.invoice_id}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-300 font-medium">
-                      {invoice.invoice_date || (invoice as any).date || (invoice as any).invoiceDate || '-'}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <div className="flex flex-col">
-                        <span className="font-black text-xs text-slate-100 uppercase tracking-tight">
-                          {invoice.patient_name}
-                        </span>
-                        <span className="text-[10px] text-slate-400 normal-case font-medium">
-                          {(() => {
-                            const p = patients.find(pt => pt.pt_id === invoice.patient_id);
-                            return p ? `${p.gender || ''} ${p.ageY ? `${p.ageY}Y` : ''} ${p.address ? `| ${p.address}` : ''}` : 'N/A';
-                          })()}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-sky-200 font-medium">
-                      {invoice.doctor_name || 'Self/Walk-in'}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400 italic">
-                      {invoice.referrar_name || '-'}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-100 text-right font-mono font-bold">
-                      {Number(invoice.total_amount || 0).toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-amber-300">
-                      {invDiscount.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black text-emerald-400">
-                      {Number(invoice.paid_amount || 0).toFixed(2)}
-                    </td>
-                    <td className={`px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black ${Number(invoice.due_amount) > 0.01 ? 'text-rose-400' : 'text-slate-500'}`}>
-                      {Number(invoice.due_amount || 0).toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-sky-300">
-                      {invUsgFee.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-purple-300">
-                      {invCommPaid.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-right font-mono font-black text-cyan-300 bg-cyan-950/30">
-                      {rowNetIncome.toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-center">
-                      <span className={`
-                        px-2.5 py-0.5 inline-flex text-[10px] leading-4 font-black uppercase rounded-full border shadow-sm
-                        ${invoice.status === 'Paid' 
-                          ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60' 
-                          : invoice.status === 'Due' 
-                            ? 'bg-rose-950/80 text-rose-300 border-rose-700/60' 
-                            : invoice.status === 'Returned' 
-                              ? 'bg-blue-950/80 text-blue-300 border-blue-700/60' 
-                              : 'bg-slate-800 text-slate-400 border-slate-700'
-                        }
-                      `}>
-                        {invoice.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
-                      {invoice.last_modified}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setInvoiceToDelete(invoice);
-                        }}
-                        className="p-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg transition-all shadow border border-rose-500/30 cursor-pointer inline-flex items-center justify-center"
-                        title="ইনভয়েসটি মুছে ফেলুন (Delete Invoice)"
-                      >
-                        <TrashIcon size={14} />
-                      </button>
+        {/* Embedded Excel-Grid Table */}
+        <div className="bg-white border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto max-h-[520px]">
+            <table className="w-full text-left border-collapse text-xs border border-slate-300 font-sans">
+              <thead className="bg-[#dce6f1] text-slate-800 uppercase font-black tracking-wider border-b-2 border-slate-400 sticky top-0 z-10 select-none text-[11px]">
+                <tr className="divide-x divide-slate-300">
+                  <th scope="col" className="border border-slate-300 p-2.5 text-center w-12">ক্রমিক</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-left min-w-[130px]">
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                      className="flex items-center gap-1.5 whitespace-nowrap hover:text-emerald-800 transition-colors cursor-pointer group text-slate-800 font-black uppercase text-[11px]"
+                      title={`সিরিয়াল সাজান: বর্তমানে ${invoiceSortOrder === 'asc' ? 'ছোট থেকে বড়' : 'বড় থেকে ছোট'} (ক্লিক করে পরিবর্তন করুন)`}
+                    >
+                      <span>Invoice ID</span>
+                      <ArrowUpDown size={13} className={`transition-transform duration-200 ${invoiceSortOrder === 'desc' ? 'rotate-180 text-teal-700' : 'text-emerald-700'}`} />
+                    </button>
+                  </th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-left">তারিখ / মাস-বছর</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-left">রোগীর নাম</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-left">ডাক্তার</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-left">রেফারার</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-right">গ্রস বিল</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-rose-700">ছাড়</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-sky-800">নিট বিল</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-emerald-800">ক্যাশ আদায়</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-rose-800">বাকি (DUE)</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-sky-800">Usg_Fee</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-purple-800">PC</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-cyan-900 bg-cyan-50/50">নিট ইনকাম</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-center">স্ট্যাটাস</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-left">লাস্ট মডিফাইড</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-center w-16">অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody className="font-semibold text-slate-800 divide-y divide-slate-300">
+                {filteredInvoices.length === 0 ? (
+                  <tr>
+                    <td colSpan={17} className="border border-slate-300 p-8 text-center text-slate-500 font-bold bg-white text-sm">
+                      কোনো সংরক্ষিত রেকর্ড পাওয়া যায়নি।
                     </td>
                   </tr>
-                );
-              })}
-              {filteredInvoices.length === 0 && (
-                <tr>
-                    <td colSpan={16} className="px-6 py-16 text-center text-slate-500 italic uppercase font-black tracking-widest opacity-40 text-sm">
-                        কোন ইনভয়েস রেকর্ড পাওয়া যায়নি (No Invoices Found)
+                ) : (
+                  filteredInvoices.map((invoice, index) => {
+                    const isSelected = selectedInvoiceId === invoice.invoice_id;
+                    
+                    const invItems = Array.isArray(invoice.items) ? invoice.items : [];
+                    const invUsgFee = invItems.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
+                    const invLabFee = invItems.reduce((s, it) => s + ((Number(it?.extra_lab_fee) || 0) * (Number(it?.quantity) || 1)), 0);
+                    const invCommPaid = Number(invoice.commission_paid ?? (invoice as any).commissionPaid) || 0;
+                    const invDiscount = Number(invoice.discount_amount) || 0;
+                    const invTotal = Number(invoice.total_amount) || 0;
+                    const invNetPayable = Math.max(0, invTotal - invDiscount);
+                    const invPaidAmt = Number(invoice.paid_amount) || 0;
+                    const rowNetIncome = (invoice.status === 'Cancelled' || invoice.status === 'Returned') ? 0 : Math.max(0, invPaidAmt - invUsgFee - invLabFee - invCommPaid);
+
+                    return (
+                      <tr 
+                        key={invoice.invoice_id} 
+                        onClick={() => handleRowClick(invoice)} 
+                        className={`
+                          cursor-pointer transition-colors divide-x divide-slate-300 select-none
+                          ${isSelected 
+                            ? 'bg-sky-100/90 font-bold text-slate-950 border-l-4 border-l-sky-600 shadow-sm' 
+                            : 'bg-white even:bg-slate-50/70 hover:bg-sky-50/70 text-slate-800'
+                          }
+                        `} 
+                        aria-selected={isSelected} 
+                        tabIndex={0} 
+                        onKeyDown={(e) => e.key === 'Enter' && handleRowClick(invoice)}
+                      >
+                        <td className="border border-slate-300 p-2 text-center font-mono text-slate-600 bg-slate-100/60 font-bold">
+                          {index + 1}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap">
+                          <span className="font-mono font-black text-xs text-sky-800 bg-sky-100 px-2 py-0.5 rounded border border-sky-300 shadow-sm inline-block">
+                            #{invoice.invoice_id}
+                          </span>
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-slate-900 font-mono font-bold">
+                          {invoice.invoice_date || (invoice as any).date || (invoice as any).invoiceDate || '-'}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <span className="font-black text-xs text-slate-900 uppercase tracking-tight">
+                              {invoice.patient_name}
+                            </span>
+                            <span className="text-[10px] text-slate-500 normal-case font-medium">
+                              {(() => {
+                                const p = patients.find(pt => pt.pt_id === invoice.patient_id);
+                                return p ? `${p.gender || ''} ${p.ageY ? `${p.ageY}Y` : ''} ${p.address ? `| ${p.address}` : ''}` : 'N/A';
+                              })()}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-slate-800 font-bold">
+                          {invoice.doctor_name || 'Self/Walk-in'}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-slate-600 italic">
+                          {invoice.referrar_name || '-'}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-slate-950 text-right font-mono font-bold bg-slate-50/40">
+                          {invTotal.toFixed(2)}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-rose-600">
+                          {invDiscount.toFixed(2)}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-sky-900 bg-sky-50/30">
+                          {invNetPayable.toFixed(2)}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-right font-mono font-black text-emerald-800 bg-emerald-50/40">
+                          {invPaidAmt.toFixed(2)}
+                        </td>
+                        <td className={`border border-slate-300 p-2.5 whitespace-nowrap text-xs text-right font-mono font-black ${Number(invoice.due_amount) > 0.01 ? 'text-rose-700 bg-rose-50/40' : 'text-slate-400'}`}>
+                          {Number(invoice.due_amount || 0).toFixed(2)}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-sky-800">
+                          {invUsgFee.toFixed(2)}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-right font-mono font-bold text-purple-800">
+                          {invCommPaid.toFixed(2)}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-right font-mono font-black text-cyan-900 bg-cyan-50/40">
+                          {rowNetIncome.toFixed(2)}
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-center">
+                          <span className={`
+                            px-2.5 py-0.5 inline-flex text-[10px] leading-4 font-black uppercase rounded-full border shadow-sm
+                            ${invoice.status === 'Paid' 
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                              : invoice.status === 'Due' 
+                                ? 'bg-rose-100 text-rose-800 border-rose-300' 
+                                : invoice.status === 'Returned' 
+                                  ? 'bg-blue-100 text-blue-800 border-blue-300' 
+                                  : 'bg-slate-200 text-slate-600 border-slate-300'
+                            }
+                          `}>
+                            {invoice.status}
+                          </span>
+                        </td>
+                        <td className="border border-slate-300 p-2.5 whitespace-nowrap text-[10px] text-slate-600 font-mono">
+                          {invoice.last_modified}
+                        </td>
+                        <td className="border border-slate-300 p-2 text-center bg-slate-50/40" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInvoiceToDelete(invoice);
+                            }}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg transition-all shadow-sm border border-rose-200 cursor-pointer inline-flex items-center justify-center"
+                            title="ইনভয়েসটি মুছে ফেলুন (Delete Invoice)"
+                          >
+                            <TrashIcon size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+              {filteredInvoices.length > 0 && (
+                <tfoot className="bg-slate-200 text-slate-900 border-t-2 border-slate-400 font-black">
+                  <tr className="divide-x divide-slate-300">
+                    <td colSpan={6} className="border border-slate-300 p-2.5 text-right text-xs uppercase tracking-wider text-slate-800">
+                      Total Summary:
                     </td>
-                </tr>
+                    <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-slate-950 text-right font-mono font-black">
+                      {Number(tableTotals.total || 0).toFixed(2)}
+                    </td>
+                    <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-rose-700 text-right font-mono font-black">
+                      {Number(tableTotals.discount || 0).toFixed(2)}
+                    </td>
+                    <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-sky-900 text-right font-mono font-black">
+                      {Math.max(0, (Number(tableTotals.total) || 0) - (Number(tableTotals.discount) || 0)).toFixed(2)}
+                    </td>
+                    <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-emerald-800 text-right font-mono font-black">
+                      {Number(tableTotals.paid || 0).toFixed(2)}
+                    </td>
+                    <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-rose-700 text-right font-mono font-black">
+                      {Number(tableTotals.due || 0).toFixed(2)}
+                    </td>
+                    <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-sky-800 text-right font-mono font-black">
+                      {Number(tableTotals.usgFee || 0).toFixed(2)}
+                    </td>
+                    <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-purple-800 text-right font-mono font-black">
+                      {Number(tableTotals.pc || 0).toFixed(2)}
+                    </td>
+                    <td className="border border-slate-300 p-2.5 whitespace-nowrap text-xs text-cyan-900 text-right font-mono font-black bg-cyan-100/60">
+                      {Number(tableTotals.income || 0).toFixed(2)}
+                    </td>
+                    <td colSpan={3} className="border border-slate-300 p-2.5"></td>
+                  </tr>
+                </tfoot>
               )}
-            </tbody>
-            {filteredInvoices.length > 0 && (
-              <tfoot className="bg-slate-950 border-t-2 border-slate-700">
-                <tr>
-                  <td colSpan={6} className="px-3 py-3 text-right text-xs font-black text-slate-300 uppercase tracking-wider">
-                    Total Summary:
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-100 text-right font-mono font-black border-l border-slate-800">
-                    {Number(tableTotals.total || 0).toFixed(2)}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-amber-300 text-right font-mono font-black border-l border-slate-800">
-                    {Number(tableTotals.discount || 0).toFixed(2)}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-emerald-400 text-right font-mono font-black border-l border-slate-800">
-                    {Number(tableTotals.paid || 0).toFixed(2)}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-rose-400 text-right font-mono font-black border-l border-slate-800">
-                    {Number(tableTotals.due || 0).toFixed(2)}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-sky-300 text-right font-mono font-black border-l border-slate-800">
-                    {Number(tableTotals.usgFee || 0).toFixed(2)}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-purple-300 text-right font-mono font-black border-l border-slate-800">
-                    {Number(tableTotals.pc || 0).toFixed(2)}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-cyan-300 text-right font-mono font-black border-l border-slate-800 bg-cyan-950/40">
-                    {Number(tableTotals.income || 0).toFixed(2)}
-                  </td>
-                  <td colSpan={3} className="px-3 py-3 border-l border-slate-800"></td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
+            </table>
+          </div>
         </div>
       </div>
       </div>

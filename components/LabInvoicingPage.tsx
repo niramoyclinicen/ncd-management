@@ -320,6 +320,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   // Table Filter States
   const [tableFilterDate, setTableFilterDate] = useState('');
+  const [tableFilterDay, setTableFilterDay] = useState('');
   const [tableFilterMonth, setTableFilterMonth] = useState('');
   const [tableFilterYear, setTableFilterYear] = useState('');
   const [tableFilterDoctorId, setTableFilterDoctorId] = useState('');
@@ -330,6 +331,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
   const [tableFilterDueOnly, setTableFilterDueOnly] = useState(false);
   const [tableFilterDiscountOnly, setTableFilterDiscountOnly] = useState(false);
   const [tableFilterPcOnly, setTableFilterPcOnly] = useState(false);
+  const [tableFilterUsgOnly, setTableFilterUsgOnly] = useState(false);
   const [invoiceSortOrder, setInvoiceSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const doctorFilterOptions = useMemo<FilterOption[]>(() => {
@@ -576,6 +578,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
       const invDateParts = getNormalizedDateParts(invDateStr);
       const matchesDate = !tableFilterDate || invDateParts.isoDate === tableFilterDate || invDateStr === tableFilterDate;
       
+      const matchesDay = !tableFilterDay || String(invDateParts.d).padStart(2, '0') === tableFilterDay || String(invDateParts.d) === tableFilterDay;
       const matchesMonth = !tableFilterMonth || String(invDateParts.m).padStart(2, '0') === tableFilterMonth;
       const matchesYear = !tableFilterYear || String(invDateParts.y) === tableFilterYear;
       
@@ -593,10 +596,16 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
       const matchesDiscount = !tableFilterDiscountOnly || ((Number(invoice.discount_amount) || 0) > 0 && invoice.status !== 'Cancelled');
 
-      const invComm = Number(invoice.commission_paid ?? (invoice as any).commissionPaid) || 0;
-      const matchesPc = !tableFilterPcOnly || (invComm > 0 || (Boolean(invoice.referrar_name) && invoice.referrar_name !== '-' && invoice.referrar_name !== 'None' && invoice.referrar_name !== 'Self/Walk-in'));
+      const invItems = Array.isArray(invoice.items) ? invoice.items : [];
+      const invCommPaid = Number(invoice.commission_paid ?? (invoice as any).commissionPaid) || 0;
+      const invItemCommission = invItems.reduce((s, it) => s + ((Number(it?.test_commission) || 0) * (Number(it?.quantity) || 1)), 0);
+      const invPcTotal = Math.max(invCommPaid, invItemCommission);
+      const matchesPc = !tableFilterPcOnly || invPcTotal > 0.005;
 
-      return matchesSearch && matchesDate && matchesMonth && matchesYear && matchesDoctor && matchesReferrar && matchesPatient && matchesDue && matchesDiscount && matchesPc;
+      const invUsgFee = invItems.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
+      const matchesUsg = !tableFilterUsgOnly || invUsgFee > 0.005;
+
+      return matchesSearch && matchesDate && matchesDay && matchesMonth && matchesYear && matchesDoctor && matchesReferrar && matchesPatient && matchesDue && matchesDiscount && matchesPc && matchesUsg;
     });
 
     const extractSerialNum = (idStr: string | undefined): number => {
@@ -610,25 +619,53 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     };
 
     return filtered.sort((a, b) => {
+      if (tableFilterPcOnly) {
+        const itemsA = Array.isArray(a.items) ? a.items : [];
+        const itemsB = Array.isArray(b.items) ? b.items : [];
+        const pcA = Math.max(Number(a.commission_paid ?? (a as any).commissionPaid) || 0, itemsA.reduce((s, it) => s + ((Number(it?.test_commission) || 0) * (Number(it?.quantity) || 1)), 0));
+        const pcB = Math.max(Number(b.commission_paid ?? (b as any).commissionPaid) || 0, itemsB.reduce((s, it) => s + ((Number(it?.test_commission) || 0) * (Number(it?.quantity) || 1)), 0));
+        if (pcB !== pcA) return pcB - pcA;
+      }
+
+      if (tableFilterUsgOnly) {
+        const itemsA = Array.isArray(a.items) ? a.items : [];
+        const itemsB = Array.isArray(b.items) ? b.items : [];
+        const usgA = itemsA.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
+        const usgB = itemsB.reduce((s, it) => s + ((Number(it?.usg_exam_charge) || 0) * (Number(it?.quantity) || 1)), 0);
+        if (usgB !== usgA) return usgB - usgA;
+      }
+
+      // Primary: Date comparison (Date অনুযায়ী ১, ২, ৩ ক্রম - chronologically by date)
+      const dateStrA = a?.invoice_date || (a as any)?.date || (a as any)?.invoiceDate || '';
+      const dateStrB = b?.invoice_date || (b as any)?.date || (b as any)?.invoiceDate || '';
+      const partsA = getNormalizedDateParts(dateStrA);
+      const partsB = getNormalizedDateParts(dateStrB);
+      const isoA = partsA.isoDate || dateStrA;
+      const isoB = partsB.isoDate || dateStrB;
+
+      let dateDiff = 0;
+      if (isoA && isoB && isoA !== isoB) {
+        dateDiff = isoA.localeCompare(isoB);
+      }
+
+      // Secondary: within the same date, sort by invoice serial / ID
       const idA = String(a?.invoice_id || (a as any)?.id || '').trim();
       const idB = String(b?.invoice_id || (b as any)?.id || '').trim();
 
       const numA = extractSerialNum(idA);
       const numB = extractSerialNum(idB);
 
-      const prefixA = idA.replace(/\d+$/, '');
-      const prefixB = idB.replace(/\d+$/, '');
-
-      let diff = 0;
-      if (prefixA === prefixB && numA !== numB) {
-        diff = numA - numB;
+      let idDiff = 0;
+      if (numA !== numB) {
+        idDiff = numA - numB;
       } else {
-        diff = idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+        idDiff = idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
       }
 
-      return invoiceSortOrder === 'asc' ? diff : -diff;
+      const totalDiff = dateDiff !== 0 ? dateDiff : idDiff;
+      return invoiceSortOrder === 'asc' ? totalDiff : -totalDiff;
     });
-  }, [searchTerm, tableFilterDate, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterDoctor, tableFilterReferrarId, tableFilterReferrar, tableFilterPatientName, tableFilterDueOnly, tableFilterDiscountOnly, tableFilterPcOnly, invoices, invoiceSortOrder]);
+  }, [searchTerm, tableFilterDate, tableFilterDay, tableFilterMonth, tableFilterYear, tableFilterDoctorId, tableFilterDoctor, tableFilterReferrarId, tableFilterReferrar, tableFilterPatientName, tableFilterDueOnly, tableFilterDiscountOnly, tableFilterPcOnly, tableFilterUsgOnly, invoices, invoiceSortOrder]);
 
 
   const allAvailableTestCategories = useMemo(() => {
@@ -1664,6 +1701,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
   const resetTableFilters = () => {
     setTableFilterDate('');
+    setTableFilterDay('');
     setTableFilterMonth('');
     setTableFilterYear('');
     setTableFilterDoctorId('');
@@ -1674,6 +1712,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
     setTableFilterDueOnly(false);
     setTableFilterDiscountOnly(false);
     setTableFilterPcOnly(false);
+    setTableFilterUsgOnly(false);
   };
 
   return (
@@ -3354,28 +3393,60 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
               )}
             </div>
 
-            {/* 4. Month Filter */}
+            {/* 4. Day Filter (দিন) */}
+            <select 
+              value={tableFilterDay} 
+              onChange={(e) => { setTableFilterDay(e.target.value); setTableFilterDate(''); }}
+              className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-amber-950 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400 shadow-sm cursor-pointer"
+              title="দিন নির্বাচন করুন"
+            >
+              <option value="">সকল দিন</option>
+              {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(day => (
+                <option key={day} value={day}>{day} তারিখ</option>
+              ))}
+            </select>
+
+            {/* 5. Month Filter (মাস) */}
             <select 
               value={tableFilterMonth} 
               onChange={(e) => { setTableFilterMonth(e.target.value); setTableFilterDate(''); }}
               className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-amber-950 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400 shadow-sm cursor-pointer"
+              title="মাস নির্বাচন করুন"
             >
               <option value="">সকল মাস</option>
               {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
             </select>
 
-            {/* 5. Year Filter */}
+            {/* 6. Year Filter (বছর) */}
             <select 
               value={tableFilterYear} 
               onChange={(e) => { setTableFilterYear(e.target.value); setTableFilterDate(''); }}
               className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-amber-950 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-400 shadow-sm cursor-pointer"
+              title="সন/বছর নির্বাচন করুন"
             >
               <option value="">সকল সন</option>
-              {[2023, 2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y} সন</option>)}
+              {[2023, 2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y} সন</option>)}
             </select>
 
-            {/* 6. Reset / Clear Button */}
-            {(tableFilterPatientName || tableFilterDoctor || tableFilterReferrar || tableFilterDoctorId || tableFilterReferrarId || tableFilterMonth || tableFilterYear || tableFilterDate || tableFilterDueOnly || tableFilterDiscountOnly || tableFilterPcOnly) && (
+            {/* 7. Specific Date Picker (নির্দিষ্ট দিন বা ক্যালেন্ডার তারিখ) */}
+            <input 
+              type="date" 
+              value={tableFilterDate} 
+              onChange={(e) => { 
+                setTableFilterDate(e.target.value); 
+                if (e.target.value) {
+                  const parts = getNormalizedDateParts(e.target.value);
+                  setTableFilterDay(String(parts.d).padStart(2, '0'));
+                  setTableFilterMonth(String(parts.m).padStart(2, '0'));
+                  setTableFilterYear(String(parts.y));
+                }
+              }}
+              className="bg-indigo-50/80 hover:bg-indigo-100/80 border border-indigo-300 rounded-xl px-2.5 py-1.5 text-xs text-indigo-950 font-bold font-mono outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 shadow-sm cursor-pointer"
+              title="নির্দিষ্ট দিন বা তারিখ নির্বাচন করুন"
+            />
+
+            {/* 8. Reset / Clear Button */}
+            {(tableFilterPatientName || tableFilterDoctor || tableFilterReferrar || tableFilterDoctorId || tableFilterReferrarId || tableFilterDay || tableFilterMonth || tableFilterYear || tableFilterDate || tableFilterDueOnly || tableFilterDiscountOnly || tableFilterPcOnly || tableFilterUsgOnly) && (
               <button 
                 type="button"
                 onClick={resetTableFilters}
@@ -3406,14 +3477,20 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                       <ArrowUpDown size={13} className={`transition-transform duration-200 ${invoiceSortOrder === 'desc' ? 'rotate-180 text-teal-700' : 'text-emerald-700'}`} />
                     </button>
                   </th>
-                  <th scope="col" className="border border-slate-300 p-2.5 text-left">তারিখ / মাস-বছর</th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-left min-w-[130px]">
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                      className="flex items-center gap-1.5 whitespace-nowrap hover:text-emerald-800 transition-colors cursor-pointer group text-slate-800 font-black uppercase text-[11px]"
+                      title={`তারিখ অনুযায়ী সিরিয়াল সাজান: বর্তমানে ${invoiceSortOrder === 'asc' ? '১, ২, ৩ ক্রম (ছোট থেকে বড়)' : 'বড় থেকে ছোট'} (ক্লিক করে পরিবর্তন করুন)`}
+                    >
+                      <span>তারিখ / মাস-বছর</span>
+                      <ArrowUpDown size={13} className={`transition-transform duration-200 ${invoiceSortOrder === 'desc' ? 'rotate-180 text-teal-700' : 'text-emerald-700'}`} />
+                    </button>
+                  </th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-left">রোগীর নাম</th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-left">ডাক্তার</th>
-                  <th scope="col" className={`border border-slate-300 p-2.5 text-left cursor-pointer transition-colors ${tableFilterPcOnly ? 'bg-purple-200 text-purple-950 font-black' : 'hover:bg-purple-100'}`} onClick={() => setTableFilterPcOnly(prev => !prev)} title="ক্লিক করে রেফারার / পিসি যুক্ত ইনভয়েস ফিল্টার করুন">
-                    <span className="flex items-center gap-1">
-                      রেফারার {tableFilterPcOnly && <span className="text-[9px] bg-purple-600 text-white px-1 rounded">সক্রিয়</span>}
-                    </span>
-                  </th>
+                  <th scope="col" className="border border-slate-300 p-2.5 text-left">রেফারার</th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-right">গ্রস বিল</th>
                   <th scope="col" className={`border border-slate-300 p-2.5 text-right cursor-pointer transition-colors ${tableFilterDiscountOnly ? 'bg-rose-200 text-rose-950 font-black' : 'text-rose-700 hover:bg-rose-100'}`} onClick={() => setTableFilterDiscountOnly(prev => !prev)} title="ক্লিক করে শুধু ছাড়যুক্ত ইনভয়েস ফিল্টার করুন">
                     <span className="inline-flex items-center justify-end gap-1">
@@ -3427,10 +3504,14 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
                       বাকি (DUE) {tableFilterDueOnly && <span className="text-[9px] bg-white text-rose-700 px-1 rounded font-black">সক্রিয়</span>}
                     </span>
                   </th>
-                  <th scope="col" className="border border-slate-300 p-2.5 text-right text-sky-800">Usg_Fee</th>
-                  <th scope="col" className={`border border-slate-300 p-2.5 text-right cursor-pointer transition-colors ${tableFilterPcOnly ? 'bg-purple-200 text-purple-950 font-black' : 'text-purple-800 hover:bg-purple-100'}`} onClick={() => setTableFilterPcOnly(prev => !prev)} title="ক্লিক করে শুধু পিসি (PC) যুক্ত ইনভয়েস ফিল্টার করুন">
+                  <th scope="col" className={`border border-slate-300 p-2.5 text-right cursor-pointer transition-colors ${tableFilterUsgOnly ? 'bg-sky-200 text-sky-950 font-black' : 'text-sky-800 hover:bg-sky-100'}`} onClick={() => setTableFilterUsgOnly(prev => !prev)} title="ক্লিক করে আল্ট্রাসনোগ্রাফি ফি যুক্ত (USG_FEE > 0) ইনভয়েস ফিল্টার ও সর্ট করুন">
                     <span className="inline-flex items-center justify-end gap-1">
-                      PC {tableFilterPcOnly && <span className="text-[9px] bg-purple-600 text-white px-1 rounded">সক্রিয়</span>}
+                      Usg_Fee {tableFilterUsgOnly && <span className="text-[9px] bg-sky-700 text-white px-1 rounded font-black">সক্রিয়</span>}
+                    </span>
+                  </th>
+                  <th scope="col" className={`border border-slate-300 p-2.5 text-right cursor-pointer transition-colors ${tableFilterPcOnly ? 'bg-purple-200 text-purple-950 font-black' : 'text-purple-800 hover:bg-purple-100'}`} onClick={() => setTableFilterPcOnly(prev => !prev)} title="ক্লিক করে পিসি যুক্ত (PC > 0) ইনভয়েস ফিল্টার ও সর্ট করুন">
+                    <span className="inline-flex items-center justify-end gap-1">
+                      PC {tableFilterPcOnly && <span className="text-[9px] bg-purple-600 text-white px-1 rounded font-black">সক্রিয়</span>}
                     </span>
                   </th>
                   <th scope="col" className="border border-slate-300 p-2.5 text-right text-cyan-900 bg-cyan-50/50">নিট ইনকাম</th>

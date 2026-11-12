@@ -3,6 +3,7 @@ import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice,
 import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon, RefreshIcon, AlertCircle, EyeIcon, PrinterIcon, XIcon, EditIcon } from './Icons';
 import { CheckCircle2, Trash2, Loader2 } from 'lucide-react';
 import SearchableSelect from './SearchableSelect';
+import MobileNumberInput from './MobileNumberInput';
 import { dbService } from '../dbService';
 
 interface MedicinePageProps {
@@ -655,12 +656,18 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       
       let matchesMonth = true;
       let matchesYear = true;
-      const parts = (invDate || '').split('-');
-      if (parts.length >= 2) {
-        const y = Number(parts[0]);
-        const m = Number(parts[1]);
-        matchesMonth = buySearchMonth === 'all' || (m - 1) === parseInt(buySearchMonth);
-        matchesYear = buySearchYear === 'all' || isNaN(y) ? true : y === parseInt(buySearchYear);
+      
+      // Determine effective expense month and year (fallback to invoiceDate if not explicitly set)
+      const effM = (inv as any).expenseMonth !== undefined && (inv as any).expenseMonth !== null
+        ? Number((inv as any).expenseMonth)
+        : (invDate && invDate.includes('-') ? parseInt(invDate.split('-')[1]) - 1 : null);
+      const effY = (inv as any).expenseYear !== undefined && (inv as any).expenseYear !== null
+        ? Number((inv as any).expenseYear)
+        : (invDate && invDate.includes('-') ? parseInt(invDate.split('-')[0]) : null);
+
+      if (effM !== null && effY !== null) {
+        matchesMonth = buySearchMonth === 'all' || effM === parseInt(buySearchMonth);
+        matchesYear = buySearchYear === 'all' || effY === parseInt(buySearchYear);
       }
       return matchesSupplier && matchesDate && matchesMonth && matchesYear;
     });
@@ -947,6 +954,82 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const removePurchaseItem = (index: number) => { setPurchaseFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) })); };
+
+  // Update a single purchase item line directly in the table
+  const updatePurchaseItem = (index: number, updates: Partial<InvoiceItem>) => {
+    setPurchaseFormData(prev => {
+      const items = [...prev.items];
+      if (!items[index]) return prev;
+      const current = items[index];
+      const buyP = updates.unitPriceBuy !== undefined ? (Number(updates.unitPriceBuy) || 0) : current.unitPriceBuy;
+      const qty = updates.qtyBuying !== undefined ? (Number(updates.qtyBuying) || 0) : current.qtyBuying;
+      const sellP = updates.unitPriceSell !== undefined ? (Number(updates.unitPriceSell) || 0) : current.unitPriceSell;
+      const lineT = buyP * qty;
+      items[index] = {
+        ...current,
+        ...updates,
+        unitPriceBuy: buyP,
+        unitPriceSell: sellP,
+        qtyBuying: qty,
+        lineTotalBuy: lineT
+      };
+      return { ...prev, items };
+    });
+  };
+
+  // Open any invoice in full multi-line edit mode
+  const executeOpenEditPurchaseInvoice = (inv: PurchaseInvoice) => {
+    if (isLumpSumPurchase(inv)) {
+      openEditLumpSumPurchase(inv);
+      return;
+    }
+    const invDate = inv.invoiceDate || new Date().toISOString().split('T')[0];
+    const parts = invDate.split('-');
+    const defaultM = (parts.length >= 2) ? parseInt(parts[1]) - 1 : new Date().getMonth();
+    const defaultY = (parts.length >= 1) ? parseInt(parts[0]) : new Date().getFullYear();
+
+    setPurchaseFormData({
+      ...inv,
+      invoiceId: inv.invoiceId,
+      invoiceDate: invDate,
+      expenseMonth: (inv as any).expenseMonth !== undefined ? Number((inv as any).expenseMonth) : defaultM,
+      expenseYear: (inv as any).expenseYear !== undefined ? Number((inv as any).expenseYear) : defaultY,
+      items: Array.isArray(inv.items) ? [...inv.items] : []
+    });
+    setEditingPurchaseId(inv.invoiceId);
+    setBuyViewMode('edit');
+    setIsOpeningStock(inv.status === 'Initial');
+    setErrors({});
+    try {
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } catch {}
+  };
+
+  const handleOpenEditPurchaseInvoice = (inv: PurchaseInvoice) => {
+    if (isLumpSumPurchase(inv)) {
+      setConfirmModal({
+        isOpen: true,
+        title: '✏️ এককালীন ক্রয় এডিট নিশ্চিতকরণ',
+        message: `আপনি কি এককালীন মাসিক ক্রয় ইনভয়েস (${inv.invoiceId}) এডিট করতে চান?\n\n• মাস ও সন: ${inv.invoiceDate}\n• মোট বিল: ৳${(inv.netPayable || 0).toFixed(2)}\n• পরিশোধ: ৳${Number(inv.paidAmount || 0).toFixed(2)}\n• বকেয়া: ৳${Number(inv.dueAmount || 0).toFixed(2)}`,
+        onConfirm: () => {
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          openEditLumpSumPurchase(inv);
+        }
+      });
+      return;
+    }
+    setConfirmModal({
+      isOpen: true,
+      title: '✏️ ক্রয় ইনভয়েস সংশোধন / এডিট নিশ্চিতকরণ',
+      message: `আপনি কি এই ক্রয় ইনভয়েসটি (${inv.invoiceId}) এডিট ও চেক করতে চান?\n\n• সরবরাহকারী / কোম্পানি: ${inv.source}\n• তারিখ: ${inv.invoiceDate}\n• মোট আইটেম: ${Array.isArray(inv.items) ? inv.items.length : 0} টি\n• মোট বিল: ৳${(inv.netPayable || 0).toFixed(2)}\n• পরিশোধিত টাকা: ৳${Number(inv.paidAmount || 0).toFixed(2)}\n• বর্তমান বকেয়া: ৳${Number(inv.dueAmount || 0).toFixed(2)}\n\n💡 সম্মতি দিলে ইনভয়েসের সকল লাইন ফর্মে লোড হবে এবং পরিবর্তন করে আপডেট করতে পারবেন।`,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        executeOpenEditPurchaseInvoice(inv);
+      }
+    });
+  };
   const removeSalesItem = (index: number) => { setSalesFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) })); };
 
   const handleRemoveSalesItemWithConfirm = (index: number) => {
@@ -1066,12 +1149,21 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               ? `${buySearchYear}-${String(parseInt(buySearchMonth) + 1).padStart(2, '0')}-01`
               : new Date().toISOString().split('T')[0];
           const invDate = purchaseFormData.invoiceDate || defaultDate;
+          const [invY, invM] = invDate.split('-');
+          const defaultExpM = invM ? parseInt(invM) - 1 : new Date().getMonth();
+          const defaultExpY = invY ? parseInt(invY) : new Date().getFullYear();
+          const expM = purchaseFormData.expenseMonth !== undefined ? Number(purchaseFormData.expenseMonth) : defaultExpM;
+          const expY = purchaseFormData.expenseYear !== undefined ? Number(purchaseFormData.expenseYear) : defaultExpY;
+          const expDate = `${expY}-${String(expM + 1).padStart(2, '0')}-01`;
 
           const savedInvoice: PurchaseInvoice = {
               ...purchaseFormData,
               id: invId,
               invoiceId: invId,
               invoiceDate: invDate,
+              expenseMonth: expM,
+              expenseYear: expY,
+              expenseDate: expDate,
               items: sanitizedItems,
               totalAmount: subTotal,
               discount: disc,
@@ -1097,11 +1189,8 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           }
 
           // 2. Automatically align month/year filters so that the user immediately sees the saved voucher in the list
-          const [invY, invM] = invDate.split('-');
-          if (invY && invM) {
-              setBuySearchYear(invY);
-              setBuySearchMonth((parseInt(invM) - 1).toString());
-          }
+          setBuySearchYear(String(expY));
+          setBuySearchMonth(String(expM));
 
           // 3. Update global application state & trigger blocking cloud sync
           if (performBlockingSync) {
@@ -2108,39 +2197,22 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 <span className="w-3.5 h-3.5 rounded-full bg-blue-500 animate-pulse"></span>
                 ওষুধ ক্রয় ও ইনভয়েস তালিকা (Medicine Purchases)
               </h2>
-              <p className="text-xs text-slate-400 font-bold mt-1">
-                মাস ও বছরভিত্তিক ক্রয় হিসাব, ইনভয়েস এবং ওষুধভিত্তিক আলাদা রিপোর্ট
-              </p>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => openLumpSumPurchaseModal()}
-                className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-3 rounded-xl font-bold shadow-lg shadow-amber-900/30 transition-all active:scale-95 flex items-center gap-2 text-sm border border-amber-500"
-                title="পূর্বের ইনভয়েস না থাকলে নির্দিষ্ট মাসের এককালীন মোট ঔষধ ক্রয় লিখুন"
-              >
-                <PlusIcon className="w-5 h-5 text-amber-200" />
-                <span>এককালীন মাসিক ক্রয়</span>
-              </button>
-              <button
-                onClick={() => {
-                  const mLabel = buySearchMonth === 'all' ? 'সকল মাস' : (monthOptions.find(m => m.value.toString() === buySearchMonth)?.name || '');
-                  handlePrintPurchaseMonthlyReport(filteredPurchases, `${mLabel}, ${buySearchYear}${buySearchSupplier ? ` (${buySearchSupplier})` : ''}`);
-                }}
-                className="bg-slate-700 hover:bg-slate-600 text-sky-300 hover:text-white px-5 py-3 rounded-xl font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2 text-sm border border-slate-600"
-                title="ফিল্টারকৃত মাসের ক্রয় তালিকা প্রিন্ট করুন"
-              >
-                <PrinterIcon className="w-5 h-5 text-sky-400" />
-                <span>মাসিক রিপোর্ট প্রিন্ট ({filteredPurchases.length})</span>
-              </button>
+            <div className="flex flex-wrap items-center gap-2.5">
               <button 
                 onClick={() => {
                   const newId = `PUR-${Date.now()}`;
-                  const defaultDate = (buySearchYear !== 'all' && buySearchMonth !== 'all')
+                  const defaultDate = buySearchDate || ((buySearchYear !== 'all' && buySearchMonth !== 'all')
                     ? `${buySearchYear}-${String(parseInt(buySearchMonth) + 1).padStart(2, '0')}-01`
-                    : new Date().toISOString().split('T')[0];
+                    : new Date().toISOString().split('T')[0]);
+                  const parts = defaultDate.split('-');
+                  const dY = parts.length >= 1 ? parseInt(parts[0]) : new Date().getFullYear();
+                  const dM = parts.length >= 2 ? parseInt(parts[1]) - 1 : new Date().getMonth();
                   setPurchaseFormData({
                     invoiceId: newId,
                     invoiceDate: defaultDate,
+                    expenseMonth: buySearchMonth !== 'all' ? parseInt(buySearchMonth) : dM,
+                    expenseYear: buySearchYear !== 'all' ? parseInt(buySearchYear) : dY,
                     source: '',
                     items: [],
                     totalAmount: 0,
@@ -2155,12 +2227,54 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                     createdDate: ''
                   });
                   setBuyViewMode('add');
+                  setEditingPurchaseId(null);
                   setErrors({});
                   setIsOpeningStock(false);
                 }}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-900/30 transition-all active:scale-95 flex items-center gap-2 text-sm uppercase tracking-wider"
+                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-black shadow-md shadow-blue-900/30 transition-all active:scale-95 flex items-center gap-2 text-xs md:text-sm border border-blue-400 cursor-pointer"
+                title="তারিখ নির্বাচন করে নতুন ক্রয় এন্ট্রি করুন"
               >
-                <PlusIcon className="w-5 h-5" /> + নতুন ক্রয় এন্ট্রি (Add Purchase)
+                <PlusIcon className="w-4 h-4" />
+                <span>নতুন ক্রয় এন্ট্রি(Date Base)</span>
+              </button>
+
+              <button
+                onClick={() => openLumpSumPurchaseModal()}
+                className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2.5 rounded-xl font-bold shadow-md shadow-amber-900/30 transition-all active:scale-95 flex items-center gap-2 text-xs md:text-sm border border-amber-500 cursor-pointer"
+                title="পূর্বের ইনভয়েস না থাকলে নির্দিষ্ট মাসের এককালীন মোট ঔষধ ক্রয় লিখুন"
+              >
+                <PlusIcon className="w-4 h-4 text-amber-200" />
+                <span>এককালীন মাসিক ক্রয়</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const targetDate = buySearchDate || (filteredPurchases.length > 0 ? filteredPurchases[0].invoiceDate : new Date().toISOString().split('T')[0]);
+                  const invoicesForDate = buySearchDate 
+                    ? filteredPurchases.filter(p => p.invoiceDate === buySearchDate)
+                    : filteredPurchases;
+                  handlePrintPurchaseMonthlyReport(
+                    invoicesForDate, 
+                    `তারিখ ভিত্তিক ক্রয় রিপোর্ট (তারিখ: ${targetDate})${buySearchSupplier ? ` (${buySearchSupplier})` : ''}`
+                  );
+                }}
+                className="bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold shadow-md transition-all active:scale-95 flex items-center gap-2 text-xs md:text-sm border border-emerald-500 cursor-pointer"
+                title="তারিখ ভিত্তিক রিপোর্ট প্রিন্ট করুন"
+              >
+                <PrinterIcon className="w-4 h-4 text-emerald-200" />
+                <span>তারিখ ভিত্তিক রিপোর্ট প্রিন্ট</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const mLabel = buySearchMonth === 'all' ? 'সকল মাস' : (monthOptions.find(m => m.value.toString() === buySearchMonth)?.name || '');
+                  handlePrintPurchaseMonthlyReport(filteredPurchases, `${mLabel}, ${buySearchYear}${buySearchSupplier ? ` (${buySearchSupplier})` : ''}`);
+                }}
+                className="bg-slate-700 hover:bg-slate-600 text-sky-300 hover:text-white px-4 py-2.5 rounded-xl font-bold shadow-md transition-all active:scale-95 flex items-center gap-2 text-xs md:text-sm border border-slate-600 cursor-pointer"
+                title="ফিল্টারকৃত মাসের ক্রয় তালিকা প্রিন্ট করুন"
+              >
+                <PrinterIcon className="w-4 h-4 text-sky-400" />
+                <span>মাসিক রিপোর্ট প্রিন্ট</span>
               </button>
             </div>
           </div>
@@ -2272,270 +2386,307 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
             </div>
           </div>
 
-          {/* Sub-View Switcher (Invoices vs Itemized Medicine List) */}
-          <div className="flex bg-slate-900 p-1.5 rounded-xl border border-slate-700 max-w-xl">
-            <button
-              onClick={() => setBuySubTab('invoices')}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-                buySubTab === 'invoices' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              🧾 ইনভয়েস আকারে দেখুন ({filteredPurchases.length})
-            </button>
-            <button
-              onClick={() => setBuySubTab('items')}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-                buySubTab === 'items' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              💊 আলাদা আলাদা ওষুধ আকারে দেখুন ({itemizedPurchasedMedicines.length})
-            </button>
-          </div>
+          {/* Invoices List Table styled exactly like user screenshot */}
+          <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-[#e8edf4] text-slate-800 border-b border-slate-300">
+                <tr>
+                  <th className="p-2.5 text-center font-bold text-xs uppercase border-r border-slate-300 w-12 text-slate-800">
+                    ক্রমিক
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
+                    তারিখ / মাস-বছর
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
+                    এন্ট্রি টাইপ ও শিফট
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
+                    অপারেটর
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-center text-slate-800">
+                    রোগী / আইটেম
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
+                    গ্রস বিল
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-rose-600">
+                    ছাড়
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
+                    নিট বিল
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800 bg-[#f0fdf4]">
+                    ক্যাশ আদায়
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
+                    বাকি (DUE)
+                  </th>
+                  <th className="p-2.5 font-bold text-xs uppercase text-center text-slate-800">
+                    অ্যাকশন
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPurchases.map((inv, idx) => {
+                  const grossBill = Number(inv.totalAmount || inv.netPayable || 0);
+                  const discount = Number(inv.discount || 0);
+                  const netBill = Number(inv.netPayable || 0);
+                  const cashPaid = Number(inv.paidAmount || 0);
+                  const dueAmt = Number(inv.dueAmount || 0);
+                  const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
+                  const operatorName = inv.billCreatedBy || inv.billPaidBy || 'Admin';
 
-          {/* View Mode 1: Invoices View */}
-          {buySubTab === 'invoices' && (
-            <div className="space-y-3">
-              <div className="bg-sky-950/40 border border-sky-800/40 px-4 py-2.5 rounded-xl flex items-center justify-between text-xs text-sky-300">
-                <span className="flex items-center gap-2">
-                  <FileTextIcon className="w-4 h-4 text-sky-400" />
-                  💡 <b>টিপস:</b> যেকোনো ইনভয়েসের উপর <b>ডাবল-ক্লিক (Double-Click)</b> করুন অথবা <b>ভাউচার</b> বাটনে চাপলে পুরো ক্রয় রশিদ দেখতে ও প্রিন্ট করতে পারবেন।
-                </span>
-                <span className="font-mono text-slate-400 hidden sm:inline">মোট ইনভয়েস: {filteredPurchases.length} টি</span>
-              </div>
-              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl">
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-700 text-slate-100">
-                    <tr>
-                      <th className="p-4 uppercase text-xs font-black text-center w-12"># ক্রমিক</th>
-                      <th className="p-4 uppercase text-xs font-black">ইনভয়েস নং</th>
-                      <th className="p-4 uppercase text-xs font-black">তারিখ</th>
-                      <th className="p-4 uppercase text-xs font-black">সাপ্লায়ার</th>
-                      <th className="p-4 uppercase text-xs font-black text-center">আইটেম সংখ্যা</th>
-                      <th className="p-4 text-right uppercase text-xs font-black">মোট বিল</th>
-                      <th className="p-4 text-right uppercase text-xs font-black">পরিশোধ</th>
-                      <th className="p-4 text-right uppercase text-xs font-black">বকেয়া</th>
-                      <th className="p-4 text-center uppercase text-xs font-black">স্ট্যাটাস</th>
-                      <th className="p-4 text-center uppercase text-xs font-black">অ্যাকশন</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-700">
-                    {filteredPurchases.map((inv, idx) => (
-                      <tr
-                        key={inv.invoiceId}
-                        onDoubleClick={() => setViewingPurchaseInvoice(inv)}
-                        title="ডাবল ক্লিক করে ইনভয়েস ভাউচার দেখুন ও প্রিন্ট করুন"
-                        className={`bg-slate-800 hover:bg-slate-750 transition-colors cursor-pointer group ${
-                          inv.status === 'Initial' ? 'opacity-75' : ''
-                        }`}
-                      >
-                        <td className="p-4 text-slate-400 font-bold text-center text-xs">
-                          {idx + 1}
-                        </td>
-                        <td className="p-4 text-sky-400 group-hover:text-white font-mono text-sm font-bold flex items-center gap-2">
-                          <EyeIcon className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-sky-400 transition-opacity" />
-                          {inv.invoiceId}
-                        </td>
-                        <td className="p-4 text-slate-100 font-bold">{inv.invoiceDate}</td>
-                        <td className="p-4 text-white font-black text-base">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span>{inv.source}</span>
-                            {isLumpSumPurchase(inv) && (
-                              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black px-2 py-0.5 rounded-full">
-                                🏷️ এককালীন ক্রয়
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4 text-center font-bold text-sky-400">
-                          {Array.isArray(inv.items) ? inv.items.length : 0} টি
-                        </td>
-                        <td className="p-4 text-sky-400 text-right font-black text-base">
-                          ৳{(inv.netPayable || 0).toFixed(2)}
-                        </td>
-                        <td className="p-4 text-emerald-400 text-right font-black">
-                          ৳{Number(inv.paidAmount || 0).toFixed(2)}
-                        </td>
-                        <td className="p-4 text-rose-500 text-right font-black text-base">
-                          ৳{Number(inv.dueAmount || 0).toFixed(2)}
-                        </td>
-                        <td className="p-4 text-center">
-                          <span
-                            className={`text-[10px] font-black px-2.5 py-1 rounded ${
-                              inv.status === 'Initial'
-                                ? 'bg-amber-600/20 text-amber-500'
-                                : isLumpSumPurchase(inv)
-                                ? 'bg-amber-600/20 text-amber-400'
-                                : 'bg-blue-600/20 text-blue-400'
-                            }`}
-                          >
-                            {isLumpSumPurchase(inv) ? 'এককালীন' : (inv.status || 'Posted')}
+                  return (
+                    <tr
+                      key={inv.invoiceId}
+                      onDoubleClick={() => handleOpenEditPurchaseInvoice(inv)}
+                      title="ডাবল ক্লিক করে ইনভয়েসটি এডিট ও আপডেট করুন"
+                      className="border-b border-slate-300 hover:bg-slate-50 transition-colors bg-white cursor-pointer"
+                    >
+                      <td className="p-2.5 text-center font-bold text-slate-700 border-r border-slate-300 text-xs">
+                        {idx + 1}
+                      </td>
+                      <td className="p-2.5 border-r border-slate-300 text-xs">
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>{inv.invoiceDate}</span>
+                          <span className="text-[10px] text-slate-500 font-normal">
+                            ({inv.createdDate ? new Date(inv.createdDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '08:20 AM'})
                           </span>
-                        </td>
-                        <td className="p-4 text-center space-x-2 whitespace-nowrap">
+                        </div>
+                        {((inv as any).expenseMonth !== undefined && (inv as any).expenseYear !== undefined) && (
+                          <span className="text-[10px] text-amber-700 font-medium block">
+                            খরচের মাস: {monthOptions.find(m => m.value === (inv as any).expenseMonth)?.name} {(inv as any).expenseYear}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2.5 border-r border-slate-300 text-xs">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="bg-sky-50 text-sky-700 border border-sky-300 px-2 py-0.5 rounded text-[11px] font-semibold">
+                            {isLumpSumPurchase(inv) ? 'এককালীন মাসিক ক্রয়' : 'দৈনিক ক্রয় (PURCHASE)'}
+                          </span>
+                          <span className="text-slate-800 font-bold text-xs">{inv.source}</span>
+                        </div>
+                      </td>
+                      <td className="p-2.5 border-r border-slate-300 text-slate-700 font-medium text-xs">
+                        {operatorName}
+                      </td>
+                      <td className="p-2.5 text-center border-r border-slate-300 font-bold text-slate-800 text-xs">
+                        {itemCount}
+                      </td>
+                      <td className="p-2.5 text-right font-bold text-slate-800 border-r border-slate-300 text-xs">
+                        ৳{grossBill.toFixed(0)}
+                      </td>
+                      <td className="p-2.5 text-right font-bold text-rose-600 border-r border-slate-300 text-xs">
+                        {discount > 0 ? `-৳${discount.toFixed(0)}` : '-৳০'}
+                      </td>
+                      <td className="p-2.5 text-right font-bold text-slate-900 border-r border-slate-300 text-xs">
+                        ৳{netBill.toFixed(0)}
+                      </td>
+                      <td className="p-2.5 text-right font-bold text-emerald-800 bg-[#f0fdf4] border-r border-slate-300 text-xs">
+                        ৳{cashPaid.toFixed(0)}
+                      </td>
+                      <td className={`p-2.5 text-right font-bold border-r border-slate-300 text-xs ${dueAmt > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                        ৳{dueAmt.toFixed(0)}
+                      </td>
+                      <td className="p-2.5 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setViewingPurchaseInvoice(inv);
+                              handleOpenEditPurchaseInvoice(inv);
                             }}
-                            className="bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white px-2.5 py-1 rounded text-xs font-bold transition-all border border-blue-500/40 inline-flex items-center gap-1"
-                            title="ইনভয়েস ভাউচার দেখুন ও প্রিন্ট করুন"
+                            className="p-1.5 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                            title="ইনভয়েস এডিট করুন"
                           >
-                            <EyeIcon className="w-3.5 h-3.5" /> ভাউচার
+                            <EditIcon className="w-3.5 h-3.5 text-amber-600" />
                           </button>
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isLumpSumPurchase(inv)) {
-                                openEditLumpSumPurchase(inv);
-                              } else {
-                                setPurchaseFormData(inv);
-                                setBuyViewMode('edit');
-                                setEditingPurchaseId(inv.invoiceId);
-                                setIsOpeningStock(inv.status === 'Initial');
-                                setErrors({});
-                              }
-                            }}
-                            className="text-sky-400 hover:text-white text-xs font-bold underline"
-                          >
-                            এডিট
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleReturnPurchase(inv);
-                            }}
-                            className="text-rose-400 hover:text-rose-600 text-xs font-bold underline"
-                          >
-                            ফেরত/বাতিল
-                          </button>
-                          <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handlePrintPurchase(inv);
                             }}
-                            className="text-emerald-400 hover:text-white text-xs font-bold underline inline-flex items-center gap-1"
+                            className="p-1.5 rounded border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                            title="প্রিন্ট করুন"
                           >
-                            <PrinterIcon className="w-3.5 h-3.5" /> প্রিন্ট
+                            <PrinterIcon className="w-3.5 h-3.5 text-blue-600" />
                           </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredPurchases.length === 0 && (
-                  <div className="p-16 text-center text-slate-500 font-black text-lg uppercase tracking-wider">
-                    কোনো ক্রয় ইনভয়েস পাওয়া যায়নি।
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* View Mode 2: Itemized Medicine List */}
-          {buySubTab === 'items' && (
-            <div className="space-y-3">
-              <div className="bg-emerald-950/40 border border-emerald-800/40 px-4 py-2.5 rounded-xl flex items-center justify-between text-xs text-emerald-300">
-                <span className="flex items-center gap-2">
-                  <Pill className="w-4 h-4 text-emerald-400" />
-                  💡 <b>টিপস:</b> যেকোনো ওষুধের সারিতে <b>ডাবল-ক্লিক</b> করুন অথবা <b>ভাউচার</b> বাটনে চাপলে সেটির মূল ক্রয় ইনভয়েস দেখতে ও প্রিন্ট করতে পারবেন।
-                </span>
-                <span className="font-mono text-slate-400 hidden sm:inline">মোট ওষুধ রেকর্ড: {itemizedPurchasedMedicines.length} টি</span>
-              </div>
-              <div className="overflow-x-auto rounded-2xl border border-slate-700 shadow-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead className="bg-slate-700 text-slate-100">
-                    <tr>
-                      <th className="p-4 uppercase text-xs font-black">ঔষধের নাম ও শক্তি</th>
-                      <th className="p-4 uppercase text-xs font-black">জেনেরিক</th>
-                      <th className="p-4 uppercase text-xs font-black">ফরম</th>
-                      <th className="p-4 text-center uppercase text-xs font-black">মেয়াদ (Expiry)</th>
-                      <th className="p-4 uppercase text-xs font-black">সাপ্লায়ার ও তারিখ</th>
-                      <th className="p-4 text-right uppercase text-xs font-black">ক্রয়মূল্য</th>
-                      <th className="p-4 text-right uppercase text-xs font-black">বিক্রয়মূল্য</th>
-                      <th className="p-4 text-center uppercase text-xs font-black">পরিমাণ (Qty)</th>
-                      <th className="p-4 text-right uppercase text-xs font-black">মোট খরচ</th>
-                      <th className="p-4 text-center uppercase text-xs font-black">ভাউচার</th>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReturnPurchase(inv);
+                            }}
+                            className="p-1.5 rounded border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                            title="ফেরত / বাতিল করুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-700">
-                    {itemizedPurchasedMedicines.map((item, idx) => {
-                      const expInfo = getExpiryInfo(item.expiryDate);
-                      const parentInv = safeInvoices.find(inv => inv.invoiceId === item.invoiceId);
-                      return (
-                        <tr
-                          key={idx}
-                          onDoubleClick={() => {
-                            if (parentInv) setViewingPurchaseInvoice(parentInv);
-                          }}
-                          title="ডাবল ক্লিক করে সম্পূর্ণ ক্রয় ভাউচার দেখুন"
-                          className={`bg-slate-800 hover:bg-slate-750 transition-colors cursor-pointer group ${expInfo.rowClass}`}
-                        >
-                          <td className="p-4 font-black text-white">
-                            {item.tradeName} <span className="text-xs font-bold text-slate-400">({item.strength})</span>
-                          </td>
-                          <td className="p-4 text-sky-400 text-xs font-bold italic">{item.genericName || '-'}</td>
-                          <td className="p-4 text-slate-300 font-bold text-xs uppercase">{item.formulation}</td>
-                          <td className="p-4 text-center whitespace-nowrap">
-                            {item.expiryDate ? (
-                              <span className={`px-2 py-0.5 rounded text-xs font-mono inline-block ${expInfo.badgeClass}`}>
-                                {item.expiryDate} {expInfo.status === 'expired' ? '⚠️' : ''}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-slate-500 italic">উল্লেখ নেই</span>
-                            )}
-                          </td>
-                          <td className="p-4 text-slate-300 text-xs">
-                            <div className="font-bold text-white">{item.source}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{item.invoiceDate} ({item.invoiceId})</div>
-                          </td>
-                          <td className="p-4 text-right text-slate-300 font-bold">৳{item.buyPrice.toFixed(2)}</td>
-                          <td className="p-4 text-right text-white font-bold">৳{item.sellPrice.toFixed(2)}</td>
-                          <td className="p-4 text-center font-black text-emerald-400 text-base">{item.qty}</td>
-                          <td className="p-4 text-right font-black text-amber-400 text-base">৳{item.total.toFixed(2)}</td>
-                          <td className="p-4 text-center whitespace-nowrap">
-                            {parentInv && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setViewingPurchaseInvoice(parentInv);
-                                }}
-                                className="bg-sky-600/30 hover:bg-sky-600 text-sky-300 hover:text-white px-2.5 py-1 rounded text-xs font-bold transition-all border border-sky-500/40 inline-flex items-center gap-1"
-                                title="ইনভয়েস ভাউচার দেখুন"
-                              >
-                                <EyeIcon className="w-3.5 h-3.5" /> ভাউচার
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {itemizedPurchasedMedicines.length === 0 && (
-                  <div className="p-16 text-center text-slate-500 font-black text-lg uppercase tracking-wider">
-                    কোনো ওষুধের তালিকা পাওয়া যায়নি।
-                  </div>
-                )}
+                  );
+                })}
+              </tbody>
+            </table>
+            {filteredPurchases.length === 0 && (
+              <div className="p-12 text-center text-slate-500 font-bold text-sm bg-white border-b border-slate-300">
+                কোনো ক্রয় ইনভয়েস পাওয়া যায়নি।
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       );
     }
     return (
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl animate-fade-in">
-            <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-2">
-                <h2 className="text-2xl font-black text-white">{buyViewMode === 'add' ? 'New Purchase Entry' : 'Edit Purchase Entry'}</h2>
+            <div className="flex flex-wrap justify-between items-center mb-6 border-b border-slate-700 pb-3 gap-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setBuyViewMode('list'); setEditingPurchaseId(null); setIsOpeningStock(false); setErrors({}); }}
+                    className="bg-slate-700 hover:bg-slate-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border border-slate-600 shadow cursor-pointer active:scale-95"
+                    title="তালিকায় ফিরে যান"
+                  >
+                    ← ফিরে যান / ব্যাক (Cancel)
+                  </button>
+                  <h2 className="text-xl font-black text-white flex items-center gap-2">
+                    {buyViewMode === 'add' ? (
+                      <>➕ নতুন ক্রয় এন্ট্রি (New Purchase Entry)</>
+                    ) : (
+                      <>✏️ ক্রয় ইনভয়েস সম্পাদনা (Editing: <span className="text-sky-400 font-mono">{purchaseFormData.invoiceId}</span>)</>
+                    )}
+                  </h2>
+                </div>
                 <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl border border-amber-900/30">
                     <input type="checkbox" id="opening_stock" checked={isOpeningStock} onChange={e=>setIsOpeningStock(e.target.checked)} className="w-5 h-5 accent-amber-500"/>
                     <label htmlFor="opening_stock" className="text-xs font-black text-amber-500 uppercase tracking-widest cursor-pointer">Initial Opening Stock (No Expense)</label>
                 </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Invoice ID</label><input type="text" value={purchaseFormData.invoiceId} disabled className="w-full bg-slate-900 border border-slate-600 rounded p-2.5 text-slate-500 font-bold" /></div>
-                <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Date</label><input type="date" value={purchaseFormData.invoiceDate} onChange={e=>setPurchaseFormData({...purchaseFormData, invoiceDate:e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2.5 text-white font-black" /></div>
-                <div className="relative"><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Supplier Name</label><input type="text" value={purchaseFormData.source} onChange={e=>handleSupplierChange(e.target.value)} onFocus={() => handleSupplierChange(purchaseFormData.source)} onBlur={()=>setTimeout(()=>setShowSupplierSuggestions(false), 200)} className={`w-full bg-slate-900 border rounded p-2.5 text-white font-black ${errors.source ? 'border-red-500' : 'border-slate-600'}`} placeholder="Search Supplier..." autoComplete="off"/>{showSupplierSuggestions && supplierSuggestions.length > 0 && (<ul className="absolute z-50 w-full bg-slate-700 border border-slate-500 mt-1 max-h-48 overflow-y-auto rounded shadow-2xl">{supplierSuggestions.map((s,i)=>(<li key={i} onMouseDown={()=>setPurchaseFormData({...purchaseFormData, source: s})} className="p-3 hover:bg-slate-600 cursor-pointer text-white text-sm border-b border-slate-600/30 last:border-0 font-bold">{s}</li>))}</ul>)}</div>
+
+            {buyViewMode === 'edit' && (
+              <div className="mb-6 bg-amber-950/70 border-2 border-amber-500/80 rounded-xl p-3.5 text-amber-200 text-xs font-bold flex items-center justify-between shadow-lg">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 bg-amber-500 text-slate-950 rounded font-black text-[10px]">EDIT</span>
+                  <span>
+                    আপনি ইনভয়েস <b className="font-mono text-white underline">{purchaseFormData.invoiceId}</b> এডিট করছেন। যেকোনো ঔষধের পরিমাণ, মূল্য বা মেয়াদ পরিবর্তন করতে পারবেন। পরিবর্তন শেষে নিচের <b>"আপডেট ক্রয় ইনভয়েস"</b> বাটনে চাপুন।
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setBuyViewMode('list'); setEditingPurchaseId(null); setIsOpeningStock(false); }}
+                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-bold border border-amber-500/40 cursor-pointer shadow shrink-0 ml-3"
+                >
+                  ✕ এডিট বাতিল
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5 items-end">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 whitespace-nowrap">
+                    ইনভয়েস আইডি (Invoice ID)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input 
+                      type="text" 
+                      value={purchaseFormData.invoiceId} 
+                      readOnly 
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-sky-400 font-mono font-bold text-xs" 
+                      title="একক ইনভয়েস ভাউচার নং"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newId = `PUR-${Date.now()}`;
+                        setPurchaseFormData(prev => ({ ...prev, invoiceId: newId }));
+                      }}
+                      className="bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold px-2.5 py-2.5 rounded-lg shadow whitespace-nowrap shrink-0 flex items-center gap-1 border border-sky-400 active:scale-95 cursor-pointer"
+                      title="নতুন ইনভয়েস নম্বর তৈরি করুন"
+                    >
+                      🔄 গেট ইনভয়েস (নতুন আইডি)
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 whitespace-nowrap">
+                    ইনভয়েস তারিখ (ক্রয়ের তারিখ)
+                  </label>
+                  <input 
+                    type="date" 
+                    value={purchaseFormData.invoiceDate} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      const parts = val.split('-');
+                      const dM = parts.length >= 2 ? parseInt(parts[1]) - 1 : purchaseFormData.expenseMonth;
+                      const dY = parts.length >= 1 ? parseInt(parts[0]) : purchaseFormData.expenseYear;
+                      setPurchaseFormData(prev => ({
+                        ...prev, 
+                        invoiceDate: val,
+                        expenseMonth: prev.expenseMonth !== undefined ? prev.expenseMonth : dM,
+                        expenseYear: prev.expenseYear !== undefined ? prev.expenseYear : dY
+                      }));
+                    }} 
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white font-bold text-xs" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-amber-400 mb-1.5 whitespace-nowrap">
+                    খরচের মাস ও সন (হিসাবের মাস)
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <select
+                      value={purchaseFormData.expenseMonth !== undefined ? purchaseFormData.expenseMonth : (purchaseFormData.invoiceDate ? parseInt(purchaseFormData.invoiceDate.split('-')[1]) - 1 : new Date().getMonth())}
+                      onChange={e => setPurchaseFormData(prev => ({ ...prev, expenseMonth: parseInt(e.target.value) }))}
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white font-bold text-xs"
+                      title="কোন মাসের খরচে এটি হিসাবভুক্ত হবে"
+                    >
+                      {monthOptions.map(m => (
+                        <option key={m.value} value={m.value}>{m.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={purchaseFormData.expenseYear !== undefined ? purchaseFormData.expenseYear : (purchaseFormData.invoiceDate ? parseInt(purchaseFormData.invoiceDate.split('-')[0]) : new Date().getFullYear())}
+                      onChange={e => setPurchaseFormData(prev => ({ ...prev, expenseYear: parseInt(e.target.value) }))}
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white font-bold text-xs"
+                      title="খরচের বছর"
+                    >
+                      {[2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 whitespace-nowrap">
+                    সরবরাহকারী বা সাপ্লায়ার
+                  </label>
+                  <input 
+                    type="text" 
+                    value={purchaseFormData.source} 
+                    onChange={e=>handleSupplierChange(e.target.value)} 
+                    onFocus={() => handleSupplierChange(purchaseFormData.source)} 
+                    onBlur={()=>setTimeout(()=>setShowSupplierSuggestions(false), 200)} 
+                    className={`w-full bg-slate-900 border rounded-lg p-2.5 text-white font-bold text-xs ${errors.source ? 'border-red-500' : 'border-slate-600'}`} 
+                    placeholder="Search Supplier..." 
+                    autoComplete="off"
+                  />
+                  {showSupplierSuggestions && supplierSuggestions.length > 0 && (
+                    <ul className="absolute z-50 w-full bg-slate-700 border border-slate-500 mt-1 max-h-48 overflow-y-auto rounded shadow-2xl">
+                      {supplierSuggestions.map((s,i)=>(
+                        <li key={i} onMouseDown={()=>setPurchaseFormData({...purchaseFormData, source: s})} className="p-2.5 hover:bg-slate-600 cursor-pointer text-white text-xs border-b border-slate-600/30 last:border-0 font-bold">
+                          {s}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
             </div>
+
             <div className="bg-slate-900/80 p-5 rounded-lg border border-slate-700 mb-6 shadow-inner">
                 <h3 className="text-xs font-black text-blue-300 mb-4 uppercase tracking-[0.2em]">Add Medicine Items (Trade + Generic)</h3>
                 <div className="flex flex-wrap gap-2 items-end">
@@ -2575,123 +2726,338 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                     <button onClick={addPurchaseItem} className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-500 font-black shadow-lg text-sm uppercase">Add</button>
                 </div>
             </div>
+
             <div className="overflow-x-auto border-2 border-slate-700 rounded-xl mb-6 shadow-xl">
               <table className="w-full text-left border-collapse text-sm text-slate-100">
                 <thead className="bg-slate-700 text-white">
                   <tr>
+                    <th className="p-3 text-center uppercase text-xs w-14"># ক্রমিক</th>
                     <th className="p-3 uppercase text-xs">Medicine (Trade + Generic)</th>
-                    <th className="p-3 text-center uppercase text-xs">মেয়াদ (Expiry)</th>
-                    <th className="p-3 text-right uppercase text-xs">Buy P.</th>
-                    <th className="p-3 text-right uppercase text-xs">Sell P.</th>
-                    <th className="p-3 text-right uppercase text-xs">Qty</th>
-                    <th className="p-3 text-right uppercase text-xs">Total</th>
-                    <th className="p-3 text-center uppercase text-xs">X</th>
+                    <th className="p-3 text-center uppercase text-xs w-36">মেয়াদ (Expiry)</th>
+                    <th className="p-3 text-right uppercase text-xs w-28">Buy P. (৳)</th>
+                    <th className="p-3 text-right uppercase text-xs w-28">Sell P. (৳)</th>
+                    <th className="p-3 text-right uppercase text-xs w-24">Qty (পরিমাণ)</th>
+                    <th className="p-3 text-right uppercase text-xs">Total (মোট)</th>
+                    <th className="p-3 text-center uppercase text-xs w-12">মুছুন</th>
                   </tr>
                 </thead>
                 <tbody>
                   {purchaseFormData.items.map((item, i) => (
-                    <tr key={i} className="border-b border-slate-700 bg-slate-850">
+                    <tr key={i} className="border-b border-slate-700 bg-slate-850 hover:bg-slate-800 transition-colors">
+                      <td className="p-3 text-center font-mono font-bold text-sky-400">
+                        #{i + 1}
+                      </td>
                       <td className="p-3 font-black text-white">
-                        <div>{item.tradeName} <span className="text-xs font-bold text-slate-500">({item.strength})</span></div>
-                        <div className="text-[10px] text-slate-400 italic font-bold uppercase">{item.genericName}</div>
+                        <div className="flex items-center gap-2">
+                          <span>{item.tradeName}</span>
+                          <span className="text-xs font-bold text-slate-400">({item.strength})</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-sky-300 border border-slate-700">{item.formulation}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 italic font-bold uppercase">{item.genericName}</div>
                       </td>
                       <td className="p-3 text-center">
-                        {item.expiryDate ? (
-                          <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-slate-900 text-amber-300 border border-amber-500/40">
-                            {item.expiryDate}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-500 italic">উল্লেখ নেই</span>
-                        )}
+                        <input
+                          type="month"
+                          value={item.expiryDate || ''}
+                          onChange={e => updatePurchaseItem(i, { expiryDate: e.target.value })}
+                          className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-amber-300 font-mono font-bold outline-none focus:border-amber-500"
+                          title="মেয়াদ পরিবর্তন করুন"
+                        />
                       </td>
-                      <td className="p-3 text-right text-slate-300 font-bold">{item.unitPriceBuy.toFixed(2)}</td>
-                      <td className="p-3 text-right text-slate-300 font-bold">{item.unitPriceSell.toFixed(2)}</td>
-                      <td className="p-3 text-right font-black text-white">{item.qtyBuying}</td>
-                      <td className="p-3 text-right font-black text-emerald-400 text-base">৳{item.lineTotalBuy.toFixed(2)}</td>
+                      <td className="p-3 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.unitPriceBuy || ''}
+                          onChange={e => updatePurchaseItem(i, { unitPriceBuy: parseFloat(e.target.value) || 0 })}
+                          onFocus={e => e.target.select()}
+                          className="w-24 bg-slate-900 border border-slate-700 focus:border-blue-500 rounded px-2 py-1 text-right text-slate-200 font-bold text-sm outline-none"
+                          title="ক্রয়মূল্য এডিট করুন"
+                        />
+                      </td>
+                      <td className="p-3 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.unitPriceSell || ''}
+                          onChange={e => updatePurchaseItem(i, { unitPriceSell: parseFloat(e.target.value) || 0 })}
+                          onFocus={e => e.target.select()}
+                          className="w-24 bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded px-2 py-1 text-right text-emerald-300 font-bold text-sm outline-none"
+                          title="বিক্রয়মূল্য এডিট করুন"
+                        />
+                      </td>
+                      <td className="p-3 text-right">
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.qtyBuying || ''}
+                          onChange={e => updatePurchaseItem(i, { qtyBuying: parseFloat(e.target.value) || 0 })}
+                          onFocus={e => e.target.select()}
+                          className="w-20 bg-slate-900 border border-slate-700 focus:border-sky-500 rounded px-2 py-1 text-right text-white font-black text-sm outline-none"
+                          title="পরিমাণ এডিট করুন"
+                        />
+                      </td>
+                      <td className="p-3 text-right font-black text-emerald-400 text-base whitespace-nowrap">
+                        ৳{(item.unitPriceBuy * item.qtyBuying).toFixed(2)}
+                      </td>
                       <td className="p-3 text-center">
-                        <button onClick={()=>removePurchaseItem(i)} className="text-red-500 font-black hover:text-white bg-slate-900 w-8 h-8 rounded-full">×</button>
+                        <button 
+                          type="button" 
+                          onClick={()=>removePurchaseItem(i)} 
+                          className="text-red-400 hover:text-white hover:bg-rose-600 bg-slate-900 w-7 h-7 rounded-full inline-flex items-center justify-center font-black transition-all cursor-pointer"
+                          title="এই আইটেমটি বাদ দিন"
+                        >
+                          ×
+                        </button>
                       </td>
                     </tr>
                   ))}
+                  {purchaseFormData.items.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-slate-500 font-bold italic">
+                        এখনো কোনো ঔষধ যোগ করা হয়নি। উপরের বক্স থেকে ঔষধ নির্বাচন করে Add বাটনে চাপুন।
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                <div className="p-5 bg-slate-900/50 rounded-xl border border-slate-700"><label className="block text-xs font-black text-slate-500 mb-2 uppercase">Bill Created By</label><select value={purchaseFormData.billCreatedBy} onChange={e=>setPurchaseFormData({...purchaseFormData, billCreatedBy:e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded p-3 text-white font-black"><option value="Admin">Admin</option>{employees.map(e=><option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>)}</select></div>
-                <div className="bg-slate-900 p-6 rounded-2xl border-2 border-slate-700 space-y-4 shadow-2xl">
-                    <div className="flex justify-between items-center text-slate-400 font-black text-xs uppercase"><span>Sub Total:</span> <span className="text-white text-xl">৳{purchaseFormData.totalAmount.toFixed(2)}</span></div>
-                    <div className="flex justify-between items-center text-slate-400 font-black text-xs uppercase"><span>Discount:</span> <input type="number" value={purchaseFormData.discount} onChange={e=>setPurchaseFormData({...purchaseFormData, discount:parseFloat(e.target.value)||0})} className="w-28 bg-slate-800 border-2 border-slate-700 rounded-xl p-3 text-right text-white font-black focus:border-blue-500 outline-none"/></div>
-                    <div className="flex justify-between items-center text-sky-400 font-black border-t-2 border-slate-800 pt-3 text-2xl uppercase"><span>Net Bill:</span> <span>৳{purchaseFormData.netPayable.toFixed(2)}</span></div>
-                    <div className="flex justify-between items-center text-emerald-400 font-black text-xs uppercase"><span>Paid Amount:</span> <input type="number" value={purchaseFormData.paidAmount || 0} onChange={e=>setPurchaseFormData({...purchaseFormData, paidAmount:parseFloat(e.target.value)||0})} className="w-28 bg-slate-800 border border-slate-600 rounded p-2 text-right text-white font-black text-xl" onFocus={e=>e.target.select()}/></div>
-                    <div className="flex justify-between items-center text-red-500 font-black text-2xl uppercase"><span>Due Amount:</span> <span>৳{purchaseFormData.dueAmount.toFixed(2)}</span></div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                {/* Left column: Bill Created By and Action Buttons directly underneath */}
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-700 shadow-sm">
+                    <label className="block text-xs font-black text-slate-400 mb-1.5 uppercase tracking-wider">
+                      বিল তৈরিকারী / Bill Created By
+                    </label>
+                    <select 
+                      value={purchaseFormData.billCreatedBy} 
+                      onChange={e => setPurchaseFormData({...purchaseFormData, billCreatedBy: e.target.value})} 
+                      className="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-white font-bold text-sm focus:border-blue-500 outline-none"
+                    >
+                      <option value="Admin">Admin</option>
+                      {employees.map(e => (
+                        <option key={e.emp_id} value={e.emp_name}>{e.emp_name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Buttons placed directly below Bill Created By box */}
+                  <div className="flex items-center gap-3 pt-1">
+                    <button 
+                      type="button" 
+                      onClick={() => { setBuyViewMode('list'); setEditingPurchaseId(null); setIsOpeningStock(false); setErrors({}); }} 
+                      className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white rounded-xl font-bold text-sm transition-all border border-slate-600 cursor-pointer shadow"
+                    >
+                      ✕ বাতিল (Discard)
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={handleSavePurchase} 
+                      className={`flex-1 py-2.5 px-6 text-white rounded-xl font-black text-sm shadow-xl transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer ${
+                        buyViewMode === 'edit'
+                          ? 'bg-amber-600 hover:bg-amber-500 active:scale-95 border border-amber-400'
+                          : 'bg-blue-600 hover:bg-blue-500 active:scale-95 border border-blue-400'
+                      }`}
+                    >
+                      {buyViewMode === 'edit' ? '🔄 আপডেট ক্রয় ইনভয়েস' : '💾 ইনভয়েস সংরক্ষণ করুন'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right column: Summary Box with compact height and clean readable fonts */}
+                <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-700 space-y-2 shadow-lg">
+                    <div className="flex justify-between items-center text-slate-300 font-bold text-xs uppercase">
+                      <span>Sub Total (মোট মূল্য):</span> 
+                      <span className="text-white font-mono font-bold text-sm">৳{purchaseFormData.totalAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-300 font-bold text-xs uppercase">
+                      <span>Discount (ছাড়):</span> 
+                      <input 
+                        type="number" 
+                        value={purchaseFormData.discount} 
+                        onChange={e => setPurchaseFormData({...purchaseFormData, discount: parseFloat(e.target.value) || 0})} 
+                        className="w-24 bg-slate-800 border border-slate-700 rounded-lg p-1 text-right text-rose-400 font-bold text-xs focus:border-blue-500 outline-none"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-sky-400 font-black border-t border-slate-800 pt-1.5 text-sm uppercase">
+                      <span>Net Bill (প্রদেয় বিল):</span> 
+                      <span className="text-sky-300 font-mono font-black text-base">৳{purchaseFormData.netPayable.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-emerald-400 font-bold text-xs uppercase">
+                      <span>Paid Amount (পরিশোধ):</span> 
+                      <input 
+                        type="number" 
+                        value={purchaseFormData.paidAmount || 0} 
+                        onChange={e => setPurchaseFormData({...purchaseFormData, paidAmount: parseFloat(e.target.value) || 0})} 
+                        className="w-24 bg-slate-800 border border-slate-700 rounded-lg p-1 text-right text-emerald-300 font-bold text-xs focus:border-emerald-500 outline-none" 
+                        onFocus={e => e.target.select()}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-rose-500 font-black border-t border-slate-800/80 pt-1.5 text-sm uppercase">
+                      <span>Due Amount (বকেয়া):</span> 
+                      <span className="text-rose-400 font-mono font-black text-base">৳{purchaseFormData.dueAmount.toFixed(2)}</span>
+                    </div>
                 </div>
             </div>
-            <div className="mt-8 flex justify-end gap-4"><button onClick={()=>{setBuyViewMode('list'); setEditingPurchaseId(null); setIsOpeningStock(false); setErrors({});}} className="px-8 py-3 bg-slate-700 text-white rounded-lg font-black hover:bg-slate-600 transition-all">Discard</button><button onClick={handleSavePurchase} className="px-16 py-3 bg-blue-600 text-white rounded-lg font-black shadow-2xl hover:bg-blue-500 transform active:scale-95 transition-all uppercase tracking-widest">Post Invoice</button></div>
 
             {/* Recent Saved Invoices List directly under the purchase entry form */}
             {safeInvoices.length > 0 && (
-              <div className="mt-12 pt-8 border-t border-slate-700 space-y-4">
+              <div className="mt-12 pt-8 border-t border-slate-700 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-black text-white flex items-center gap-2">
-                      <FileTextIcon className="w-5 h-5 text-sky-400" />
-                      সংরক্ষিত ক্রয় ইনভয়েসসমূহ (Saved Invoices)
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">💡 যেকোনো ইনভয়েসের উপর <b>ডাবল-ক্লিক (Double-Click)</b> করুন অথবা <b>ভাউচার</b> বাটনে ক্লিক করে ভাউচার দেখুন ও প্রিন্ট করুন।</p>
-                  </div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <FileTextIcon className="w-4 h-4 text-sky-400" />
+                    সংরক্ষিত ক্রয় ইনভয়েসসমূহ (Saved Invoices)
+                  </h3>
                   <button
                     onClick={() => { setBuyViewMode('list'); setEditingPurchaseId(null); }}
-                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-xs font-bold text-white rounded-xl transition-all self-start sm:self-auto shrink-0 border border-slate-600"
+                    className="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-bold text-white rounded-lg transition-all self-start sm:self-auto shrink-0 border border-slate-600 cursor-pointer shadow"
                   >
                     সকল ইনভয়েস তালিকা দেখুন →
                   </button>
                 </div>
-                <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-xl max-h-96">
-                  <table className="w-full text-left border-collapse text-sm">
-                    <thead className="bg-slate-700 text-slate-200 sticky top-0 z-10">
+                <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm max-h-96">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="bg-[#e8edf4] text-slate-800 border-b border-slate-300 sticky top-0 z-10">
                       <tr>
-                        <th className="p-3 uppercase text-xs font-bold">ইনভয়েস নং</th>
-                        <th className="p-3 uppercase text-xs font-bold">তারিখ</th>
-                        <th className="p-3 uppercase text-xs font-bold">সাপ্লায়ার</th>
-                        <th className="p-3 text-center uppercase text-xs font-bold">আইটেম সংখ্যা</th>
-                        <th className="p-3 text-right uppercase text-xs font-bold">মোট বিল</th>
-                        <th className="p-3 text-right uppercase text-xs font-bold">পরিশোধ</th>
-                        <th className="p-3 text-right uppercase text-xs font-bold">বকেয়া</th>
-                        <th className="p-3 text-center uppercase text-xs font-bold">অ্যাকশন</th>
+                        <th className="p-2.5 text-center font-bold text-xs uppercase border-r border-slate-300 w-12 text-slate-800">
+                          ক্রমিক
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
+                          তারিখ / মাস-বছর
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
+                          এন্ট্রি টাইপ ও শিফট
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
+                          অপারেটর
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-center text-slate-800">
+                          রোগী / আইটেম
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
+                          গ্রস বিল
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-rose-600">
+                          ছাড়
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
+                          নিট বিল
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800 bg-[#f0fdf4]">
+                          ক্যাশ আদায়
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
+                          বাকি (DUE)
+                        </th>
+                        <th className="p-2.5 font-bold text-xs uppercase text-center text-slate-800">
+                          অ্যাকশন
+                        </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700">
-                      {safeInvoices.slice(0, 10).map(inv => (
-                        <tr
-                          key={inv.invoiceId}
-                          onDoubleClick={() => setViewingPurchaseInvoice(inv)}
-                          title="ডাবল ক্লিক করে সম্পূর্ণ ভাউচার দেখুন ও প্রিন্ট করুন"
-                          className="bg-slate-800 hover:bg-slate-750 transition-colors cursor-pointer group"
-                        >
-                          <td className="p-3 font-mono text-sky-400 group-hover:text-white font-bold">{inv.invoiceId}</td>
-                          <td className="p-3 text-slate-200 font-bold">{inv.invoiceDate}</td>
-                          <td className="p-3 text-white font-black">{inv.source}</td>
-                          <td className="p-3 text-center text-sky-400 font-bold">{Array.isArray(inv.items) ? inv.items.length : 0} টি</td>
-                          <td className="p-3 text-right font-black text-sky-400">৳{(inv.netPayable || 0).toFixed(2)}</td>
-                          <td className="p-3 text-right font-black text-emerald-400">৳{Number(inv.paidAmount || 0).toFixed(2)}</td>
-                          <td className="p-3 text-right font-black text-rose-400">৳{Number(inv.dueAmount || 0).toFixed(2)}</td>
-                          <td className="p-3 text-center space-x-2 whitespace-nowrap">
-                            <button
-                              onClick={() => setViewingPurchaseInvoice(inv)}
-                              className="bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white px-2.5 py-1 rounded text-xs font-bold transition-all border border-blue-500/40 inline-flex items-center gap-1"
-                              title="ইনভয়েস ভাউচার দেখুন ও প্রিন্ট করুন"
-                            >
-                              <EyeIcon className="w-3.5 h-3.5" /> ভাউচার
-                            </button>
-                            <button
-                              onClick={() => handlePrintPurchase(inv)}
-                              className="text-emerald-400 hover:text-white text-xs font-bold underline inline-flex items-center gap-1"
-                            >
-                              <PrinterIcon className="w-3.5 h-3.5" /> প্রিন্ট
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                    <tbody>
+                      {safeInvoices.slice(0, 10).map((inv, idx) => {
+                        const grossBill = Number(inv.totalAmount || inv.netPayable || 0);
+                        const discount = Number(inv.discount || 0);
+                        const netBill = Number(inv.netPayable || 0);
+                        const cashPaid = Number(inv.paidAmount || 0);
+                        const dueAmt = Number(inv.dueAmount || 0);
+                        const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
+                        const operatorName = inv.billCreatedBy || inv.billPaidBy || 'Admin';
+
+                        return (
+                          <tr
+                            key={inv.invoiceId}
+                            onDoubleClick={() => handleOpenEditPurchaseInvoice(inv)}
+                            title="ডাবল ক্লিক করে ইনভয়েসটি এডিট ও আপডেট করুন"
+                            className="border-b border-slate-300 hover:bg-slate-50 transition-colors bg-white cursor-pointer"
+                          >
+                            <td className="p-2.5 text-center font-bold text-slate-700 border-r border-slate-300 text-xs">
+                              {idx + 1}
+                            </td>
+                            <td className="p-2.5 border-r border-slate-300 text-xs">
+                              <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                <span>{inv.invoiceDate}</span>
+                                <span className="text-[10px] text-slate-500 font-normal">
+                                  ({inv.createdDate ? new Date(inv.createdDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '08:20 AM'})
+                                </span>
+                              </div>
+                              {((inv as any).expenseMonth !== undefined && (inv as any).expenseYear !== undefined) && (
+                                <span className="text-[10px] text-amber-700 font-medium block">
+                                  খরচের মাস: {monthOptions.find(m => m.value === (inv as any).expenseMonth)?.name} {(inv as any).expenseYear}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2.5 border-r border-slate-300 text-xs">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="bg-sky-50 text-sky-700 border border-sky-300 px-2 py-0.5 rounded text-[11px] font-semibold">
+                                  {isLumpSumPurchase(inv) ? 'এককালীন মাসিক ক্রয়' : 'দৈনিক ক্রয় (PURCHASE)'}
+                                </span>
+                                <span className="text-slate-800 font-bold text-xs">{inv.source}</span>
+                              </div>
+                            </td>
+                            <td className="p-2.5 border-r border-slate-300 text-slate-700 font-medium text-xs">
+                              {operatorName}
+                            </td>
+                            <td className="p-2.5 text-center border-r border-slate-300 font-bold text-slate-800 text-xs">
+                              {itemCount}
+                            </td>
+                            <td className="p-2.5 text-right font-bold text-slate-800 border-r border-slate-300 text-xs">
+                              ৳{grossBill.toFixed(0)}
+                            </td>
+                            <td className="p-2.5 text-right font-bold text-rose-600 border-r border-slate-300 text-xs">
+                              {discount > 0 ? `-৳${discount.toFixed(0)}` : '-৳০'}
+                            </td>
+                            <td className="p-2.5 text-right font-bold text-slate-900 border-r border-slate-300 text-xs">
+                              ৳{netBill.toFixed(0)}
+                            </td>
+                            <td className="p-2.5 text-right font-bold text-emerald-800 bg-[#f0fdf4] border-r border-slate-300 text-xs">
+                              ৳{cashPaid.toFixed(0)}
+                            </td>
+                            <td className={`p-2.5 text-right font-bold border-r border-slate-300 text-xs ${dueAmt > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                              ৳{dueAmt.toFixed(0)}
+                            </td>
+                            <td className="p-2.5 text-center whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEditPurchaseInvoice(inv);
+                                  }}
+                                  className="p-1.5 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                                  title="ইনভয়েস এডিট করুন"
+                                >
+                                  <EditIcon className="w-3.5 h-3.5 text-amber-600" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePrintPurchase(inv);
+                                  }}
+                                  className="p-1.5 rounded border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                                  title="প্রিন্ট করুন"
+                                >
+                                  <PrinterIcon className="w-3.5 h-3.5 text-blue-600" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleReturnPurchase(inv);
+                                  }}
+                                  className="p-1.5 rounded border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                                  title="ফেরত / বাতিল করুন"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -2931,7 +3297,16 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Invoice ID</label><input type="text" value={salesFormData.invoiceId} disabled className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-500 font-bold"/></div>
                 <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Sale Date</label><input type="date" value={salesFormData.invoiceDate} onChange={e=>setSalesFormData({...salesFormData, invoiceDate:e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-black shadow-inner focus:border-emerald-500 outline-none"/></div>
                 <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Customer Name</label><input type="text" value={salesFormData.customerName} onChange={e=>setSalesFormData({...salesFormData, customerName:e.target.value})} className={`w-full bg-slate-900 border rounded-xl p-3 text-white font-black ${errors.customerName?'border-red-500':'border-slate-700 focus:border-emerald-500 outline-none shadow-inner'}`}/></div>
-                <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Mobile No.</label><input type="text" value={salesFormData.customerMobile} onChange={e=>setSalesFormData({...salesFormData, customerMobile:e.target.value})} className={`w-full bg-slate-900 border rounded-xl p-3 text-white font-black shadow-inner ${errors.customerMobile?'border-red-500':'border-slate-700'}`}/></div>
+                <div>
+                    <MobileNumberInput 
+                        label="Mobile No." 
+                        name="customerMobile"
+                        value={salesFormData.customerMobile} 
+                        onChange={e => setSalesFormData({ ...salesFormData, customerMobile: e.target.value })} 
+                        placeholder="01XXX-XXXXXX"
+                        className={`w-full bg-slate-900 border rounded-xl p-3 text-white font-mono font-bold tracking-wider shadow-inner text-sm ${errors.customerMobile ? 'border-red-500' : 'border-slate-700 focus:border-emerald-500'}`}
+                    />
+                </div>
                 <div><label className="block text-xs font-black text-slate-400 mb-1 uppercase">Referrer</label><input type="text" value={salesFormData.refDoctorName} onChange={e=>setSalesFormData({...salesFormData, refDoctorName:e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-bold shadow-inner" placeholder="Optional"/></div>
             </div>
             <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-700 mb-8 shadow-inner ring-1 ring-emerald-500/10">
@@ -4268,26 +4643,30 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
       {confirmModal.isOpen && (
         <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4 backdrop-blur-2xl animate-in fade-in duration-300">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl shadow-black/50 relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 animate-pulse"></div>
-            <div className="flex flex-col items-center text-center space-y-6">
-              <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center border border-rose-500/20 group-hover:scale-110 transition-transform duration-500">
-                <AlertCircle className="w-10 h-10 text-rose-400 animate-pulse" />
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-[2rem] p-8 shadow-2xl shadow-black/80 relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-500 via-blue-500 to-emerald-500 animate-pulse"></div>
+            <div className="flex flex-col items-center space-y-5">
+              <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/20 group-hover:scale-105 transition-transform duration-300">
+                <AlertCircle className="w-8 h-8 text-blue-400 animate-pulse" />
               </div>
-              <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{confirmModal.title}</h3>
-              <p className="text-slate-400 font-medium text-lg leading-relaxed whitespace-pre-line">{confirmModal.message}</p>
-              <div className="flex gap-4 w-full pt-4">
+              <h3 className="text-xl font-black text-white tracking-tight text-center">{confirmModal.title}</h3>
+              <div className="w-full bg-slate-950/70 p-4 rounded-xl border border-slate-800 text-slate-300 font-medium text-sm leading-relaxed whitespace-pre-line">
+                {confirmModal.message}
+              </div>
+              <div className="flex gap-3 w-full pt-2">
                 <button 
+                  type="button"
                   onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                  className="flex-1 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black uppercase text-xs tracking-widest transition-all border border-slate-700 active:scale-95"
+                  className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs uppercase tracking-wider transition-all border border-slate-700 active:scale-95 cursor-pointer"
                 >
-                  No, Cancel
+                  ✕ না, বাতিল (Cancel)
                 </button>
                 <button 
+                  type="button"
                   onClick={confirmModal.onConfirm}
-                  className="flex-1 px-6 py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-rose-900/40 transition-all active:scale-95 border border-rose-400/30"
+                  className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-900/40 transition-all active:scale-95 border border-blue-400/40 cursor-pointer"
                 >
-                  Yes, Confirm
+                  ✓ হ্যাঁ, সম্মতি দিচ্ছি (Yes, Confirm)
                 </button>
               </div>
             </div>

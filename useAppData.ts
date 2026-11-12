@@ -345,7 +345,7 @@ export function useAppData() {
       if (incomingCons !== null) {
         setConsolidatedLabEntries(prev => {
           const localCurrent = Array.isArray(prev) && prev.length > 0 ? prev : dbService.getConsolidatedEntries();
-          const merged = dbService.mergeEntityList(localCurrent || [], incomingCons, ['id', '_id']);
+          const merged = dbService.mergeEntityList(incomingCons, localCurrent || [], ['id', '_id']);
           dbService.saveConsolidatedEntries(merged);
           return merged;
         });
@@ -356,7 +356,7 @@ export function useAppData() {
       if (incomingClinicCons !== null) {
         setConsolidatedClinicEntries(prev => {
           const localCurrent = Array.isArray(prev) && prev.length > 0 ? prev : dbService.getConsolidatedClinicEntries();
-          const merged = dbService.mergeEntityList(localCurrent || [], incomingClinicCons, ['id', '_id']);
+          const merged = dbService.mergeEntityList(incomingClinicCons, localCurrent || [], ['id', '_id']);
           dbService.saveConsolidatedClinicEntries(merged);
           return merged;
         });

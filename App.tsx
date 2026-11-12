@@ -386,6 +386,7 @@ const AppContent = () => {
                 medicines={data.medicines || []} setMedicines={data.setMedicines}
                 admissions={data.admissions || []} setAdmissions={data.setAdmissions}
                 indoorInvoices={data.indoorInvoices || []} setIndoorInvoices={data.setIndoorInvoices}
+                dueCollections={data.dueCollections || []} setDueCollections={data.setDueCollections}
                 detailedExpenses={data.detailedExpenses || {}}
                 performBlockingSync={data.performBlockingSync}
                 currentUserEmail={data.currentUserEmail}

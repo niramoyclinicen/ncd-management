@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Doctor, emptyDoctor } from './DiagnosticData';
+import MobileNumberInput from './MobileNumberInput';
 
 interface DoctorInfoPageProps {
   doctors: Doctor[];
@@ -157,7 +158,16 @@ const DoctorInfoPage: React.FC<DoctorInfoPageProps> = ({
               </select>
             </div>
             <div><label className={labelBaseClasses}>Degree (multi-line allowed)</label><textarea name="degree" value={formData.degree} onChange={handleInputChange} className={inputBaseClasses} placeholder="e.g. MBBS, FCPS\nMD (Medicine)" rows={2} /></div>
-            <div><label className={labelBaseClasses}>Mobile</label><input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXX-XXXXXX" className={inputBaseClasses} /></div>
+            <div>
+              <MobileNumberInput 
+                label="Mobile" 
+                name="mobile" 
+                value={formData.mobile} 
+                onChange={handleInputChange} 
+                placeholder="01XXX-XXXXXX" 
+                className={inputBaseClasses} 
+              />
+            </div>
             <div className="md:col-span-2 flex items-center gap-4 mt-2 bg-sky-900/30 p-4 rounded-lg border border-sky-800">
                 <div className="flex-shrink-0">{formData.photo ? <img src={formData.photo} alt="Doc" className="w-24 h-24 rounded-full object-cover border-2 border-sky-500 shadow-md" /> : <div className="w-24 h-24 rounded-full bg-sky-800 flex items-center justify-center text-sky-400 border-2 border-dashed border-sky-600"><span className="text-xs">No Photo</span></div>}</div>
                 <div className="flex-1"><label className={labelBaseClasses}>Upload Photo</label><input type="file" accept="image/*" onChange={handlePhotoUpload} ref={fileInputRef} className="mt-1 block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" /></div>

@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice, DueCollection, ExpenseItem, Employee, PurchaseInvoice, SalesInvoice, Medicine } from './DiagnosticData';
 import { IndoorInvoice } from './ClinicPage';
 import { BackIcon, FileTextIcon, UsersIcon, WalletIcon, MoneyIcon, TrendingDownIcon, ChartIcon, PlusIcon, Activity, TrashIcon, SaveIcon, PrinterIcon, ClinicIcon, EditIcon, XIcon, Plus } from './Icons';
+import MobileNumberInput from './MobileNumberInput';
 import { dbService, normalizeDate } from '../dbService';
 
 interface ConsolidatedAccountsPageProps {
@@ -179,8 +180,9 @@ function getLabInvDate(inv: any): string {
 
 function isDiagDue(dc: any): boolean {
     if (!dc) return false;
-    const invId = (dc.invoice_id || '').toUpperCase();
-    return !invId.startsWith('IND') && !invId.startsWith('CLIN');
+    const invId = String(dc.invoice_id || '').toUpperCase();
+    const collId = String(dc.collection_id || '').toUpperCase();
+    return !invId.startsWith('IND') && !invId.startsWith('CLIN') && !collId.startsWith('CDC-');
 }
 
 function getExpAmount(e: any): number {
@@ -336,6 +338,36 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         return Math.max(0, initialPaid - usgFee - labFee - commPaid);
     };
 
+    const getNetClinicCash = (inv: IndoorInvoice) => {
+        if (!inv || inv.isDeleted) return 0;
+        const st = String(inv.status || '').toLowerCase().trim();
+        if (st === 'cancelled' || st === 'returned' || st === 'deleted') return 0;
+        const items = Array.isArray(inv.items) ? inv.items : [];
+        const isDoc = (it: any) => {
+            const t = (it?.service_type || '').toLowerCase();
+            const p = (it?.service_provider || '').toLowerCase();
+            return [
+                'surgeon', 'anaesthetist', 'obstetrician', 'midwife',
+                'doctor round fee', 'doctor prescription fee', 'discharge writing fee',
+                'assistant_1', 'assistant_2', 'staff', 'medicine'
+            ].some(d => t.includes(d)) || p.startsWith('dr') || p.includes('doctor');
+        };
+        const fundedRevenue = items.filter(it => {
+            if (!it) return false;
+            if (it.isClinicFund === true) return true;
+            if (it.isClinicFund === false) return false;
+            return !isDoc(it);
+        }).reduce((ss, ii) => ss + (Number(ii.payable_amount) || 0), 0);
+        const pcAmount = (Number(inv.commission_paid) || 0) + (Number(inv.special_commission) || 0);
+        const specialDiscount = Number(inv.special_discount_amount) || 0;
+        const currentDue = Math.max(0, Number(inv.due_bill ?? (inv as any).due_amount ?? (inv as any).dueAmount) || 0);
+        const allClinicDuesForInv = (dueCollections || []).filter(dc =>
+            dc && !isDiagDue(dc) && (dc.invoice_id === inv.invoice_id || dc.invoice_id === inv.daily_id)
+        ).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
+
+        return Math.max(0, fundedRevenue - pcAmount - specialDiscount - currentDue - allClinicDuesForInv);
+    };
+
     const [consolidatedEntries, setConsolidatedEntries] = useState<any[]>(() => {
         return (consolidatedLabEntries && consolidatedLabEntries.length > 0)
             ? consolidatedLabEntries
@@ -474,11 +506,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             if (st === 'cancelled' || st === 'returned' || st === 'deleted') return;
             const dateToUse = inv.admission_date || inv.invoice_date;
             if (isSameDay(dateToUse, targetDate)) {
-                const itemsList = Array.isArray(inv.items) ? inv.items : [];
-                const fundedRevenue = itemsList.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (Number(ii.payable_amount) || 0), 0);
-                const pcAmount = (Number(inv.commission_paid) || 0) + (Number(inv.special_commission) || 0);
-                const specialDiscount = Number(inv.special_discount_amount) || 0;
-                const netAmount = fundedRevenue - pcAmount - specialDiscount;
+                const netAmount = getNetClinicCash(inv);
                 items.push({
                     id: `clinic_${inv.invoice_id || inv.id}`,
                     originalId: String(inv.invoice_id || inv.id),
@@ -1355,10 +1383,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr}`;
 
             const diagInvToday = (labInvoices || []).filter(inv => {
-                if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+                if (!inv || inv.isDeleted || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
                 const invDate = getLabInvDate(inv);
                 return isSameDay(invDate, dateStr);
             }).reduce((s, inv) => s + getNetDiagCash(inv), 0);
+
+            const diagInvUnpaid = (labInvoices || []).filter(inv => {
+                if (!inv || inv.isDeleted || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') return false;
+                const invDate = getLabInvDate(inv);
+                return isSameDay(invDate, dateStr);
+            }).reduce((s, inv) => s + Math.max(0, Number(inv.due_amount ?? (inv as any).dueAmount) || 0), 0);
             
             const isEntryForDay = (e: any) => {
                 if (!e) return false;
@@ -1366,7 +1400,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 return Boolean(entryDate && entryDate === dateStr);
             };
             const diagConsolidatedToday = (consolidatedEntries || []).filter(isEntryForDay).reduce((s, e) => s + getConsolidatedNet(e), 0);
+            const diagConsolidatedUnpaid = (consolidatedEntries || []).filter(isEntryForDay).reduce((s, e) => {
+                const rawDue = Math.max(0, Number(e.dueAmount ?? e.due_amount) || 0);
+                const collectedOnCons = (dueCollections || []).filter(dc => dc && dc.invoice_id === e.id).reduce((ss, dc) => ss + (Number(dc.amount_collected) || 0), 0);
+                return s + Math.max(0, rawDue - collectedOnCons);
+            }, 0);
             const diagToday = diagInvToday + diagConsolidatedToday;
+            const diagUnpaid = diagInvUnpaid + diagConsolidatedUnpaid;
 
             const diagDue = dueCollections.filter(dc => {
                 if (!dc || !isSameDay(dc.collection_date, dateStr) || !isDiagDue(dc)) return false;
@@ -1381,24 +1421,33 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (st === 'cancelled' || st === 'returned' || st === 'deleted') return false;
                 const dateToUse = inv.admission_date || inv.invoice_date;
                 return isSameDay(dateToUse, dateStr);
-            }).reduce((s, inv) => {
-                const items = Array.isArray(inv.items) ? inv.items : [];
-                const fundedRevenue = items.filter(it => it && it.isClinicFund).reduce((ss, ii) => ss + (Number(ii.payable_amount) || 0), 0);
-                const pcAmount = (Number(inv.commission_paid) || 0) + (Number(inv.special_commission) || 0);
-                const specialDiscount = Number(inv.special_discount_amount) || 0;
-                return s + (fundedRevenue - pcAmount - specialDiscount);
-            }, 0);
+            }).reduce((s, inv) => s + getNetClinicCash(inv), 0);
+
+            const clinicInvUnpaid = indoorInvoices.filter(inv => {
+                if (!inv || inv.isDeleted) return false;
+                const st = String(inv.status || '').toLowerCase().trim();
+                if (st === 'cancelled' || st === 'returned' || st === 'deleted') return false;
+                const dateToUse = inv.admission_date || inv.invoice_date;
+                return isSameDay(dateToUse, dateStr);
+            }).reduce((s, inv) => s + Math.max(0, Number(inv.due_bill ?? (inv as any).due_amount ?? (inv as any).dueAmount) || 0), 0);
+
             const clinicConsolidatedToday = (clinicConsolidatedEntries || []).filter(isEntryForDay).reduce((s, e) => s + getConsolidatedClinicNet(e), 0);
+            const clinicConsolidatedUnpaid = (clinicConsolidatedEntries || []).filter(isEntryForDay).reduce((s, e) => {
+                const rawDue = Math.max(0, Number(e.dueAmount ?? e.due_amount ?? e.due) || 0);
+                const collectedOnCons = (dueCollections || []).filter(dc => dc && dc.invoice_id === e.id).reduce((ss, dc) => ss + (Number(dc.amount_collected) || 0), 0);
+                return s + Math.max(0, rawDue - collectedOnCons);
+            }, 0);
             const clinicToday = clinicInvToday + clinicConsolidatedToday;
+            const clinicUnpaid = clinicInvUnpaid + clinicConsolidatedUnpaid;
+
             const clinicDue = dueCollections.filter(dc => {
-                if (!dc || !isSameDay(dc.collection_date, dateStr) || (dc.invoice_id || '').startsWith('INV')) return false;
-                const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || !isSameDay(inv.admission_date || inv.invoice_date || '', dc.collection_date);
+                if (!dc || !isSameDay(dc.collection_date, dateStr) || isDiagDue(dc)) return false;
+                return true;
             }).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
             const clinicTotal = clinicToday + clinicDue;
             clinicUpto += clinicTotal;
 
-            if (diagTotal > 0 || clinicTotal > 0) {
+            if (diagTotal > 0 || clinicTotal > 0 || diagUnpaid > 0 || clinicUnpaid > 0) {
                 lastDayWithData = d - 1;
             }
 
@@ -1407,8 +1456,8 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             rawRows.push({
                 date: displayDate,
                 fullDate: dateStr,
-                diag: { today: diagToday, due: diagDue, total: diagTotal, upto: diagUpto },
-                clinic: { today: clinicToday, due: clinicDue, total: clinicTotal, upto: clinicUpto }
+                diag: { today: diagToday, due: diagDue, unpaidDue: diagUnpaid, total: diagTotal, upto: diagUpto },
+                clinic: { today: clinicToday, due: clinicDue, unpaidDue: clinicUnpaid, total: clinicTotal, upto: clinicUpto }
             });
         }
 
@@ -1595,20 +1644,13 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                 if (st === 'cancelled' || st === 'returned' || st === 'deleted') return false;
                 const dateToUse = inv.admission_date || inv.invoice_date;
                 return isBeforeSelectedMonth(dateToUse);
-            }).reduce((acc, inv) => {
-                const items = Array.isArray(inv.items) ? inv.items : [];
-                const netIncomeForInv = items.filter((it: any) => it && it.isClinicFund).reduce((s: number, i: any) => s + (i.payable_amount || 0), 0);
-                const pcAmount = (inv.commission_paid || 0) + (inv.special_commission || 0);
-                const specialDiscount = inv.special_discount_amount || 0;
-                return acc + (netIncomeForInv - pcAmount - specialDiscount);
-            }, 0);
+            }).reduce((acc, inv) => acc + getNetClinicCash(inv), 0);
 
             const prevConsolidatedClinic = (clinicConsolidatedEntries || []).filter(isEntryBeforeSelectedMonth).reduce((s, e) => s + getConsolidatedClinicNet(e), 0);
 
             const prevClinicDue = dueCollections.filter(dc => {
-                if (!dc || !isBeforeSelectedMonth(dc.collection_date) || (dc.invoice_id || '').startsWith('INV')) return false;
-                const inv = indoorInvoices.find(i => i.invoice_id === dc.invoice_id);
-                return !inv || !isSameDay(inv.admission_date || inv.invoice_date, dc.collection_date);
+                if (!dc || !isBeforeSelectedMonth(dc.collection_date) || isDiagDue(dc)) return false;
+                return true;
             }).reduce((s, dc) => s + dc.amount_collected, 0);
 
             const safeSalesInvoices = Array.isArray(salesInvoices) ? salesInvoices : [];
@@ -1925,20 +1967,22 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                             <table className="w-full border-collapse border-2 border-black text-[8pt] print:text-[8pt] table-fixed tracking-tighter">
                                 <thead>
                                     <tr className="bg-gray-50 h-6 print:h-[5mm]">
-                                        <th className="date-col border-2 border-black p-1 w-[8%] whitespace-nowrap" rowSpan={2}>Date</th>
-                                        <th className="border-2 border-black p-1" colSpan={4}>Diagnostic</th>
-                                        <th className="border-2 border-black p-1" colSpan={4}>Clinic</th>
+                                        <th className="date-col border-2 border-black p-1 w-[7%] whitespace-nowrap" rowSpan={2}>Date</th>
+                                        <th className="border-2 border-black p-1" colSpan={5}>Diagnostic</th>
+                                        <th className="border-2 border-black p-1" colSpan={5}>Clinic</th>
                                         <th className="border-2 border-black p-1 bg-slate-50 w-[8%] text-[7px]" rowSpan={2}>Total Collection</th>
                                     </tr>
                                     <tr className="bg-gray-50 uppercase text-[7px] font-black h-5 print:h-[4mm]">
-                                        <th className="border-2 border-black p-1 w-[10%]">Today</th>
-                                        <th className="border-2 border-black p-1 w-[7%]">Due</th>
-                                        <th className="border-2 border-black p-1 w-[11%]">Total</th>
-                                        <th className="border-2 border-black p-1 bg-blue-50 w-[14%]">Upto</th>
-                                        <th className="border-2 border-black p-1 w-[10%]">Today</th>
-                                        <th className="border-2 border-black p-1 w-[7%]">Due</th>
-                                        <th className="border-2 border-black p-1 w-[11%]">Total</th>
-                                        <th className="border-2 border-black p-1 bg-emerald-50 w-[14%]">Upto</th>
+                                        <th className="border-2 border-black p-1 w-[8.5%]">Today</th>
+                                        <th className="border-2 border-black p-1 w-[6.5%]" title="বকেয়া আদায় (Due Collected)">Due</th>
+                                        <th className="border-2 border-black p-1 w-[9%]">Total</th>
+                                        <th className="border-2 border-black p-1 bg-blue-50 w-[10.5%]">Upto</th>
+                                        <th className="border-2 border-black p-1 bg-rose-50 text-rose-800 w-[8%]" title="ডায়াগনস্টিক অপরিশোধিত বাকি (Unpaid Due)">বাকি (Due)</th>
+                                        <th className="border-2 border-black p-1 w-[8.5%]">Today</th>
+                                        <th className="border-2 border-black p-1 w-[6.5%]" title="বকেয়া আদায় (Due Collected)">Due</th>
+                                        <th className="border-2 border-black p-1 w-[9%]">Total</th>
+                                        <th className="border-2 border-black p-1 bg-emerald-50 w-[10.5%]">Upto</th>
+                                        <th className="border-2 border-black p-1 bg-rose-50 text-rose-800 w-[8%]" title="ক্লিনিক অপরিশোধিত বাকি (Unpaid Due)">বাকি (Due)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1956,26 +2000,30 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         >
                                             <td className="date-col border border-black p-0.5 sm:p-1 font-['JetBrains_Mono'] font-bold text-center whitespace-nowrap text-[8pt]">{row.date}</td>
                                             <td className="border border-black p-1 text-right">{row.diag.today > 0 ? safeNum(row.diag.today).toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right">{row.diag.due > 0 ? safeNum(row.diag.due).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right text-emerald-800 font-semibold">{row.diag.due > 0 ? safeNum(row.diag.due).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black">{row.diag.total > 0 ? safeNum(row.diag.total).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black bg-blue-50/50">{row.diag.upto !== null ? safeNum(row.diag.upto).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-rose-50/40 text-rose-700">{row.diag.unpaidDue > 0 ? safeNum(row.diag.unpaidDue).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right">{row.clinic.today > 0 ? safeNum(row.clinic.today).toLocaleString() : ''}</td>
-                                            <td className="border border-black p-1 text-right">{row.clinic.due > 0 ? safeNum(row.clinic.due).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right text-emerald-800 font-semibold">{row.clinic.due > 0 ? safeNum(row.clinic.due).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black">{row.clinic.total > 0 ? safeNum(row.clinic.total).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black bg-emerald-50/50">{row.clinic.upto !== null ? safeNum(row.clinic.upto).toLocaleString() : ''}</td>
+                                            <td className="border border-black p-1 text-right font-black bg-rose-50/40 text-rose-700">{row.clinic.unpaidDue > 0 ? safeNum(row.clinic.unpaidDue).toLocaleString() : ''}</td>
                                             <td className="border border-black p-1 text-right font-black bg-slate-50 italic">{(row.diag.total + row.clinic.total) > 0 ? (row.diag.total + row.clinic.total).toLocaleString() : ''}</td>
                                         </tr>
                                     ))}
                                     <tr className="h-6 print:h-[5.5mm] bg-gray-100 font-black uppercase text-[8pt] border-t-[3px] border-black">
                                         <td className="date-col border border-black p-0.5 sm:p-1 text-center font-bold">Total</td>
                                         <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.diag.today, 0).toLocaleString()}</td>
-                                        <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.diag.due, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right text-emerald-800">{dailyCollectionData.reduce((s, r) => s + r.diag.due, 0).toLocaleString()}</td>
                                         <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.diag.total, 0).toLocaleString()}</td>
                                         <td className="border border-black p-1 text-right bg-blue-50"></td>
+                                        <td className="border border-black p-1 text-right bg-rose-100/70 text-rose-800">{dailyCollectionData.reduce((s, r) => s + (r.diag.unpaidDue || 0), 0).toLocaleString()}</td>
                                         <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.clinic.today, 0).toLocaleString()}</td>
-                                        <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.clinic.due, 0).toLocaleString()}</td>
+                                        <td className="border border-black p-1 text-right text-emerald-800">{dailyCollectionData.reduce((s, r) => s + r.clinic.due, 0).toLocaleString()}</td>
                                         <td className="border border-black p-1 text-right">{dailyCollectionData.reduce((s, r) => s + r.clinic.total, 0).toLocaleString()}</td>
                                         <td className="border border-black p-1 text-right bg-emerald-50"></td>
+                                        <td className="border border-black p-1 text-right bg-rose-100/70 text-rose-800">{dailyCollectionData.reduce((s, r) => s + (r.clinic.unpaidDue || 0), 0).toLocaleString()}</td>
                                         <td className="border border-black p-1 text-right bg-slate-200">{dailyCollectionData.reduce((s, r) => s + r.diag.total + r.clinic.total, 0).toLocaleString()}</td>
                                     </tr>
                                 </tbody>
@@ -2706,12 +2754,16 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[11px] font-black text-slate-500 uppercase ml-2 mb-1 block">মোবাইল নাম্বার (Phone)</label>
-                                        <input
+                                        <MobileNumberInput
+                                            label="মোবাইল নাম্বার (Phone)"
                                             name="phone"
-                                            type="tel"
-                                            defaultValue={editingShareholder?.phone || ''}
-                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
+                                            value={editingShareholder?.phone || ''}
+                                            onChange={(e) => {
+                                                if (editingShareholder) {
+                                                    setEditingShareholder({ ...editingShareholder, phone: e.target.value });
+                                                }
+                                            }}
+                                            className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-mono"
                                         />
                                     </div>
                                     <div className="col-span-2">

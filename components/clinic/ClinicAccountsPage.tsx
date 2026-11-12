@@ -470,6 +470,7 @@ const DailyExpenseForm: React.FC<any> = ({
                 <table className="w-full text-left">
                     <thead>
                         <tr className="text-xs text-emerald-400 uppercase tracking-widest">
+                            <th className="pb-3 pr-2 text-center w-14">ক্রমিক (SL)</th>
                             <th className="pb-3">Category</th>
                             <th className="pb-3">Sub-Category</th>
                             <th className="pb-3">Details</th>
@@ -480,9 +481,14 @@ const DailyExpenseForm: React.FC<any> = ({
                         </tr>
                     </thead>
                     <tbody>
-                        {items.map(item => (
+                        {items.map((item, idx) => (
                             <React.Fragment key={item.id}>
                                 <tr className="border-t border-emerald-900/30">
+                                    <td className="py-2 pr-2 text-center">
+                                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-800 border border-emerald-700/60 text-emerald-300 font-mono text-xs font-black shadow-inner">
+                                            {idx + 1}
+                                        </span>
+                                    </td>
                                     <td className="py-2 pr-2">
                                         <select 
                                             value={item.category} 
@@ -587,7 +593,7 @@ const DailyExpenseForm: React.FC<any> = ({
                                 </tr>
                                 {item.category === 'Stuff salary' && item.subCategory && (
                                     <tr className="bg-slate-950/80">
-                                        <td colSpan={7} className="px-2 py-1">
+                                        <td colSpan={8} className="px-2 py-1">
                                             <StaffSalaryHelperCard 
                                                 employeeName={item.subCategory}
                                                 employees={employees}
@@ -670,6 +676,24 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [invoiceYearSearch, setInvoiceYearSearch] = useState<number | ''>('');
     const [pcFilter, setPcFilter] = useState<'all' | 'with_pc' | 'without_pc'>('all');
     const [hideCancelledInCollection, setHideCancelledInCollection] = useState(true);
+    const [collectionColumnFilter, setCollectionColumnFilter] = useState<string | null>(null);
+
+    const collectionColumnLabels: Record<string, string> = {
+        admFeeCol: 'Admission',
+        lscsOtCol: 'LSCS_OT (সিজার)',
+        gbCol: 'GB_OT',
+        othersOtCol: 'Others_OT',
+        nvdCol: 'NVD (নরমাল ডেলিভারি)',
+        dcCol: 'D&C',
+        consCol: 'Cons. (কনজারভেটিভ)',
+        o2NebCol: 'O2/Neb',
+        dressCol: 'Dress',
+        othersCol: 'Misc'
+    };
+
+    const toggleCollectionColumnFilter = (colKey: string) => {
+        setCollectionColumnFilter(prev => prev === colKey ? null : colKey);
+    };
 
     const navigate = useNavigate();
     const [expSearch, setExpSearch] = useState('');
@@ -939,10 +963,11 @@ const ClinicAccountsPage: React.FC<any> = ({
             ? incomeItems.reduce((s, it) => s + (it.payable_amount || 0), 0)
             : (items.length === 0 ? Number(inv.total_bill || 0) : 0);
         
-        // FIX: Subtract due collections from clinicNet to prevent double-counting when Due Collection is added later
-        const allDues = (dueCollections || []).filter((dc: any) => dc.invoice_id === inv.invoice_id).reduce((s: any, dc: any) => s + (dc.amount_collected || 0), 0);
+        // FIX: Subtract unpaid due_bill and due collections from clinicNet to prevent counting unpaid due or double-counting when Due Collection is added later
+        const allDues = (dueCollections || []).filter((dc: any) => dc && (dc.invoice_id === inv.invoice_id || dc.invoice_id === inv.daily_id)).reduce((s: any, dc: any) => s + (Number(dc.amount_collected) || 0), 0);
         const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-        const rawClinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount - allDues;
+        const currentDue = Math.max(0, Number(inv.due_bill ?? inv.due_amount ?? inv.dueAmount) || 0);
+        const rawClinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount - currentDue - allDues;
         const clinicNet = inv.status === 'Returned' ? -Math.abs(rawClinicNet) : Math.max(0, rawClinicNet);
 
         // Ratio to distribute deductions (commission + discount + dues) proportionally across categories
@@ -1283,14 +1308,19 @@ const ClinicAccountsPage: React.FC<any> = ({
             return true;
         });
 
+        // 1.5 Department / Service Column Filter (Click to filter/sort by specific item column, click again to reset)
+        const colFiltered = collectionColumnFilter
+            ? pcFiltered.filter((inv: any) => (Number(inv[collectionColumnFilter]) || 0) > 0)
+            : pcFiltered;
+
         // 2. Comprehensive Search:
         // Patient Name, Patient ID, Admission ID, Invoice Daily ID,
         // Operation Name, SubCategory, Indication, Items, Service Providers, Referrers,
         // and PC search ("pc", "পিসি", "has pc", "with pc", or exact PC amount like "500")
         const query = invoiceSearch.trim().toLowerCase();
-        if (!query) return pcFiltered;
+        if (!query) return colFiltered;
 
-        return pcFiltered.filter((inv: any) => {
+        return colFiltered.filter((inv: any) => {
             // Check PC query keywords
             if (query === 'pc' || query === 'পিসি' || query === 'has pc' || query === 'with pc' || query === 'has_pc') {
                 return inv.pcCol > 0;
@@ -1337,7 +1367,7 @@ const ClinicAccountsPage: React.FC<any> = ({
 
             return false;
         });
-    }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch, pcFilter, hideCancelledInCollection, categorizeInvoiceData]);
+    }, [invoices, isTodayFilter, selectedDate, selectedMonth, selectedYear, invoiceSearch, pcFilter, collectionColumnFilter, hideCancelledInCollection, categorizeInvoiceData]);
 
     const indoorJournalData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
@@ -2158,15 +2188,14 @@ const ClinicAccountsPage: React.FC<any> = ({
                     <div className="animate-fade-in space-y-6 w-full">
                         <div className="bg-slate-800 p-4 sm:p-8 rounded-3xl border border-slate-700 shadow-2xl flex flex-col gap-6 w-full">
                             <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-4 no-print">
-                                <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex flex-wrap items-center gap-4">
                                     <h3 className="text-xl font-black text-white uppercase tracking-tighter">Patient Collection Report</h3>
-                                    <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-700">
-                                        <button onClick={() => setIsTodayFilter(true)} className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all ${isTodayFilter && selectedDate === new Date().toISOString().split('T')[0] ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Today's Collection</button>
-                                        <button onClick={() => setIsTodayFilter(false)} className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all ${!isTodayFilter ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}>Monthly View</button>
+                                    <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-700">
+                                        <button onClick={() => setIsTodayFilter(true)} className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase transition-all cursor-pointer ${isTodayFilter && selectedDate === new Date().toISOString().split('T')[0] ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Today's Collection</button>
+                                        <button onClick={() => setIsTodayFilter(false)} className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase transition-all cursor-pointer ${!isTodayFilter ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Monthly View</button>
                                     </div>
-
-                                    <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-2xl border border-slate-700">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Date:</label>
+                                    <div className="flex items-center gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase pl-2">Date:</label>
                                         <input 
                                             type="date" 
                                             value={selectedDate} 
@@ -2174,52 +2203,51 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 setSelectedDate(e.target.value);
                                                 setIsTodayFilter(true);
                                             }} 
-                                            className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1 text-xs text-white font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                                            className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-bold focus:outline-none focus:border-emerald-500 cursor-pointer"
                                         />
                                     </div>
-
                                     {!isTodayFilter && (
-                                        <div className="flex gap-2">
-                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-bold">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                                            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-bold">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
+                                        <div className="flex gap-2 animate-fade-in">
+                                            <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded-xl text-white text-xs font-bold outline-none cursor-pointer">{monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                                            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 p-2 rounded-xl text-white text-xs font-bold outline-none cursor-pointer">{[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}</select>
                                         </div>
                                     )}
 
                                     {/* PC Filter Toggle Buttons */}
-                                    <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-700 shadow-inner">
+                                    <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-700">
                                         <button 
                                             type="button" 
                                             onClick={() => setPcFilter('all')} 
-                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${pcFilter === 'all' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${pcFilter === 'all' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                                         >
                                             সকল (All)
                                         </button>
                                         <button 
                                             type="button" 
                                             onClick={() => setPcFilter(prev => prev === 'with_pc' ? 'all' : 'with_pc')} 
-                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-1.5 ${pcFilter === 'with_pc' ? 'bg-rose-600 text-white shadow-lg shadow-rose-900/50 ring-1 ring-rose-300' : 'text-rose-300 hover:bg-slate-800'}`}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer ${pcFilter === 'with_pc' ? 'bg-rose-600 text-white shadow-lg ring-2 ring-rose-400/50' : 'text-rose-400 hover:text-rose-200'}`}
                                             title="যেসব ইনভয়েসে পিসি দেওয়া হয়েছে সেগুলো ফিল্টার করতে ক্লিক করুন"
                                         >
-                                            <span className={`w-2 h-2 rounded-full ${pcFilter === 'with_pc' ? 'bg-white animate-ping' : 'bg-rose-400'}`}></span>
+                                            <span className={`w-2 h-2 rounded-full ${pcFilter === 'with_pc' ? 'bg-white animate-ping' : 'bg-rose-500'}`}></span>
                                             শুধু PC ({totalWithPcInPeriod})
                                         </button>
                                     </div>
 
                                     {/* Enhanced Search Input */}
                                     <div className="relative w-56 md:w-64">
-                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                                         <input 
                                             type="text" 
                                             placeholder="রোগীর নাম, আইডি, অপারেশন বা 'PC'..." 
                                             value={invoiceSearch} 
                                             onChange={e => setInvoiceSearch(e.target.value)} 
-                                            className="w-full bg-slate-950 border border-slate-700 rounded-full pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-slate-500 focus:border-blue-500 outline-none" 
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 outline-none shadow-inner" 
                                         />
                                         {invoiceSearch && (
                                             <button 
                                                 type="button" 
                                                 onClick={() => setInvoiceSearch('')} 
-                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white font-bold text-xs"
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white font-bold text-xs cursor-pointer"
                                                 title="Clear search"
                                             >
                                                 ✕
@@ -2231,67 +2259,71 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <button
                                         type="button"
                                         onClick={() => setHideCancelledInCollection(prev => !prev)}
-                                        className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border ${hideCancelledInCollection ? 'bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-700' : 'bg-amber-900/30 text-amber-300 border-amber-500/50'}`}
+                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all border cursor-pointer ${hideCancelledInCollection ? 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white' : 'bg-amber-900/40 text-amber-300 border-amber-600/50'}`}
                                         title="বাতিল ও ডিলিট ইনভয়েস দেখানো বা লুকানোর অপশন"
                                     >
                                         {hideCancelledInCollection ? '👁️ বাতিল/ডিলিট লুকানো' : '👁️ বাতিল/ডিলিট দৃশ্যমান'}
                                     </button>
-
-                                    <button 
-                                        onClick={handlePrintCollectionReport}
-                                        className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95"
-                                    >
-                                        <PrinterIcon size={14}/> Print
-                                    </button>
                                 </div>
+                                <button 
+                                    onClick={handlePrintCollectionReport}
+                                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                                >
+                                    <PrinterIcon size={14}/> Print
+                                </button>
                             </div>
 
                             {/* Active Filter Indicators */}
-                            {(pcFilter === 'with_pc' || invoiceSearch) && (
-                                <div className="flex flex-wrap items-center gap-2 mb-3 px-1 text-xs">
-                                    <span className="text-slate-400 font-medium text-[11px]">ফিল্টার অ্যাক্টিভ:</span>
+                            {(pcFilter === 'with_pc' || invoiceSearch || collectionColumnFilter) && (
+                                <div className="flex flex-wrap items-center gap-2 px-1 text-xs no-print">
+                                    <span className="text-slate-400 font-bold text-[11px]">ফিল্টার অ্যাক্টিভ:</span>
+                                    {collectionColumnFilter && (
+                                        <span className="bg-amber-900/50 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5">
+                                            বিভাগ: {collectionColumnLabels[collectionColumnFilter] || collectionColumnFilter}
+                                            <button type="button" onClick={() => setCollectionColumnFilter(null)} className="hover:text-white font-bold ml-0.5 cursor-pointer" title="ফিল্টার তুলে দিন">✕</button>
+                                        </span>
+                                    )}
                                     {pcFilter === 'with_pc' && (
-                                        <span className="bg-rose-950 text-rose-300 border border-rose-700/60 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5 shadow-sm">
+                                        <span className="bg-rose-900/50 text-rose-300 border border-rose-500/40 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5">
                                             শুধু পিসি (PC) যুক্ত রোগী
-                                            <button type="button" onClick={() => setPcFilter('all')} className="hover:text-white font-bold ml-0.5">✕</button>
+                                            <button type="button" onClick={() => setPcFilter('all')} className="hover:text-white font-bold ml-0.5 cursor-pointer">✕</button>
                                         </span>
                                     )}
                                     {invoiceSearch && (
-                                        <span className="bg-blue-950 text-sky-300 border border-blue-700/60 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5 shadow-sm">
+                                        <span className="bg-sky-900/50 text-sky-300 border border-sky-500/40 px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5">
                                             সার্চ: "{invoiceSearch}"
-                                            <button type="button" onClick={() => setInvoiceSearch('')} className="hover:text-white font-bold ml-0.5">✕</button>
+                                            <button type="button" onClick={() => setInvoiceSearch('')} className="hover:text-white font-bold ml-0.5 cursor-pointer">✕</button>
                                         </span>
                                     )}
-                                    <span className="text-slate-400 text-[10px] ml-auto font-bold">
-                                        মোট পাওয়া গেছে: <strong className="text-emerald-400 font-mono text-xs">{collectionReportData.length}</strong> টি রেকর্ড
+                                    <span className="text-slate-400 text-[11px] ml-auto">
+                                        মোট পাওয়া গেছে: <strong className="text-emerald-400 font-mono">{collectionReportData.length}</strong> টি রেকর্ড
                                     </span>
                                 </div>
                             )}
 
                             <div className="overflow-x-auto min-h-[650px] border border-slate-700 rounded-xl bg-slate-950/20 shadow-inner w-full">
-                                <table className="w-full text-left text-[11px] border-collapse min-w-[1500px]">
+                                <table className="w-full text-left border-collapse min-w-[1500px]">
                                     <thead className="bg-slate-900 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700 sticky top-0 z-20 shadow-md">
-                                        {/* Top Column Summary Row - Perfectly aligned directly above the columns */}
-                                        <tr className="bg-slate-950/95 text-slate-400 border-b border-slate-800">
-                                            <th colSpan={15} className="p-2 text-right uppercase tracking-widest text-[9px] font-black text-slate-400">
+                                        {/* Top Column Summary Row */}
+                                        <tr className="bg-slate-950/95 border-b border-slate-800 text-slate-300">
+                                            <th colSpan={15} className="p-2 text-right uppercase tracking-wider text-[10px] font-black text-slate-400 border-r border-slate-800/60">
                                                 কলাম সামারি (Top Summary) :
                                             </th>
-                                            <th className="p-2 text-right bg-emerald-950/70 text-emerald-300 font-black font-mono text-xs border-r border-slate-800/60" title="মোট কালেকশন">
-                                                <span className="text-[7px] block text-emerald-500 font-sans uppercase">Total Paid</span>
+                                            <th className="p-2 text-right bg-emerald-950/40 text-emerald-400 font-black font-mono text-xs border-r border-slate-800/60 whitespace-nowrap" title="মোট কালেকশন">
+                                                <span className="text-[8px] block text-emerald-500/80 font-sans">TOTAL PAID</span>
                                                 ৳{reportTotals.paidTotal.toLocaleString()}
                                             </th>
-                                            <th className="p-2 text-right bg-rose-950/70 text-rose-300 font-black font-mono text-xs border-r border-slate-800/60" title="মোট পিসি কমিশন">
-                                                <span className="text-[7px] block text-rose-500 font-sans uppercase">Total PC</span>
+                                            <th className="p-2 text-right bg-rose-950/40 text-rose-400 font-black font-mono text-xs border-r border-slate-800/60 whitespace-nowrap" title="মোট পিসি কমিশন">
+                                                <span className="text-[8px] block text-rose-500/80 font-sans">TOTAL PC</span>
                                                 ৳{reportTotals.pc.toLocaleString()}
                                             </th>
-                                            {/* Exact width and boundary alignment strictly for Clinic Net column */}
-                                            <th className="p-2 text-right bg-sky-950 text-sky-200 font-black border-l-2 border-r-2 border-sky-400/90 shadow-md ring-1 ring-sky-500/40" title="মোট ক্লিনিক নিট (হসপিটাল নিট)">
+                                            <th className="p-2 text-right bg-sky-900/50 text-white font-black border-x-2 border-sky-500/60 shadow-inner whitespace-nowrap" title="মোট ক্লিনিক নিট (হসপিটাল নিট)">
                                                 <div className="flex flex-col items-end">
-                                                    <span className="text-[8px] font-sans font-black text-sky-400 uppercase tracking-tight flex items-center gap-1">
+                                                    <span className="text-[8px] font-sans font-black text-sky-300 uppercase tracking-tighter flex items-center gap-1">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
-                                                        Net Total
+                                                        NET TOTAL
                                                     </span>
-                                                    <span className="text-sm font-mono font-black text-sky-200">
+                                                    <span className="text-xs sm:text-sm font-mono font-black text-white">
                                                         ৳{reportTotals.netClinic.toLocaleString()}
                                                     </span>
                                                 </div>
@@ -2301,77 +2333,180 @@ const ClinicAccountsPage: React.FC<any> = ({
 
                                         {/* Standard Column Headers */}
                                         <tr className="bg-slate-900/90 border-b border-slate-700">
-                                            <th className="p-2 whitespace-nowrap">SL</th>
-                                            <th className="p-2 whitespace-nowrap">Adm. ID</th>
-                                            <th className="p-2 whitespace-nowrap">Date</th>
-                                            <th className="p-2 whitespace-nowrap">Patient Name</th>
-                                            <th className="p-2 whitespace-nowrap">Service Taken</th>
-                                            <th className="p-2 text-right">Admission</th>
-                                            <th className="p-2 text-right">LSCS_OT</th>
-                                            <th className="p-2 text-right">GB_OT</th>
-                                            <th className="p-2 text-right">Others_OT</th>
-                                            <th className="p-2 text-right">NVD</th>
-                                            <th className="p-2 text-right">D&C</th>
-                                            <th className="p-2 text-right">Cons.</th>
-                                            <th className="p-2 text-right">O2/Neb</th>
-                                            <th className="p-2 text-right">Dress</th>
-                                            <th className="p-2 text-right">Misc</th>
-                                            <th className="p-2 text-right bg-emerald-900/10 text-emerald-100 font-black">Paid Total</th>
-                                            <th className="p-2 text-right bg-rose-900/10 text-rose-300 font-black border-l-2 border-rose-800/30">PC (Comm)</th>
-                                            <th className="p-2 text-right bg-blue-900/20 text-sky-200 font-black border-l-2 border-r-2 border-blue-500/40">
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-sky-300">Clinic Net</span>
-                                                    <span className="text-[10px] font-mono text-sky-300 font-bold bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-500/40 mt-0.5 whitespace-nowrap">
-                                                        ৳{reportTotals.netClinic.toLocaleString()}
-                                                    </span>
-                                                </div>
+                                            <th className="p-2.5 whitespace-nowrap">SL</th>
+                                            <th className="p-2.5 whitespace-nowrap">Adm. ID</th>
+                                            <th className="p-2.5 whitespace-nowrap">Date</th>
+                                            <th className="p-2.5 whitespace-nowrap">Patient Name</th>
+                                            <th 
+                                                onClick={() => { if (collectionColumnFilter || invoiceSearch) { setCollectionColumnFilter(null); setInvoiceSearch(''); } }}
+                                                className={`p-2.5 whitespace-nowrap ${(collectionColumnFilter || invoiceSearch) ? 'cursor-pointer hover:text-white' : ''}`}
+                                                title="সার্ভিস ফিল্টার রিসেট করতে ক্লিক করুন"
+                                            >
+                                                Service Taken
                                             </th>
-                                            <th className="p-2 text-center">Status</th>
-                                            <th className="p-2 text-center whitespace-nowrap">Action</th>
+                                            {[
+                                                { key: 'admFeeCol', label: 'Admission' },
+                                                { key: 'lscsOtCol', label: 'LSCS OT' },
+                                                { key: 'gbCol', label: 'GB OT' },
+                                                { key: 'othersOtCol', label: 'Others OT' },
+                                                { key: 'nvdCol', label: 'NVD' },
+                                                { key: 'dcCol', label: 'D&C' },
+                                                { key: 'consCol', label: 'Cons.' },
+                                                { key: 'o2NebCol', label: 'O2/Neb' },
+                                                { key: 'dressCol', label: 'Dress' },
+                                                { key: 'othersCol', label: 'Misc' },
+                                            ].map(col => {
+                                                const isActive = collectionColumnFilter === col.key;
+                                                return (
+                                                    <th
+                                                        key={col.key}
+                                                        onClick={() => toggleCollectionColumnFilter(col.key)}
+                                                        title={`"${col.label}" এর ডাটা শর্ট/ফিল্টার করতে ক্লিক করুন (পুনরায় ক্লিক করলে আগের মত হয়ে যাবে)`}
+                                                        className={`p-2.5 text-right whitespace-nowrap cursor-pointer transition-all select-none ${
+                                                            isActive
+                                                                ? 'bg-amber-500/20 text-amber-300 font-black underline decoration-amber-400 underline-offset-4'
+                                                                : 'hover:text-slate-200 hover:bg-slate-800/60'
+                                                        }`}
+                                                    >
+                                                        {col.label}{isActive ? ' ●' : ''}
+                                                    </th>
+                                                );
+                                            })}
+                                            <th className="p-2.5 text-right bg-emerald-950/20 text-emerald-400 whitespace-nowrap">Paid Total</th>
+                                            <th 
+                                                onClick={() => setPcFilter(prev => prev === 'with_pc' ? 'all' : 'with_pc')}
+                                                title="PC ডাটা ফিল্টার করতে ক্লিক করুন (পুনরায় ক্লিক করলে আগের মত হবে)"
+                                                className={`p-2.5 text-right whitespace-nowrap cursor-pointer transition-all ${
+                                                    pcFilter === 'with_pc' ? 'bg-rose-900/50 text-rose-200' : 'bg-rose-950/20 text-rose-400 hover:text-rose-200'
+                                                }`}
+                                            >
+                                                PC (Comm)
+                                            </th>
+                                            <th 
+                                                onClick={() => { if (collectionColumnFilter) setCollectionColumnFilter(null); if (invoiceSearch) setInvoiceSearch(''); }}
+                                                title={collectionColumnFilter ? "ক্লিক করলে ফিল্টার রিসেট হয়ে পুনরায় আগের মত সকল ডাটা দেখাবে" : "Clinic Net"}
+                                                className="p-2.5 text-right bg-sky-950/30 text-sky-300 border-x border-sky-500/30 whitespace-nowrap cursor-pointer hover:text-white transition-colors"
+                                            >
+                                                Clinic Net
+                                            </th>
+                                            <th className="p-2.5 text-center whitespace-nowrap">Status</th>
+                                            <th className="p-2.5 text-center whitespace-nowrap">Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-stone-300">
+                                    <tbody className={collectionReportData.length > 0 ? "text-xs font-semibold text-slate-800 divide-y divide-slate-300 bg-white" : "divide-y divide-slate-800 text-[11px] text-slate-300"}>
                                         {collectionReportData.length > 0 ? collectionReportData.map((inv: any, idx: number) => (
                                             <tr 
                                                 key={inv.daily_id} 
                                                 onDoubleClick={() => handleOpenInvoicePreview(inv)}
                                                 title="ডাবল ক্লিক করুন ইনভয়েস দেখতে ও প্রিন্ট/এডিট করতে"
-                                                className={`cursor-pointer transition-all ${inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-30 line-through grayscale bg-stone-200 text-stone-500' : inv.status === 'Returned' ? 'bg-rose-100 text-rose-900' : 'bg-[#f4f5f7] text-slate-900 hover:bg-[#e2e6ed]'}`}
+                                                className={`cursor-pointer transition-colors divide-x divide-slate-300 ${
+                                                    inv.status === 'Cancelled' || inv.status === 'Deleted'
+                                                        ? 'opacity-40 line-through grayscale bg-slate-100 text-slate-500'
+                                                        : inv.status === 'Returned'
+                                                        ? 'bg-rose-50 text-rose-900 hover:bg-rose-100/70'
+                                                        : 'bg-white even:bg-slate-50/70 hover:bg-blue-50/70 text-slate-900'
+                                                }`}
                                             >
-                                                <td className="p-2 border-r border-slate-800/50 text-slate-500 font-mono">{idx + 1}</td>
-                                                <td className="p-2 font-mono text-sky-400 font-bold border-r border-slate-800/50">{inv.admission_id}</td>
-                                                <td className="p-2 border-r border-slate-800/50 whitespace-nowrap">{inv.admission_date || inv.invoice_date}</td>
-                                                <td className="p-2 font-black text-slate-100 border-r border-slate-800/50 uppercase whitespace-nowrap">{inv.patient_name}</td>
-                                                <td className="p-2 text-sky-400 font-bold border-r border-slate-800/50 truncate max-w-[120px]" title={inv.subCategory}>{inv.subCategory || '-'}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.admFeeCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.lscsOtCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.gbCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.othersOtCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.nvdCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.dcCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.consCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.o2NebCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.dressCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right border-r border-slate-800/50">৳{inv.othersCol.toLocaleString()}</td>
-                                                <td className="p-2 text-right font-black text-emerald-400 bg-emerald-900/10">৳ {(inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') ? '0' : inv.paid_amount.toLocaleString()}</td>
-                                                <td className="p-2 text-right font-black bg-rose-900/10 border-l-2 border-rose-800/30">
-                                                    {inv.pcCol > 0 ? (
-                                                        <span className="inline-block px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 font-mono font-black text-[11px] shadow-sm">
-                                                            ৳ {inv.pcCol.toLocaleString()}
+                                                <td className="border border-slate-300 p-2 text-center font-mono text-slate-600 bg-slate-100/60 font-bold">{idx + 1}</td>
+                                                <td className="border border-slate-300 p-2.5 font-mono text-sky-800 font-bold whitespace-nowrap">{inv.admission_id}</td>
+                                                <td className="border border-slate-300 p-2.5 font-mono text-slate-900 font-bold whitespace-nowrap">{inv.admission_date || inv.invoice_date}</td>
+                                                <td className="border border-slate-300 p-2.5 font-black text-slate-900 uppercase whitespace-nowrap">{inv.patient_name}</td>
+                                                <td className="border border-slate-300 p-2.5 whitespace-nowrap max-w-[160px] truncate" title="সার্ভিসের ওপর ক্লিক করলে শুধু এই সার্ভিসের ডাটা ফিল্টার হবে, আবার ক্লিক করলে আগের মত হবে">
+                                                    {inv.subCategory ? (
+                                                        <span 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setInvoiceSearch(prev => prev.toLowerCase() === String(inv.subCategory).toLowerCase() ? '' : String(inv.subCategory));
+                                                            }}
+                                                            className={`px-2 py-0.5 rounded border text-[10px] font-black uppercase transition-all cursor-pointer ${
+                                                                invoiceSearch.toLowerCase() === String(inv.subCategory).toLowerCase()
+                                                                    ? 'bg-amber-300 border-amber-600 text-amber-950 shadow-sm'
+                                                                    : 'bg-sky-100 border-sky-300 text-sky-800 hover:bg-sky-200'
+                                                            }`}
+                                                        >
+                                                            {inv.subCategory}
                                                         </span>
                                                     ) : (
-                                                        <span className="text-slate-500 font-mono">৳ 0</span>
+                                                        <span className="text-slate-400">-</span>
                                                     )}
                                                 </td>
-                                                <td className="p-2 text-right font-black text-sky-300 bg-blue-900/10 border-l-2 border-blue-800/30">৳ {(inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') ? '0' : inv.netClinicCol.toLocaleString()}</td>
-                                                <td className="p-2 text-center"><span className="text-[7px] font-black uppercase px-1 rounded bg-slate-900">{inv.status}</span></td>
-                                                <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
-                                                    <button 
-                                                        onClick={() => handleOpenInvoicePreview(inv)}
-                                                        className="px-2.5 py-1 bg-cyan-600/30 hover:bg-cyan-600 text-cyan-200 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
-                                                    >
-                                                        ইনভয়েস / এডিট
-                                                    </button>
+                                                {[
+                                                    'admFeeCol',
+                                                    'lscsOtCol',
+                                                    'gbCol',
+                                                    'othersOtCol',
+                                                    'nvdCol',
+                                                    'dcCol',
+                                                    'consCol',
+                                                    'o2NebCol',
+                                                    'dressCol',
+                                                    'othersCol'
+                                                ].map(colKey => {
+                                                    const val = Number(inv[colKey]) || 0;
+                                                    const isColActive = collectionColumnFilter === colKey;
+                                                    return (
+                                                        <td
+                                                            key={colKey}
+                                                            onClick={(e) => {
+                                                                if (val > 0 || isColActive) {
+                                                                    e.stopPropagation();
+                                                                    toggleCollectionColumnFilter(colKey);
+                                                                }
+                                                            }}
+                                                            title={val > 0 ? "ক্লিক করলে এই বিভাগের ডাটা শর্ট হবে, পুনরায় ক্লিক করলে আগের মত হবে" : undefined}
+                                                            className={`border border-slate-300 p-2.5 text-right font-mono font-bold whitespace-nowrap ${
+                                                                isColActive ? 'bg-amber-50/90 text-amber-950 font-black' : val > 0 ? 'text-slate-900 hover:bg-amber-50/60' : 'text-slate-400'
+                                                            }`}
+                                                        >
+                                                            {val.toLocaleString()}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="border border-slate-300 p-2.5 text-right font-mono font-black text-emerald-800 bg-emerald-50/60 whitespace-nowrap">
+                                                    {(inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') ? '0' : inv.paid_amount.toLocaleString()}
+                                                </td>
+                                                <td className="border border-slate-300 p-2.5 text-right font-mono font-black bg-rose-50/30 whitespace-nowrap">
+                                                    {inv.pcCol > 0 ? (
+                                                        <span className="inline-block px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300 font-mono font-black text-[11px] shadow-sm whitespace-nowrap">
+                                                            -{inv.pcCol.toLocaleString()}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 font-bold">0</span>
+                                                    )}
+                                                </td>
+                                                <td className="border border-slate-300 p-2.5 text-right font-mono font-black text-sky-900 bg-sky-50/50 border-l-2 border-r-2 border-sky-300 whitespace-nowrap">
+                                                    {(inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') ? '0' : inv.netClinicCol.toLocaleString()}
+                                                </td>
+                                                <td className="border border-slate-300 p-2 text-center whitespace-nowrap">
+                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+                                                        inv.status === 'Returned'
+                                                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                                            : inv.status === 'Cancelled' || inv.status === 'Deleted'
+                                                            ? 'bg-slate-200 text-slate-600 border-slate-300'
+                                                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                    }`}>
+                                                        {inv.status}
+                                                    </span>
+                                                </td>
+                                                <td className="border border-slate-300 p-1.5 text-center bg-slate-50/40 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => handleOpenInvoicePreview(inv)}
+                                                            className="p-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
+                                                            title="ইনভয়েস এডিট / বিস্তারিত দেখুন"
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => handleOpenInvoicePreview(inv)}
+                                                            className="p-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer"
+                                                            title="ইনভয়েস প্রিন্ট করুন"
+                                                        >
+                                                            <PrinterIcon size={14} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )) : (
@@ -2379,53 +2514,37 @@ const ClinicAccountsPage: React.FC<any> = ({
                                         )}
                                     </tbody>
                                     {collectionReportData.length > 0 && (
-                                        <tfoot className="bg-slate-900 text-slate-200 font-black border-t-2 border-slate-700 sticky bottom-0">
+                                        <tfoot className="bg-slate-900 font-black text-slate-200 border-t-2 border-slate-600 text-xs sticky bottom-0">
                                             <tr>
-                                                <td colSpan={5} className="p-2 text-right uppercase tracking-widest text-[10px]">Grand Summary Totals (Active Only):</td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.admFee.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.admFeeCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.lscs_ot.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.lscs_otCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.gb.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.gbCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.others_ot.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.others_otCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.nvd.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.nvdCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.dc.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.dcCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.cons.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.consCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.o2neb.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.o2nebCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.dress.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.dressCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    <div className="text-emerald-400">৳{reportTotals.others.toLocaleString()}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold leading-tight">Qty: {reportTotals.othersCount}</div>
-                                                </td>
-                                                <td className="p-2 text-right text-emerald-400 text-base">৳ {reportTotals.paidTotal.toLocaleString()}</td>
-                                                <td className="p-2 text-right text-rose-400 text-base">৳ {reportTotals.pc.toLocaleString()}</td>
-                                                <td className="p-2 text-right text-sky-400 text-xl underline decoration-double">৳ {reportTotals.netClinic.toLocaleString()}</td>
-                                                <td></td>
+                                                <td colSpan={5} className="p-3 text-right uppercase tracking-wider text-slate-400">Grand Summary Totals (Active Only):</td>
+                                                {[
+                                                    { key: 'admFeeCol', total: reportTotals.admFee, count: reportTotals.admFeeCount },
+                                                    { key: 'lscsOtCol', total: reportTotals.lscs_ot, count: reportTotals.lscs_otCount },
+                                                    { key: 'gbCol', total: reportTotals.gb, count: reportTotals.gbCount },
+                                                    { key: 'othersOtCol', total: reportTotals.others_ot, count: reportTotals.others_otCount },
+                                                    { key: 'nvdCol', total: reportTotals.nvd, count: reportTotals.nvdCount },
+                                                    { key: 'dcCol', total: reportTotals.dc, count: reportTotals.dcCount },
+                                                    { key: 'consCol', total: reportTotals.cons, count: reportTotals.consCount },
+                                                    { key: 'o2NebCol', total: reportTotals.o2neb, count: reportTotals.o2nebCount },
+                                                    { key: 'dressCol', total: reportTotals.dress, count: reportTotals.dressCount },
+                                                    { key: 'othersCol', total: reportTotals.others, count: reportTotals.othersCount },
+                                                ].map(col => (
+                                                    <td
+                                                        key={col.key}
+                                                        onClick={() => toggleCollectionColumnFilter(col.key)}
+                                                        title="ক্লিক করে এই বিভাগের ডাটা শর্ট/ফিল্টার করুন"
+                                                        className={`p-3 text-right font-mono cursor-pointer transition-colors ${
+                                                            collectionColumnFilter === col.key ? 'bg-amber-900/40 text-amber-300' : 'hover:bg-slate-800'
+                                                        }`}
+                                                    >
+                                                        <div>{col.total.toLocaleString()}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold mt-0.5">Qty: {col.count}</div>
+                                                    </td>
+                                                ))}
+                                                <td className="p-3 text-right font-mono text-emerald-400 bg-emerald-950/30 text-sm">৳{reportTotals.paidTotal.toLocaleString()}</td>
+                                                <td className="p-3 text-right font-mono text-rose-400 bg-rose-950/30 text-sm">৳{reportTotals.pc.toLocaleString()}</td>
+                                                <td className="p-3 text-right font-mono text-sky-300 bg-sky-950/30 text-base underline decoration-double">৳{reportTotals.netClinic.toLocaleString()}</td>
+                                                <td colSpan={2}></td>
                                             </tr>
                                         </tfoot>
                                     )}

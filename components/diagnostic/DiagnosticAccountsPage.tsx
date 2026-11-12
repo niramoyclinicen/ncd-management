@@ -818,6 +818,46 @@ const DailyExpenseForm: React.FC<any> = ({
     const [items, setItems] = useState<ExpenseItem[]>([]);
     const [localDate, setLocalDate] = useState(selectedDate);
 
+    // Helper to generate next sequential Expense Invoice/Voucher ID for a given date
+    const generateNextVoucherId = (targetDate: string, forceIncrementFromCurrent?: string) => {
+        const cleanDate = (targetDate || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+        const prefix = `EXP-${cleanDate}-`;
+        const dayList = (allDetailedExpenses && allDetailedExpenses[targetDate]) || [];
+        let maxSeq = 0;
+        const distinctLegacyIds = new Set<string>();
+
+        dayList.forEach((it: any) => {
+            if (!it || it.isDeleted) return;
+            if (it.dept && it.dept !== 'Diagnostic') return;
+            const vId = String(it.voucherId || it.metadata?.voucherId || '');
+            if (vId.startsWith(prefix)) {
+                const numPart = parseInt(vId.substring(prefix.length), 10);
+                if (!isNaN(numPart) && numPart > maxSeq) {
+                    maxSeq = numPart;
+                }
+            } else if (vId) {
+                distinctLegacyIds.add(vId);
+            } else if (it.id) {
+                distinctLegacyIds.add(String(it.id));
+            }
+        });
+
+        if (maxSeq === 0 && distinctLegacyIds.size > 0) {
+            maxSeq = distinctLegacyIds.size;
+        }
+
+        if (forceIncrementFromCurrent && forceIncrementFromCurrent.startsWith(prefix)) {
+            const curSeq = parseInt(forceIncrementFromCurrent.substring(prefix.length), 10);
+            if (!isNaN(curSeq) && curSeq >= maxSeq) {
+                maxSeq = curSeq;
+            }
+        }
+
+        return `${prefix}${String(maxSeq + 1).padStart(2, '0')}`;
+    };
+
+    const [voucherId, setVoucherId] = useState<string>(() => generateNextVoucherId(selectedDate));
+
     // Sync local date with prop if prop changes from outside
     useEffect(() => {
         setLocalDate(selectedDate);
@@ -829,20 +869,45 @@ const DailyExpenseForm: React.FC<any> = ({
         }
     }, [selectedDate]);
 
-    // Initialize items: Empty row or the specific item being edited
+    // Initialize items: Empty row or the specific invoice/voucher (all its rows) being edited
     useEffect(() => {
-        if (editingItem && editingItem.date === selectedDate) {
-            const pAmt = Number(editingItem.paidAmount ?? (editingItem as any).paid_amount ?? (editingItem as any).amount ?? 0);
-            const bAmt = Number(editingItem.billAmount ?? (editingItem as any).bill_amount ?? pAmt);
-            setItems([{ 
-                ...editingItem,
-                paidAmount: pAmt,
-                paid_amount: pAmt,
-                amount: pAmt,
-                billAmount: bAmt,
-                bill_amount: bAmt
-            }]);
+        if (editingItem) {
+            const editDate = editingItem.date || selectedDate;
+            if (editDate !== localDate) {
+                setLocalDate(editDate);
+            }
+            const editVId = editingItem.voucherId || editingItem.metadata?.voucherId || '';
+            const dayItems = (allDetailedExpenses && allDetailedExpenses[editDate]) || [];
+            let matchedRows: any[] = [];
+
+            if (editVId) {
+                matchedRows = dayItems.filter((x: any) => !x.isDeleted && (x.dept === 'Diagnostic' || !x.dept) && (x.voucherId || x.metadata?.voucherId) === editVId);
+            }
+            if (matchedRows.length === 0) {
+                matchedRows = [editingItem];
+            }
+
+            const normalizedRows = matchedRows.map((row: any) => {
+                const pAmt = Number(row.paidAmount ?? row.paid_amount ?? row.amount ?? 0);
+                const bAmt = Number(row.billAmount ?? row.bill_amount ?? pAmt);
+                const resolvedVId = editVId || `EXP-${editDate.replace(/-/g, '')}-01`;
+                return {
+                    ...row,
+                    voucherId: resolvedVId,
+                    metadata: { ...(row.metadata || {}), voucherId: resolvedVId },
+                    paidAmount: pAmt,
+                    paid_amount: pAmt,
+                    amount: pAmt,
+                    billAmount: bAmt,
+                    bill_amount: bAmt
+                };
+            });
+
+            setItems(normalizedRows);
+            setVoucherId(editVId || `EXP-${editDate.replace(/-/g, '')}-01`);
         } else {
+            const nextVId = generateNextVoucherId(selectedDate);
+            setVoucherId(nextVId);
             setItems([{
                 id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, 
                 category: expenseCategories[0], 
@@ -853,10 +918,11 @@ const DailyExpenseForm: React.FC<any> = ({
                 paidAmount: 0, 
                 paid_amount: 0,
                 amount: 0,
-                dept: 'Diagnostic'
+                dept: 'Diagnostic',
+                metadata: { voucherId: nextVId }
             }]);
         }
-    }, [selectedDate, editingItem]);
+    }, [selectedDate, editingItem, allDetailedExpenses]);
 
     const [savedSearchTerm, setSavedSearchTerm] = useState('');
     const [savedCategoryFilter, setSavedCategoryFilter] = useState('All');
@@ -1097,6 +1163,28 @@ const DailyExpenseForm: React.FC<any> = ({
         setIsSaving(false);
     };
 
+    const handleStartNewInvoice = () => {
+        if (editingItem) {
+            onEdit(null);
+        }
+        const targetDate = (localDate && localDate.length === 10) ? localDate : selectedDate;
+        const nextId = generateNextVoucherId(targetDate, editingItem ? undefined : voucherId);
+        setVoucherId(nextId);
+        setItems([{
+            id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, 
+            category: expenseCategories[0], 
+            subCategory: '', 
+            description: '', 
+            billAmount: 0, 
+            bill_amount: 0,
+            paidAmount: 0, 
+            paid_amount: 0,
+            amount: 0,
+            dept: 'Diagnostic',
+            metadata: { voucherId: nextId }
+        }]);
+    };
+
     const handleSave = () => {
         const targetDate = (localDate && localDate.length === 10) ? localDate : selectedDate;
         const getRowAmount = (it: any) => Number(it.paidAmount ?? it.paid_amount ?? it.amount ?? 0);
@@ -1105,11 +1193,15 @@ const DailyExpenseForm: React.FC<any> = ({
             return;
         }
 
+        const finalVoucherId = (voucherId || '').trim() || generateNextVoucherId(targetDate);
+
         const validItems = items.filter(it => getRowAmount(it) > 0 || it.subCategory || it.description).map(it => {
             const p = getRowAmount(it);
             const b = Number(it.billAmount ?? (it as any).bill_amount ?? p);
             return {
                 ...it,
+                voucherId: finalVoucherId,
+                metadata: { ...(it.metadata || {}), voucherId: finalVoucherId },
                 paidAmount: p,
                 paid_amount: p,
                 amount: p,
@@ -1128,6 +1220,8 @@ const DailyExpenseForm: React.FC<any> = ({
 
         // Reset items to a single clean row after saving new entries
         if (!editingItem) {
+            const nextVId = generateNextVoucherId(targetDate, finalVoucherId);
+            setVoucherId(nextVId);
             setItems([{
                 id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, 
                 category: expenseCategories[0], 
@@ -1135,7 +1229,8 @@ const DailyExpenseForm: React.FC<any> = ({
                 description: '', 
                 billAmount: 0, 
                 paidAmount: 0, 
-                dept: 'Diagnostic'
+                dept: 'Diagnostic',
+                metadata: { voucherId: nextVId }
             }]);
         }
     };
@@ -1297,6 +1392,7 @@ const DailyExpenseForm: React.FC<any> = ({
                 const paidStr = String(it.paidAmount || '');
                 const billStr = String(it.billAmount || '');
                 const deptStr = it.dept || '';
+                const vIdStr = String(it.voucherId || it.metadata?.voucherId || '');
 
                 const itemFields = [
                     cat,
@@ -1307,7 +1403,8 @@ const DailyExpenseForm: React.FC<any> = ({
                     dateStr,
                     paidStr,
                     billStr,
-                    deptStr
+                    deptStr,
+                    vIdStr
                 ];
 
                 const combinedNormalized = itemFields.map(f => normalizeSearchText(f)).join('###');
@@ -1507,61 +1604,103 @@ const DailyExpenseForm: React.FC<any> = ({
                     </div>
                 )}
 
-                <div className="flex justify-between items-center mb-6 border-b border-sky-800 pb-4">
-                    <h3 className="text-xl font-black text-sky-100 flex items-center gap-3"><Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry</h3>
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => { setEditingBatchItem(null); setShowBatchModal(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2">
+                <div className="flex flex-wrap justify-between items-center mb-6 border-b border-sky-800 pb-4 gap-4">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <h3 className="text-xl font-black text-sky-100 flex items-center gap-3">
+                            <Activity className="w-6 h-6 text-sky-400" /> Daily Expense Entry
+                        </h3>
+                        {editingItem && (
+                            <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 text-xs font-black uppercase tracking-wider animate-pulse">
+                                ✏️ এডিট মোড সক্রিয় ({voucherId})
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* Invoice / Voucher ID Field & Get New ID Button */}
+                        <div className="flex items-center gap-1.5 bg-slate-900/90 border border-sky-700/70 rounded-xl px-3 py-1 shadow-inner">
+                            <span className="text-[10px] font-black uppercase text-sky-400 whitespace-nowrap">ইনভয়েস আইডি:</span>
+                            <input
+                                type="text"
+                                value={voucherId}
+                                onChange={e => setVoucherId(e.target.value)}
+                                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono font-black text-amber-300 w-36 focus:border-sky-400 outline-none"
+                                placeholder="EXP-YYYYMMDD-01"
+                                title="একই দিনে একাধিক ইনভয়েস আইডি তৈরি বা পরিবর্তন করতে পারেন"
+                            />
+                            <button
+                                type="button"
+                                onClick={handleStartNewInvoice}
+                                className="bg-sky-600 hover:bg-sky-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap shadow"
+                                title="একই দিনে নতুন আরেকটি খরচের ইনভয়েস তৈরি করুন"
+                            >
+                                + নতুন আইডি
+                            </button>
+                            {editingItem && (
+                                <button
+                                    type="button"
+                                    onClick={() => onEdit(null)}
+                                    className="bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap shadow"
+                                    title="এডিট বাতিল করে নতুন এন্ট্রিতে ফিরে যান"
+                                >
+                                    ✕ বাতিল
+                                </button>
+                            )}
+                        </div>
+
+                        <button onClick={() => { setEditingBatchItem(null); setShowBatchModal(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2 cursor-pointer">
                             <PlusIcon size={16}/> Batch Reagent/Film Buy
                         </button>
                         <input 
-                        type="date" 
-                        value={localDate} 
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            setLocalDate(val);
-                            if (val && val.length === 10) {
-                                onDateChange(val);
-                                setSearchDate(val);
-                                const d = new Date(val);
-                                if (!isNaN(d.getTime())) {
-                                    setSearchMonth(d.getMonth());
-                                    setSearchYear(d.getFullYear());
-                                }
-                            }
-                        }}
-                        onBlur={(e) => {
-                            const val = e.target.value;
-                            if (val && val.length === 10) {
-                                onDateChange(val);
-                                setSearchDate(val);
-                                const d = new Date(val);
-                                if (!isNaN(d.getTime())) {
-                                    setSearchMonth(d.getMonth());
-                                    setSearchYear(d.getFullYear());
-                                }
-                            }
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                const target = e.target as HTMLInputElement;
-                                if (target.value && target.value.length === 10) {
-                                    onDateChange(target.value);
-                                    setSearchDate(target.value);
-                                    const d = new Date(target.value);
+                            type="date" 
+                            value={localDate} 
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setLocalDate(val);
+                                if (val && val.length === 10) {
+                                    onDateChange(val);
+                                    setSearchDate(val);
+                                    const d = new Date(val);
                                     if (!isNaN(d.getTime())) {
                                         setSearchMonth(d.getMonth());
                                         setSearchYear(d.getFullYear());
                                     }
                                 }
-                            }
-                        }}
-                        className="bg-slate-800 border border-slate-700 rounded-lg h-8 py-1 px-3 text-white text-xs font-bold focus:ring-1 focus:ring-sky-500 focus:outline-none" 
-                    />
-                </div></div>
+                            }}
+                            onBlur={(e) => {
+                                const val = e.target.value;
+                                if (val && val.length === 10) {
+                                    onDateChange(val);
+                                    setSearchDate(val);
+                                    const d = new Date(val);
+                                    if (!isNaN(d.getTime())) {
+                                        setSearchMonth(d.getMonth());
+                                        setSearchYear(d.getFullYear());
+                                    }
+                                }
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    const target = e.target as HTMLInputElement;
+                                    if (target.value && target.value.length === 10) {
+                                        onDateChange(target.value);
+                                        setSearchDate(target.value);
+                                        const d = new Date(target.value);
+                                        if (!isNaN(d.getTime())) {
+                                            setSearchMonth(d.getMonth());
+                                            setSearchYear(d.getFullYear());
+                                        }
+                                    }
+                                }
+                            }}
+                            className="bg-slate-800 border border-slate-700 rounded-lg h-8 py-1 px-3 text-white text-xs font-bold focus:ring-1 focus:ring-sky-500 focus:outline-none" 
+                        />
+                    </div>
+                </div>
                 <div className="overflow-x-auto min-h-[150px]">
                     <table className="w-full text-left">
                         <thead>
                             <tr className="text-xs bg-gradient-to-r from-emerald-950/90 via-slate-800/95 to-cyan-950/90 text-emerald-300 uppercase font-bold tracking-wider border-b-2 border-emerald-500/50 shadow-sm">
+                                <th className="py-2.5 px-3 text-center w-16">ক্রমিক (SL)</th>
                                 <th className="py-2.5 px-3">বিভাগ (Category)</th>
                                 <th className="py-2.5 px-3">কর্মচারী / বিবরণ (Employee / Details)</th>
                                 <th className="py-2.5 px-3">বর্ণনা (Description)</th>
@@ -1570,9 +1709,14 @@ const DailyExpenseForm: React.FC<any> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                            {items.map(item => (
+                            {items.map((item, idx) => (
                                 <React.Fragment key={item.id}>
                                     <tr>
+                                        <td className="py-1.5 pr-2 text-center">
+                                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 text-sky-400 font-mono text-xs font-black shadow-inner">
+                                                {idx + 1}
+                                            </span>
+                                        </td>
                                         <td className="py-1.5 pr-2">
                                             <select value={item.category} onChange={e => handleItemChange(item.id, 'category', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg h-8 py-1 px-2.5 text-white text-xs font-bold outline-none focus:border-cyan-500">
                                                 {expenseCategories.map(cat => <option key={cat} value={cat}>{expenseCategoryBanglaMap[cat] ? `${expenseCategoryBanglaMap[cat]} (${cat})` : cat}</option>)}
@@ -1698,7 +1842,7 @@ const DailyExpenseForm: React.FC<any> = ({
                                     </tr>
                                     {item.category === 'Stuff salary' && item.subCategory && (
                                         <tr className="bg-slate-950/80">
-                                            <td colSpan={5} className="px-2 py-1">
+                                            <td colSpan={6} className="px-2 py-1">
                                                 <StaffSalaryHelperCard 
                                                     employeeName={item.subCategory}
                                                     employees={employees}
@@ -1717,43 +1861,63 @@ const DailyExpenseForm: React.FC<any> = ({
                         </tbody>
                     </table>
                 </div>
-                <div className="mt-8 flex justify-between items-center border-t border-sky-900/50 pt-6">
-                    <button onClick={addItem} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all">+ Add Item Row</button>
-                    <div className="flex items-center gap-8">
+                <div className="mt-8 flex flex-wrap justify-between items-center border-t border-sky-900/50 pt-6 gap-4">
+                    <button onClick={addItem} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer">+ Add Item Row</button>
+                    <div className="flex flex-wrap items-center gap-4 sm:gap-8">
                         <div className="text-slate-400 font-black uppercase text-xs tracking-widest">Total Paid: <span className="text-emerald-400 text-3xl font-black ml-2">{totalPaid.toLocaleString()}</span></div>
-                        <button onClick={handleSave} className="bg-green-600 hover:bg-green-500 text-white px-12 py-3 rounded-2xl font-black shadow-2xl uppercase text-[11px] tracking-widest transition-all">Save Daily Ledger</button>
+                        {editingItem && (
+                            <button
+                                type="button"
+                                onClick={() => onEdit(null)}
+                                className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-6 py-3 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all border border-slate-600 cursor-pointer"
+                            >
+                                বাতিল (Cancel)
+                            </button>
+                        )}
+                        <button
+                            onClick={handleSave}
+                            className={`${
+                                editingItem
+                                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 ring-2 ring-amber-300'
+                                    : 'bg-green-600 hover:bg-green-500 text-white'
+                            } px-10 py-3 rounded-2xl font-black shadow-2xl uppercase text-[11px] tracking-widest transition-all cursor-pointer`}
+                        >
+                            {editingItem ? '✏️ Update Expense Invoice (আপডেট করুন)' : 'Save Daily Ledger (সেভ করুন)'}
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* Saved Expenses List */}
-            <div className="bg-slate-900 rounded-[2rem] p-8 border border-slate-800 shadow-xl">
-                <div className="flex flex-wrap justify-between items-center mb-6 border-b border-slate-800 pb-4 gap-4">
-                    <h3 className="text-xl font-black text-white flex items-center gap-3"><FileTextIcon className="w-6 h-6 text-blue-400" /> Saved Expenses Explorer</h3>
+            {/* Saved Expenses List - Light Excel-Grid UI (Matching yyy.png) */}
+            <div className="bg-slate-100 rounded-2xl p-4 sm:p-6 border-2 border-slate-300 shadow-xl space-y-4 text-slate-800">
+                <div className="flex flex-wrap justify-between items-center border-b border-slate-300 pb-3.5 gap-3">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                        <FileTextIcon className="w-5 h-5 text-emerald-700" /> Saved Expenses Explorer ({filteredSavedItems.length} টি)
+                    </h3>
                     
-                    <div className="flex flex-wrap gap-3 items-center">
-                        <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
-                            <button onClick={() => setSearchMode('date')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${searchMode === 'date' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Date</button>
-                            <button onClick={() => setSearchMode('month')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${searchMode === 'month' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Month</button>
-                            <button onClick={() => setSearchMode('year')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${searchMode === 'year' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>Year</button>
-                            <button onClick={() => setSearchMode('all')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${searchMode === 'all' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}>All</button>
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <div className="flex bg-white p-1 rounded-xl border border-slate-300 shadow-sm">
+                            <button onClick={() => setSearchMode('date')} className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${searchMode === 'date' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'}`}>Date</button>
+                            <button onClick={() => setSearchMode('month')} className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${searchMode === 'month' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'}`}>Month</button>
+                            <button onClick={() => setSearchMode('year')} className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${searchMode === 'year' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'}`}>Year</button>
+                            <button onClick={() => setSearchMode('all')} className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${searchMode === 'all' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'}`}>All</button>
                         </div>
 
                         {searchMode === 'date' && (
-                            <input type="date" value={searchDate} onChange={e => setSearchDate(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500" />
+                            <input type="date" value={searchDate} onChange={e => setSearchDate(e.target.value)} className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-slate-800 text-xs font-bold outline-none focus:border-emerald-600 shadow-sm cursor-pointer" />
                         )}
                         {searchMode === 'month' && (
                             <div className="flex gap-2">
-                                <select value={searchMonth} onChange={e => setSearchMonth(parseInt(e.target.value))} className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500">
+                                <select value={searchMonth} onChange={e => setSearchMonth(parseInt(e.target.value))} className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-slate-800 text-xs font-bold outline-none focus:border-emerald-600 shadow-sm cursor-pointer">
                                     {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
                                 </select>
-                                <select value={searchYear} onChange={e => setSearchYear(parseInt(e.target.value))} className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500">
+                                <select value={searchYear} onChange={e => setSearchYear(parseInt(e.target.value))} className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-slate-800 text-xs font-bold outline-none focus:border-emerald-600 shadow-sm cursor-pointer">
                                     {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
                                 </select>
                             </div>
                         )}
                         {searchMode === 'year' && (
-                            <select value={searchYear} onChange={e => setSearchYear(parseInt(e.target.value))} className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500">
+                            <select value={searchYear} onChange={e => setSearchYear(parseInt(e.target.value))} className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-slate-800 text-xs font-bold outline-none focus:border-emerald-600 shadow-sm cursor-pointer">
                                 {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
                         )}
@@ -1762,28 +1926,28 @@ const DailyExpenseForm: React.FC<any> = ({
                             value={savedCategoryFilter} 
                             onChange={e => {
                                 setSavedCategoryFilter(e.target.value);
-                                setSavedSearchTerm(''); // Clear search term when category filter changes to prevent conflicts
+                                setSavedSearchTerm('');
                             }} 
-                            className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white text-xs font-bold outline-none focus:border-blue-500"
+                            className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-slate-800 text-xs font-bold outline-none focus:border-emerald-600 shadow-sm cursor-pointer"
                         >
                             <option value="All">সব ক্যাটাগরি (All Categories)</option>
                             {expenseCategories.map(cat => <option key={cat} value={cat}>{expenseCategoryBanglaMap[cat] || cat} ({cat})</option>)}
                         </select>
 
-                        <div className="relative w-72">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                        <div className="relative w-64">
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                             <input 
                                 list="saved-categories-search"
                                 type="text" 
-                                placeholder="খুঁজুন (Category, Sub-cat, details, ৳)..." 
+                                placeholder="খুঁজুন (Invoice ID, Category, ৳)..." 
                                 value={savedSearchTerm} 
                                 onChange={e => setSavedSearchTerm(e.target.value)} 
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-8 py-2 text-xs text-white outline-none focus:border-blue-500" 
+                                className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-7 py-1.5 text-xs text-slate-900 font-bold placeholder:text-slate-400 outline-none focus:border-emerald-600 shadow-sm" 
                             />
                             {savedSearchTerm && (
                                 <button 
                                     onClick={() => setSavedSearchTerm('')}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 text-xs font-bold cursor-pointer"
                                 >
                                     ✕
                                 </button>
@@ -1805,87 +1969,145 @@ const DailyExpenseForm: React.FC<any> = ({
                         <button
                             onClick={handleCleanDuplicates}
                             disabled={isCleaningDuplicates}
-                            className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md disabled:opacity-50"
+                            className="bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
                             title="ক্লিন ডুপ্লিকেট খরচ"
                         >
                             {isCleaningDuplicates ? "ক্লিন হচ্ছে..." : "⚡ ডুপ্লিকেট ক্লিন"}
                         </button>
                     </div>
                 </div>
-                <div className="overflow-x-auto border border-slate-700 rounded-xl bg-slate-900 shadow-xl">
-                    <table className="w-full text-left text-xs">
-                        <thead>
-                            <tr className="text-xs bg-slate-800 text-sky-200 uppercase font-bold tracking-wider border-b border-slate-700">
-                                <th className="py-3.5 px-3 w-12">SL</th>
-                                <th className="py-3.5 px-3">তারিখ (Date)</th>
-                                <th className="py-3.5 px-3">বিভাগ (Category)</th>
-                                <th className="py-3.5 px-3">উপ-বিভাগ (Sub-Category)</th>
-                                <th className="py-3.5 px-3">বিবরণ (Description)</th>
-                                <th className="py-3.5 px-3 text-right">পরিমাণ (Amount)</th>
-                                <th className="py-3.5 px-3 text-center">অবস্থা (Status)</th>
-                                <th className="py-3.5 px-3 text-center">অ্যাকশন (Action)</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {filteredSavedItems.length > 0 ? filteredSavedItems.map((it: any, idx: number) => (
-                                <tr key={it.id} className="hover:bg-slate-800/80 even:bg-slate-900/70 odd:bg-slate-850/40 transition-colors">
-                                    <td className="py-3.5 px-3 text-slate-300 font-mono font-bold">{idx + 1}</td>
-                                    <td className="py-3.5 px-3 text-slate-200 font-bold">{it.date}</td>
-                                    <td className="py-3.5 px-3">
-                                        <div className="font-extrabold text-white text-xs mb-0.5">
-                                            {expenseCategoryBanglaMap[it.category] || it.category}
-                                        </div>
-                                        <div className="text-[10px] text-sky-300 font-medium">
-                                            {it.category}
-                                        </div>
-                                    </td>
-                                    <td className="py-3.5 px-3 text-slate-200 font-medium">{it.subCategory}</td>
-                                    <td className="py-3.5 px-3 text-slate-300">{it.description}</td>
-                                    <td className="py-3.5 px-3 text-right font-black text-white text-sm">{Number(it.paidAmount || it.paid_amount || it.amount || 0).toLocaleString()}</td>
-                                    <td className="py-3.5 px-3 text-center">
-                                        {it.isEdited ? (
-                                            <span className="bg-amber-900/30 text-amber-300 px-2 py-1 rounded text-[10px] font-bold uppercase border border-amber-500/40" title={`Edited at ${it.lastEditedAt}`}>Edited</span>
-                                        ) : (
-                                            <span className="bg-emerald-900/30 text-emerald-300 px-2 py-1 rounded text-[10px] font-bold uppercase border border-emerald-500/40">Original</span>
-                                        )}
-                                    </td>
-                                    <td className="py-4 text-center space-x-2">
-                                        <button 
-                                            onClick={() => setHistoryItem(it)} 
-                                            className="text-emerald-400 hover:text-emerald-300 font-black uppercase text-[10px] tracking-widest border border-emerald-500/30 px-3 py-1 rounded-lg hover:bg-emerald-600/10 transition-all"
-                                        >
-                                            History
-                                        </button>
-                                        <button 
-                                            onClick={() => handleEditSavedItem(it)} 
-                                            className="text-blue-400 hover:text-blue-300 font-black uppercase text-[10px] tracking-widest border border-blue-500/30 px-3 py-1 rounded-lg hover:bg-blue-600/10 transition-all"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button 
-                                            onClick={() => handleDeleteSavedItem(it)} 
-                                            className="text-rose-400 hover:text-rose-300 font-black uppercase text-[10px] tracking-widest border border-rose-500/30 px-3 py-1 rounded-lg hover:bg-rose-600/10 transition-all"
-                                        >
-                                            Delete
-                                        </button>
-                                    </td>
+
+                {/* Live Summary Ribbon (Matching yyy.png white summary bar) */}
+                <div className="flex flex-wrap items-center gap-4 text-xs font-bold bg-white px-5 py-2.5 rounded-xl border border-slate-300 shadow-sm justify-around">
+                    <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট খরচের লাইন:</span>
+                        <span className="text-slate-950 font-mono font-black text-sm">{filteredSavedItems.length} টি</span>
+                    </div>
+                    <div className="h-5 w-px bg-slate-300"></div>
+                    <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট ইনভয়েস (Invoices):</span>
+                        <span className="text-sky-800 font-mono font-black text-sm">
+                            {new Set(filteredSavedItems.map((it: any) => it.voucherId || it.metadata?.voucherId || it.id)).size} টি
+                        </span>
+                    </div>
+                    <div className="h-5 w-px bg-slate-300"></div>
+                    <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">মোট পরিশোধিত খরচ (Total Paid):</span>
+                        <span className="text-emerald-700 font-mono font-black text-base">৳{totalFilteredSavedAmount.toLocaleString()}</span>
+                    </div>
+                </div>
+
+                {/* Embedded Excel-Grid Light Table (Matching yyy.png) */}
+                <div className="bg-white border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto max-h-[550px]">
+                        <table className="w-full text-left border-collapse text-xs border border-slate-300">
+                            <thead className="bg-slate-200 text-slate-800 uppercase font-black tracking-wider border-b-2 border-slate-400 sticky top-0 z-10 select-none text-[11px]">
+                                <tr className="divide-x divide-slate-300">
+                                    <th className="border border-slate-300 p-2.5 text-center w-12">ক্রমিক</th>
+                                    <th className="border border-slate-300 p-2.5">ইনভয়েস আইডি (Invoice ID)</th>
+                                    <th className="border border-slate-300 p-2.5">তারিখ (Date)</th>
+                                    <th className="border border-slate-300 p-2.5">বিভাগ (Category)</th>
+                                    <th className="border border-slate-300 p-2.5">উপ-বিভাগ (Sub-Category)</th>
+                                    <th className="border border-slate-300 p-2.5">বিবরণ (Description)</th>
+                                    <th className="border border-slate-300 p-2.5 text-right text-emerald-800">পরিমাণ (Amount)</th>
+                                    <th className="border border-slate-300 p-2.5 text-center">অবস্থা (Status)</th>
+                                    <th className="border border-slate-300 p-2.5 text-center w-32">অ্যাকশন</th>
                                 </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan={8} className="py-10 text-center text-slate-600 font-bold italic">No saved expenses found for the selected criteria.</td>
-                                </tr>
+                            </thead>
+                            <tbody className="font-semibold text-slate-800 divide-y divide-slate-300 bg-white">
+                                {filteredSavedItems.length > 0 ? filteredSavedItems.map((it: any, idx: number) => {
+                                    const rowVoucherId = it.voucherId || it.metadata?.voucherId || `EXP-${(it.date || '').replace(/-/g, '')}-01`;
+                                    const isEditingThis = editingItem && (
+                                        String(editingItem.id) === String(it.id) ||
+                                        ((editingItem.voucherId || editingItem.metadata?.voucherId) && (editingItem.voucherId || editingItem.metadata?.voucherId) === (it.voucherId || it.metadata?.voucherId))
+                                    );
+
+                                    return (
+                                        <tr 
+                                            key={it.id} 
+                                            onDoubleClick={() => handleEditSavedItem(it)}
+                                            title="ডাবল ক্লিক করলে এই ইনভয়েসটি এডিট করার জন্য উপরের ফর্মে লোড হবে"
+                                            className={`transition-colors divide-x divide-slate-300 cursor-pointer ${
+                                                isEditingThis
+                                                    ? 'bg-amber-100/90 text-amber-950 font-bold'
+                                                    : 'hover:bg-blue-50/70 bg-white even:bg-slate-50/70'
+                                            }`}
+                                        >
+                                            <td className="border border-slate-300 p-2 text-center font-mono text-slate-600 bg-slate-100/60 font-bold">{idx + 1}</td>
+                                            <td className="border border-slate-300 p-2.5 font-mono text-sky-900 font-black whitespace-nowrap">
+                                                <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-300 text-slate-800 text-[11px] font-mono font-black">
+                                                    {rowVoucherId}
+                                                </span>
+                                            </td>
+                                            <td className="border border-slate-300 p-2.5 font-mono text-slate-900 font-bold whitespace-nowrap">{it.date}</td>
+                                            <td className="border border-slate-300 p-2.5 whitespace-nowrap">
+                                                <span className="px-2 py-0.5 rounded bg-sky-100 border border-sky-300 text-sky-800 text-[10px] font-black uppercase inline-block">
+                                                    {expenseCategoryBanglaMap[it.category] || it.category} ({it.category})
+                                                </span>
+                                            </td>
+                                            <td className="border border-slate-300 p-2.5 text-slate-800 font-bold">{it.subCategory || '-'}</td>
+                                            <td className="border border-slate-300 p-2.5 text-slate-700 font-medium">{it.description || '-'}</td>
+                                            <td className="border border-slate-300 p-2.5 text-right font-mono font-black text-emerald-800 bg-emerald-50/60 text-sm">
+                                                ৳{Number(it.paidAmount || it.paid_amount || it.amount || 0).toLocaleString()}
+                                            </td>
+                                            <td className="border border-slate-300 p-2.5 text-center whitespace-nowrap">
+                                                {it.isEdited ? (
+                                                    <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] font-black uppercase border border-amber-300" title={`Edited at ${it.lastEditedAt}`}>Edited</span>
+                                                ) : (
+                                                    <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-black uppercase border border-emerald-300">Original</span>
+                                                )}
+                                            </td>
+                                            <td className="border border-slate-300 p-1.5 text-center bg-slate-50/40" onClick={e => e.stopPropagation()}>
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => handleEditSavedItem(it)} 
+                                                        className={`p-1.5 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer ${
+                                                            isEditingThis ? 'bg-amber-500 text-slate-950 font-black' : 'bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300'
+                                                        }`}
+                                                        title="সম্পাদনা করুন (Edit Invoice)"
+                                                    >
+                                                        ✏️
+                                                    </button>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setHistoryItem(it)} 
+                                                        className="p-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer text-[10px] font-black"
+                                                        title="হিস্ট্রি দেখুন (History)"
+                                                    >
+                                                        🕒
+                                                    </button>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => handleDeleteSavedItem(it)} 
+                                                        className="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 rounded-lg transition-all shadow-sm active:scale-95 cursor-pointer text-[11px] font-black"
+                                                        title="মুছে ফেলুন (Delete)"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                }) : (
+                                    <tr>
+                                        <td colSpan={9} className="border border-slate-300 p-10 text-center text-slate-500 font-bold bg-white">
+                                            কোনো সংরক্ষিত খরচের রেকর্ড পাওয়া যায়নি। (No saved expenses found)
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                            {filteredSavedItems.length > 0 && (
+                                <tfoot className="bg-slate-200 border-t-2 border-slate-400 text-slate-900 font-black">
+                                    <tr className="divide-x divide-slate-300">
+                                        <td colSpan={6} className="border border-slate-300 py-3 text-right uppercase tracking-wider text-slate-700 pr-4 text-xs">Total Filtered Amount (মোট খরচ):</td>
+                                        <td className="border border-slate-300 py-3 text-right text-emerald-800 bg-emerald-100/70 font-mono text-base pr-2.5">৳{totalFilteredSavedAmount.toLocaleString()}</td>
+                                        <td colSpan={2} className="border border-slate-300"></td>
+                                    </tr>
+                                </tfoot>
                             )}
-                        </tbody>
-                        {filteredSavedItems.length > 0 && (
-                            <tfoot className="bg-slate-950 border-t-2 border-slate-800 text-white font-black">
-                                <tr>
-                                    <td colSpan={5} className="py-4 text-right uppercase tracking-widest text-slate-500 pr-4">Total Filtered Amount:</td>
-                                    <td className="py-4 text-right text-emerald-400 text-lg pr-2">{totalFilteredSavedAmount.toLocaleString()}</td>
-                                    <td colSpan={2}></td>
-                                </tr>
-                            </tfoot>
-                        )}
-                    </table>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1983,8 +2205,8 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     const handleSaveExpense = (date: string, items: ExpenseItem[]) => {
         setConfirmModal({
             isOpen: true,
-            title: 'Confirm Save',
-            message: 'আপনি কি এই খরচের ডাটাগুলো সেভ করতে চান?',
+            title: editingItem ? 'Confirm Update' : 'Confirm Save',
+            message: editingItem ? 'আপনি কি এই খরচের ইনভয়েসটি আপডেট করতে চান?' : 'আপনি কি এই খরচের ডাটাগুলো সেভ করতে চান?',
             onConfirm: () => executeSaveExpense(date, items)
         });
     };
@@ -2018,20 +2240,33 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             });
 
             // Logic: 
-            // If editingItem exists, find and replace IT specifically in the list.
+            // If editingItem exists, find and replace all items belonging to that invoice/voucher (or that single item) in the list.
             // If not editingItem, APPEND new items to existing diagnostic items.
             let finalDiagItems: ExpenseItem[] = [];
             if (editingItem) {
                 const editIdStr = String(editingItem.id).trim();
-                let replaced = false;
-                finalDiagItems = prevDiagItems.map(prev => {
-                    if (String(prev.id).trim() === editIdStr) {
-                        replaced = true;
-                        return incomingItems[0] || prev;
+                const editVoucherId = (editingItem as any).voucherId || editingItem.metadata?.voucherId || '';
+                const incomingIdSet = new Set(incomingItems.map(it => String(it.id).trim()));
+
+                const isPartOfEditedInvoice = (prev: any) => {
+                    if (String(prev.id).trim() === editIdStr) return true;
+                    if (incomingIdSet.has(String(prev.id).trim())) return true;
+                    if (editVoucherId && ((prev as any).voucherId || prev.metadata?.voucherId) === editVoucherId) return true;
+                    return false;
+                };
+
+                let inserted = false;
+                prevDiagItems.forEach(prev => {
+                    if (isPartOfEditedInvoice(prev)) {
+                        if (!inserted) {
+                            finalDiagItems.push(...incomingItems);
+                            inserted = true;
+                        }
+                    } else {
+                        finalDiagItems.push(prev);
                     }
-                    return prev;
                 });
-                if (!replaced && incomingItems.length > 0) {
+                if (!inserted && incomingItems.length > 0) {
                     finalDiagItems.push(...incomingItems);
                 }
             } else {
@@ -2040,7 +2275,16 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 finalDiagItems = [...prevDiagItems, ...nonDupIncoming];
             }
             
-            const newState = { ...safePrev, [date]: [...otherDeptItems, ...finalDiagItems] };
+            const newState: Record<string, ExpenseItem[]> = { ...safePrev, [date]: [...otherDeptItems, ...finalDiagItems] };
+            if (editingItem && editingItem.date && editingItem.date !== date && Array.isArray(safePrev[editingItem.date])) {
+                const editIdStr = String(editingItem.id).trim();
+                const editVoucherId = (editingItem as any).voucherId || editingItem.metadata?.voucherId || '';
+                newState[editingItem.date] = safePrev[editingItem.date].filter((prev: any) => {
+                    if (String(prev.id).trim() === editIdStr) return false;
+                    if (editVoucherId && ((prev as any).voucherId || prev.metadata?.voucherId) === editVoucherId) return false;
+                    return true;
+                });
+            }
             
             // If there are reagent buys or film buys, update the Reagent's linked_test, linked_category, usage_start_date, and stock quantity
             const updatedReagents = [...reagents];
@@ -2181,8 +2425,9 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             if (reagentsModified && setReagents) {
                 setReagents(updatedReagents);
             }
+            const wasEditing = Boolean(editingItem);
             setEditingItem(null);
-            setSuccessMessage("খরচের ডাটা সফলভাবে সেভ হয়েছে।");
+            setSuccessMessage(wasEditing ? "খরচের ইনভয়েস সফলভাবে আপডেট হয়েছে।" : "খরচের ডাটা সফলভাবে সেভ হয়েছে।");
             setTimeout(() => setSuccessMessage(''), 4000);
             setIsSaving(false);
         } catch (err) {

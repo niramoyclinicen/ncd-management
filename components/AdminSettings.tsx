@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BackIcon, SettingsIcon, SaveIcon, DownloadIcon, TrashIcon, DatabaseIcon, RefreshIcon, Activity, UsersIcon, PrinterIcon, PlusIcon, XIcon } from './Icons';
 import { DepartmentPasswords } from '../types';
+import MobileNumberInput from './MobileNumberInput';
 import { 
   dbService, 
   ClinicProfile, 
@@ -1367,13 +1368,13 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>হটলাইন ও মোবাইল নম্বর (Mobile / Hotline)</label>
-                  <input
-                    type="text"
+                  <MobileNumberInput
+                    label="হটলাইন ও মোবাইল নম্বর (Mobile / Hotline)"
+                    name="mobile"
+                    required
                     value={clinicProfile.mobile}
                     onChange={e => setClinicProfile({ ...clinicProfile, mobile: e.target.value })}
                     className={inputClass}
-                    required
                   />
                 </div>
                 <div>
@@ -2560,12 +2561,11 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>মোবাইল নম্বর</label>
-                  <input
-                    type="text"
+                  <MobileNumberInput
+                    label="মোবাইল নম্বর"
+                    name="mobile"
                     value={newStaffForm.mobile}
                     onChange={e => setNewStaffForm({ ...newStaffForm, mobile: e.target.value })}
-                    placeholder="017XXXXXXXX"
                     className={inputClass}
                   />
                 </div>

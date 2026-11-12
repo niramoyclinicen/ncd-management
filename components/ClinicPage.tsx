@@ -10,6 +10,7 @@ import { BackIcon, ClinicIcon, StethoscopeIcon, ClipboardIcon, FileTextIcon, Set
 import { dbService } from '../dbService';
 import { CheckCircle2, AlertTriangle, Sparkles, Layers, Calendar, Clock, Pill } from 'lucide-react';
 import DailyConsolidatedClinicEntryPage from './clinic/DailyConsolidatedClinicEntryPage';
+import MobileNumberInput from './MobileNumberInput';
 
 // Fixed Clinic Config
 const CLINIC_REGISTRATION = 'HSM76710';
@@ -2201,20 +2202,14 @@ const AdmissionAndTreatmentPage: React.FC<{
                                             )}
                                         </div>
                                         <div className="col-span-1">
-                                            <label className="text-[10px] font-black text-rose-300 uppercase ml-2 mb-1.5 block tracking-widest">Mobile *</label>
-                                            <input 
+                                            <MobileNumberInput 
+                                                label="Mobile"
+                                                name="patient_mobile"
+                                                required
                                                 value={admissionData.patient_mobile || ''} 
-                                                onChange={(e) => {
-                                                    const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
-                                                    let formatted = digits;
-                                                    if (digits.length > 5) {
-                                                        formatted = `${digits.slice(0, 5)} ${digits.slice(5)}`;
-                                                    }
-                                                    setAdmissionData({...admissionData, patient_mobile: formatted});
-                                                }} 
-                                                placeholder="01712 765432" 
-                                                maxLength={12}
-                                                className="w-full p-3.5 bg-[#0a192f] border border-sky-400/80 rounded-xl text-white font-bold outline-none transition-all shadow-inner font-mono tracking-wider"
+                                                onChange={(e) => setAdmissionData({...admissionData, patient_mobile: e.target.value})} 
+                                                placeholder="01XXX-XXXXXX" 
+                                                className="w-full p-3.5 bg-[#0a192f] border border-sky-400/80 rounded-xl text-white font-bold outline-none transition-all shadow-inner font-mono tracking-wider text-sm"
                                             />
                                         </div>
                                         <div className="col-span-2">
@@ -3472,6 +3467,8 @@ const IndoorInvoicePage: React.FC<{
     const [tableSearchTerm, setTableSearchTerm] = useState('');
     const [tableDateFilter, setTableDateFilter] = useState('');
     const [tableMonthFilter, setTableMonthFilter] = useState('');
+    const [tableYearFilter, setTableYearFilter] = useState('');
+    const [showOnlyDue, setShowOnlyDue] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historyInvoice, setHistoryInvoice] = useState<IndoorInvoice | null>(null);
     const [loading, setLoading] = useState(false);
@@ -3532,24 +3529,31 @@ const IndoorInvoicePage: React.FC<{
         
         return safeInvoices.filter(inv => {
             if (!inv) return false;
-            if (isDueSearch) {
-                return (inv.due_bill || 0) > 0;
+            if (isDueSearch || showOnlyDue) {
+                if ((Number(inv.due_bill) || 0) <= 0 || inv.status === 'Cancelled' || inv.status === 'Deleted' || inv.status === 'Returned') {
+                    return false;
+                }
+                if (isDueSearch && !showOnlyDue) return true;
             }
             const p = patientMap.get(inv.patient_id);
-            const matchesSearch = (inv.patient_name || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
+            const matchesSearch = isDueSearch ? true : (
+                (inv.patient_name || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 (inv.daily_id || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 (inv.patient_id || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 (inv.indication || '').toLowerCase().includes(tableSearchTerm.toLowerCase()) ||
                 (p?.mobile || '').includes(tableSearchTerm) ||
-                (p?.address || '').toLowerCase().includes(tableSearchTerm.toLowerCase());
+                (p?.address || '').toLowerCase().includes(tableSearchTerm.toLowerCase())
+            );
             
-            const dateToUse = inv.admission_date || inv.invoice_date || '';
+            const dateToUse = normalizeDate(inv.admission_date || inv.invoice_date || '');
+            const [invYear, invMonth] = typeof dateToUse === 'string' ? dateToUse.split('-') : ['', ''];
             const matchesDate = !tableDateFilter || dateToUse === tableDateFilter;
-            const matchesMonth = !tableMonthFilter || (typeof dateToUse === 'string' && dateToUse.startsWith(tableMonthFilter));
+            const matchesMonth = !tableMonthFilter || invMonth === tableMonthFilter;
+            const matchesYear = !tableYearFilter || invYear === tableYearFilter;
 
-            return matchesSearch && matchesDate && matchesMonth;
+            return matchesSearch && matchesDate && matchesMonth && matchesYear;
         });
-    }, [indoorInvoices, tableSearchTerm, tableDateFilter, tableMonthFilter, patients]);
+    }, [indoorInvoices, tableSearchTerm, tableDateFilter, tableMonthFilter, tableYearFilter, showOnlyDue, patients]);
 
     const hasDeletedInvoices = useMemo(() => {
         const safe = Array.isArray(indoorInvoices) ? indoorInvoices : [];
@@ -3575,44 +3579,30 @@ const IndoorInvoicePage: React.FC<{
         return true;
     };
 
-    // Calculate fair Clinic Net: ensures hospital services are counted and prevents uncollected doctor fees from generating false negative balances
+    // Calculate Clinic Net directly: Patient Paid Amount minus Doctor/Surgeon/Assistant/Anesthetist/Medicine/Staff Expenses minus PC Commission
     const calculateInvoiceClinicNet = (inv: IndoorInvoice): number => {
         if (!inv || inv.status === 'Cancelled' || inv.status === 'Deleted') return 0;
         
         const items = Array.isArray(inv.items) ? inv.items : [];
-        const totalBill = Number(inv.total_bill || 0);
         const paidAmount = Number(inv.paid_amount || 0);
         const pcAmount = Number(inv.special_commission || 0) + Number(inv.commission_paid || 0);
-        const specialDiscount = Number(inv.special_discount_amount || 0);
 
-        let clinicFundRevenue = 0;
         let doctorNonFundFees = 0;
 
         if (items.length > 0) {
             items.forEach((it: any) => {
                 if (!it) return;
-                const amt = Number(it.payable_amount ?? it.line_total ?? 0);
-                if (isItemClinicFund(it)) {
-                    clinicFundRevenue += amt;
-                } else {
+                const amt = Number(
+                    it.payable_amount ?? 
+                    ((Number(it.service_charge || 0) * Number(it.quantity || 0)) - Number(it.discount || 0))
+                );
+                if (!isItemClinicFund(it)) {
                     doctorNonFundFees += amt;
                 }
             });
-        } else {
-            clinicFundRevenue = totalBill;
         }
 
-        let net = 0;
-        if (totalBill > 0 && doctorNonFundFees > 0) {
-            // When invoice has doctor charges and clinic charges:
-            // Proportionally allocate collected cash so uncollected doctor balance doesn't show as a minus
-            const clinicRatio = Math.max(0, Math.min(1, clinicFundRevenue / totalBill));
-            const realizedClinicCash = paidAmount * clinicRatio;
-            net = realizedClinicCash - specialDiscount - pcAmount;
-        } else {
-            // Pure clinic charges: collected cash minus discounts & PC
-            net = paidAmount - specialDiscount - pcAmount;
-        }
+        const net = paidAmount - doctorNonFundFees - pcAmount;
 
         if (inv.status === 'Returned') {
             return -Math.abs(net);
@@ -5172,8 +5162,15 @@ const IndoorInvoicePage: React.FC<{
                                         <input type="text" name="patient_name" value={formData.patient_name || ''} onChange={handleInputChange} className={getInputClass(missingFields.name)} placeholder="রোগীর নাম..." />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] text-rose-300 font-black uppercase tracking-wider mb-1">Patient Mobile *</label>
-                                        <input type="text" name="patient_mobile" value={formData.patient_mobile || ''} onChange={handleInputChange} className={getInputClass(missingFields.mobile)} placeholder="017XX XXXXXX" />
+                                        <MobileNumberInput 
+                                            label="Patient Mobile"
+                                            name="patient_mobile"
+                                            required
+                                            value={formData.patient_mobile || ''} 
+                                            onChange={handleInputChange} 
+                                            placeholder="01XXX-XXXXXX"
+                                            className={`w-full h-10 px-3 bg-slate-950 border rounded-xl text-slate-100 text-xs font-mono font-bold tracking-wider outline-none transition-all ${getInputClass(missingFields.mobile)}`}
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] text-sky-300 font-bold uppercase tracking-wider mb-1">Admission Date</label>
@@ -6059,7 +6056,7 @@ const IndoorInvoicePage: React.FC<{
                                 </button>
                             )}
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             <div className="relative w-48">
                                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                                 <input 
@@ -6070,116 +6067,199 @@ const IndoorInvoicePage: React.FC<{
                                     className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"
                                 />
                             </div>
+                            {/* 1. মাস (Month) */}
+                            <select
+                                value={tableMonthFilter}
+                                onChange={e => setTableMonthFilter(e.target.value)}
+                                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner cursor-pointer"
+                                title="মাস নির্বাচন করুন (Month)"
+                            >
+                                <option value="">সকল মাস (All Months)</option>
+                                <option value="01">01 - January (জানুয়ারি)</option>
+                                <option value="02">02 - February (ফেব্রুয়ারি)</option>
+                                <option value="03">03 - March (মার্চ)</option>
+                                <option value="04">04 - April (এপ্রিল)</option>
+                                <option value="05">05 - May (মে)</option>
+                                <option value="06">06 - June (জুন)</option>
+                                <option value="07">07 - July (জুলাই)</option>
+                                <option value="08">08 - August (আগস্ট)</option>
+                                <option value="09">09 - September (সেপ্টেম্বর)</option>
+                                <option value="10">10 - October (অক্টোবর)</option>
+                                <option value="11">11 - November (নভেম্বর)</option>
+                                <option value="12">12 - December (ডিসেম্বর)</option>
+                            </select>
+                            {/* 2. দিন / তারিখ (Date) */}
                             <input 
                                 type="date" 
                                 value={tableDateFilter}
                                 onChange={e => setTableDateFilter(e.target.value)}
-                                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"
+                                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"
+                                title="তারিখ / দিন নির্বাচন করুন (Day/Date)"
                             />
-                            <input 
-                                type="month" 
-                                value={tableMonthFilter}
-                                onChange={e => setTableMonthFilter(e.target.value)}
-                                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"
-                            />
+                            {/* 3. বছর (Year) */}
+                            <select
+                                value={tableYearFilter}
+                                onChange={e => setTableYearFilter(e.target.value)}
+                                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner cursor-pointer"
+                                title="বছর নির্বাচন করুন (Year)"
+                            >
+                                <option value="">সকল বছর (All Years)</option>
+                                {['2023', '2024', '2025', '2026', '2027', '2028', '2029', '2030'].map(yr => (
+                                    <option key={yr} value={yr}>{yr}</option>
+                                ))}
+                            </select>
+                            {(tableSearchTerm || tableMonthFilter || tableDateFilter || tableYearFilter || showOnlyDue) && (
+                                <button
+                                    onClick={() => {
+                                        setTableSearchTerm('');
+                                        setTableMonthFilter('');
+                                        setTableDateFilter('');
+                                        setTableYearFilter('');
+                                        setShowOnlyDue(false);
+                                    }}
+                                    className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl px-3 py-1.5 text-xs font-black transition-all cursor-pointer"
+                                >
+                                    ✕ রিসেট
+                                </button>
+                            )}
                         </div>
                     </div>
 
-                    <div className="bg-[#faf9f6] rounded-[2.5rem] border-2 border-sky-500/40 shadow-2xl overflow-hidden text-slate-900 p-6 sm:p-8">
+                    <div className="bg-[#faf9f6] rounded-[2rem] border-2 border-sky-500/40 shadow-2xl overflow-hidden text-slate-900 p-4 sm:p-5">
                         <div className="overflow-x-auto rounded-2xl border border-slate-300 shadow-inner bg-white">
                             <table className="w-full text-sm text-left text-slate-800 border-collapse">
-                                <thead className="bg-slate-200 text-slate-700 sticky top-0 z-10 border-b border-slate-300">
+                                <thead className="bg-slate-200 text-slate-800 sticky top-0 z-10 border-b border-slate-300">
                                     <tr>
-                                        <th className="p-3.5 text-center w-12 font-black uppercase text-[10px] tracking-wider">SL</th>
-                                        <th className="p-3.5 w-24 font-black uppercase text-[10px] tracking-wider">ID</th>
-                                        <th className="p-3.5 w-32 font-black uppercase text-[10px] tracking-wider">Admission / Date</th>
-                                        <th className="p-3.5 font-black uppercase text-[10px] tracking-wider">Patient Details</th>
-                                        <th className="p-3.5 text-right w-28 font-black uppercase text-[10px] tracking-wider">Total</th>
-                                        <th className="p-3.5 text-right w-28 font-black uppercase text-[10px] tracking-wider">Paid</th>
-                                        <th className="p-3.5 text-right w-28 font-black uppercase text-[10px] tracking-wider">Due</th>
-                                        <th className="p-3.5 text-right w-32 font-black uppercase text-[10px] tracking-wider text-cyan-400">Clinic Net</th>
-                                        <th className="p-3.5 text-center w-24 font-black uppercase text-[10px] tracking-wider">Status</th>
-                                        <th className="p-3.5 text-center w-48 font-black uppercase text-[10px] tracking-wider">Action</th>
+                                        <th className="py-2 px-2.5 text-center w-12 font-black uppercase text-xs tracking-wider whitespace-nowrap">SL</th>
+                                        <th className="py-2 px-2.5 w-28 font-black uppercase text-xs tracking-wider whitespace-nowrap">ID</th>
+                                        <th className="py-2 px-2.5 w-36 font-black uppercase text-xs tracking-wider whitespace-nowrap">Admission / Date</th>
+                                        <th className="py-2 px-2.5 font-black uppercase text-xs tracking-wider whitespace-nowrap">Patient Details</th>
+                                        <th className="py-2 px-2.5 text-right w-28 font-black uppercase text-xs tracking-wider whitespace-nowrap">Total</th>
+                                        <th className="py-2 px-2.5 text-right w-28 font-black uppercase text-xs tracking-wider whitespace-nowrap">Paid</th>
+                                        <th 
+                                            onClick={() => setShowOnlyDue(prev => !prev)}
+                                            title="শুধুমাত্র বকেয়া (Due) থাকা ইনভয়েসগুলো দেখতে এখানে ক্লিক করুন"
+                                            className={`py-2 px-2.5 text-right w-28 font-black uppercase text-xs tracking-wider whitespace-nowrap cursor-pointer select-none transition-all ${showOnlyDue ? 'bg-rose-600 text-white shadow-inner' : 'hover:bg-rose-200/80 text-rose-700 underline decoration-dotted underline-offset-4'}`}
+                                        >
+                                            Due {showOnlyDue ? '● (বকেয়া)' : '▾'}
+                                        </th>
+                                        <th className="py-2 px-2.5 text-right w-32 font-black uppercase text-xs tracking-wider text-cyan-800 whitespace-nowrap">Clinic Net</th>
+                                        <th className="py-2 px-2.5 text-center w-24 font-black uppercase text-xs tracking-wider whitespace-nowrap">Status</th>
+                                        <th className="py-2 px-2.5 text-center w-52 font-black uppercase text-xs tracking-wider whitespace-nowrap">Action</th>
                                     </tr>
-                                    <tr className="bg-slate-950/90 text-[10px] border-t border-slate-800 text-slate-300">
-                                        <th colSpan={4} className="p-3 text-right text-slate-400 font-black uppercase tracking-widest">Filtered Totals:</th>
-                                        <th className="p-3 text-right text-blue-400 font-black font-mono">{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                        <th className="p-3 text-right text-emerald-400 font-black font-mono">{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                        <th className="p-3 text-right text-rose-400 font-black font-mono">{tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
-                                        <th className="p-3 text-right text-cyan-400 font-black font-mono">{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                    <tr className="bg-slate-900 text-xs border-t border-slate-800 text-slate-200">
+                                        <th colSpan={4} className="py-1.5 px-2.5 text-right text-slate-300 font-black uppercase tracking-widest">
+                                            Filtered Totals {showOnlyDue ? '(Due Only)' : ''}:
+                                        </th>
+                                        <th className="py-1.5 px-2.5 text-right text-blue-400 font-black font-mono">{tableTotals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th className="py-1.5 px-2.5 text-right text-emerald-400 font-black font-mono">{tableTotals.paid.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
+                                        <th 
+                                            onClick={() => setShowOnlyDue(prev => !prev)}
+                                            className="py-1.5 px-2.5 text-right text-rose-400 font-black font-mono cursor-pointer hover:underline"
+                                            title="বকেয়া ফিল্টার চালু/বন্ধ করতে ক্লিক করুন"
+                                        >
+                                            {tableTotals.due.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                        </th>
+                                        <th className="py-1.5 px-2.5 text-right text-cyan-400 font-black font-mono">{tableTotals.net.toLocaleString(undefined, {minimumFractionDigits: 2})}</th>
                                         <th colSpan={2}></th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-200 bg-white">
-                                    {filteredInvoices.map((inv, index) => (
-                                        <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer hover:bg-sky-50/70 transition-all ${selectedInvoiceId === inv.daily_id ? 'bg-blue-50 border-l-4 border-blue-600' : ''} ${inv.status === 'Returned' ? 'bg-rose-50/50' : inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-40 grayscale line-through' : ''}`}>
-                                            <td className="py-2 px-3 text-center text-slate-500 font-mono text-xs font-bold">{index + 1}</td>
-                                            <td className="py-2 px-3 font-black text-xs text-blue-700 font-mono">{inv.daily_id}</td>
-                                            <td className="py-2 px-3 text-xs leading-tight">
-                                                <div className="font-bold text-slate-800" title="ভর্তি তারিখ">Adm: {inv.admission_date || inv.invoice_date}</div>
-                                                {inv.invoice_date && inv.invoice_date !== inv.admission_date && (
-                                                    <div className="text-[10px] text-slate-500">Inv: {inv.invoice_date}</div>
-                                                )}
-                                                {inv.discharge_date && (
-                                                    <div className="text-[10px] text-emerald-700 font-semibold">Disch: {inv.discharge_date}</div>
-                                                )}
-                                            </td>
-                                            <td className="py-2 px-3">
-                                                <div className="font-black uppercase text-slate-900 tracking-tight text-xs">{inv.patient_name}</div>
-                                                <div className="text-[10px] text-slate-600 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 items-center">
-                                                    <span className="bg-slate-100 px-1.5 py-0.2 rounded text-slate-700 font-mono font-bold">ID: {inv.patient_id}</span>
-                                                    <span className="bg-blue-50 text-blue-800 px-1.5 py-0.2 rounded font-medium">Indication: {inv.indication}</span>
+                                <tbody className="divide-y divide-slate-300 bg-white">
+                                    {filteredInvoices.map((inv, index) => {
+                                        const isEven = index % 2 === 0;
+                                        const rowBgClass = selectedInvoiceId === inv.daily_id
+                                            ? 'bg-amber-100/90 border-l-4 border-blue-600'
+                                            : inv.status === 'Returned'
+                                            ? 'bg-rose-100/70 hover:bg-rose-100'
+                                            : isEven
+                                            ? 'bg-white hover:bg-sky-100/70'
+                                            : 'bg-sky-50/90 hover:bg-sky-100/90';
+
+                                        return (
+                                            <tr key={inv.daily_id} onClick={() => handleLoadInvoice(inv)} className={`cursor-pointer transition-all border-b border-slate-300 ${rowBgClass} ${inv.status === 'Cancelled' || inv.status === 'Deleted' ? 'opacity-45 grayscale line-through' : ''}`}>
+                                                <td className="py-2.5 px-2.5 text-center text-slate-700 font-mono text-[13px] font-black">{index + 1}</td>
+                                                <td className="py-2.5 px-2.5 font-black text-[13px] text-blue-800 font-mono whitespace-nowrap">{inv.daily_id}</td>
+                                                <td className="py-2.5 px-2.5 text-[13px] leading-snug whitespace-nowrap">
+                                                    <div className="font-black text-slate-900" title="ভর্তি তারিখ">Adm: {inv.admission_date || inv.invoice_date}</div>
+                                                    {inv.invoice_date && inv.invoice_date !== inv.admission_date && (
+                                                        <div className="text-[11px] text-slate-600 font-bold">Inv: {inv.invoice_date}</div>
+                                                    )}
+                                                    {inv.discharge_date && (
+                                                        <div className="text-[11px] text-emerald-700 font-extrabold">Disch: {inv.discharge_date}</div>
+                                                    )}
+                                                </td>
+                                                <td className="py-2.5 px-2.5">
+                                                    <div className="font-black uppercase text-slate-900 tracking-tight text-sm">{inv.patient_name}</div>
+                                                    <div className="text-[11px] text-slate-700 mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 items-center">
+                                                        <span className="bg-slate-200/80 px-1.5 py-0.5 rounded text-slate-800 font-mono font-bold">ID: {inv.patient_id}</span>
+                                                        <span className="bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded font-bold">Indication: {inv.indication}</span>
+                                                        {(() => {
+                                                            const safePatients = Array.isArray(patients) ? patients : [];
+                                                            const p = safePatients.find(pt => pt && pt.pt_id === inv.patient_id);
+                                                            return p ? (
+                                                                <>
+                                                                    <span className="text-slate-700 font-semibold">Age: {p.ageY}Y</span>
+                                                                    <span className="text-slate-700 font-semibold">Addr: {p.address}</span>
+                                                                    <span className="text-emerald-800 font-black">Mob: {p.mobile}</span>
+                                                                </>
+                                                            ) : null;
+                                                        })()}
+                                                    </div>
+                                                </td>
+                                                <td className="py-2.5 px-2.5 text-right font-black font-mono text-[13px] text-slate-900">{Number(inv.total_bill || 0).toFixed(2)}</td>
+                                                <td className="py-2.5 px-2.5 text-right text-emerald-700 font-black font-mono text-[13px]">{Number(inv.paid_amount || 0).toFixed(2)}</td>
+                                                <td className={`py-2.5 px-2.5 text-right font-black font-mono text-[13px] ${(Number(inv.due_bill) || 0) > 0 ? 'text-rose-600 bg-rose-50/60' : 'text-slate-500'}`}>{Number(inv.due_bill || 0).toFixed(2)}</td>
+                                                <td className="py-2.5 px-2.5 text-right text-cyan-900 font-black font-mono text-[13px]">
                                                     {(() => {
-                                                        const safePatients = Array.isArray(patients) ? patients : [];
-                                                        const p = safePatients.find(pt => pt && pt.pt_id === inv.patient_id);
-                                                        return p ? (
-                                                            <>
-                                                                <span className="text-slate-600">Age: {p.ageY}Y</span>
-                                                                <span className="text-slate-600">Addr: {p.address}</span>
-                                                                <span className="text-emerald-800 font-bold">Mob: {p.mobile}</span>
-                                                            </>
-                                                        ) : null;
+                                                        if (inv.status === 'Cancelled' || inv.status === 'Deleted') return '0.00';
+                                                        const net = calculateInvoiceClinicNet(inv);
+                                                        return net.toFixed(2);
                                                     })()}
-                                                </div>
-                                            </td>
-                                            <td className="py-2 px-3 text-right font-bold font-mono text-slate-800">{Number(inv.total_bill || 0).toFixed(2)}</td>
-                                            <td className="py-2 px-3 text-right text-emerald-700 font-black font-mono">{Number(inv.paid_amount || 0).toFixed(2)}</td>
-                                            <td className="py-2 px-3 text-right text-rose-700 font-black font-mono">{Number(inv.due_bill || 0).toFixed(2)}</td>
-                                            <td className="py-2 px-3 text-right text-cyan-800 font-bold font-mono">
-                                                {(() => {
-                                                    if (inv.status === 'Cancelled' || inv.status === 'Deleted') return '0.00';
-                                                    const net = calculateInvoiceClinicNet(inv);
-                                                    return net.toFixed(2);
-                                                })()}
-                                            </td>
-                                            <td className="py-2 px-3 text-center"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-600 text-white':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
-                                            <td className="py-2 px-3 text-center space-x-2 whitespace-nowrap" onClick={e=>e.stopPropagation()}>
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleLoadInvoice(inv); }} 
-                                                    className="inline-flex items-center gap-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-3 py-1.5 rounded-lg text-xs font-black border border-amber-500/40 shadow transition-all cursor-pointer"
-                                                    title="ইনভয়েসটি এডিট করতে উপরে ফর্মে লোড করুন"
-                                                >
-                                                    <EditIcon size={12} className="text-amber-400" /> Edit
-                                                </button>
-                                                <button onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} className="text-cyan-400 hover:text-cyan-300 text-xs font-black uppercase tracking-wider underline px-2 py-1">Print</button>
-                                                {(inv.status === 'Cancelled' || inv.status === 'Deleted') ? (
+                                                </td>
+                                                <td className="py-2.5 px-2.5 text-center"><span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${inv.status==='Returned'?'bg-rose-600 text-white':(inv.status==='Cancelled'||inv.status==='Deleted')?'bg-slate-600 text-white':'bg-blue-600 text-white'}`}>{inv.status}</span></td>
+                                                <td className="py-2.5 px-2.5 text-center space-x-1.5 whitespace-nowrap" onClick={e=>e.stopPropagation()}>
                                                     <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleRestoreInvoice(inv); }} 
-                                                        className="inline-flex items-center gap-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-2.5 py-1 rounded-lg text-xs font-black border border-emerald-500/40 transition-all cursor-pointer"
+                                                        onClick={(e) => { e.stopPropagation(); handleLoadInvoice(inv); }} 
+                                                        className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded-lg text-xs font-black border border-amber-600 shadow-sm transition-all cursor-pointer"
+                                                        title="ইনভয়েসটি এডিট করতে উপরে ফর্মে লোড করুন"
                                                     >
-                                                        🔄 Restore
+                                                        <EditIcon size={12} className="text-white" /> Edit
                                                     </button>
-                                                ) : (
-                                                    inv.status !== 'Returned' && (
-                                                        <>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} className="text-amber-400 hover:text-amber-300 text-xs font-black uppercase tracking-wider underline px-1">Return</button>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteInvoice(inv); }} className="text-rose-400 hover:text-rose-300 text-xs font-black uppercase tracking-wider underline px-1">Del</button>
-                                                        </>
-                                                    )
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handlePrintInvoice(inv); }} 
+                                                        className="inline-flex items-center bg-sky-600 hover:bg-sky-700 text-white px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider border border-sky-700 shadow-sm transition-all cursor-pointer"
+                                                    >
+                                                        Print
+                                                    </button>
+                                                    {(inv.status === 'Cancelled' || inv.status === 'Deleted') ? (
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleRestoreInvoice(inv); }} 
+                                                            className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg text-xs font-black border border-emerald-700 shadow-sm transition-all cursor-pointer"
+                                                        >
+                                                            🔄 Restore
+                                                        </button>
+                                                    ) : (
+                                                        inv.status !== 'Returned' && (
+                                                            <>
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleReturnInvoice(inv); }} 
+                                                                    className="inline-flex items-center bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded-lg text-xs font-black uppercase tracking-wider border border-orange-700 shadow-sm transition-all cursor-pointer"
+                                                                >
+                                                                    Return
+                                                                </button>
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleDeleteInvoice(inv); }} 
+                                                                    className="inline-flex items-center bg-rose-600 hover:bg-rose-700 text-white px-2 py-1 rounded-lg text-xs font-black uppercase tracking-wider border border-rose-700 shadow-sm transition-all cursor-pointer"
+                                                                >
+                                                                    Del
+                                                                </button>
+                                                            </>
+                                                        )
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                             {filteredInvoices.length === 0 && <div className="p-20 text-center text-slate-500 font-black uppercase tracking-widest opacity-40 text-lg">No Records Found</div>}
@@ -6257,26 +6337,32 @@ const ClinicDueCollectionPage: React.FC<{
 
     const handleCollect = async () => {
         if (!selectedInvoice || amount <= 0) return;
+        const invoiceKey = selectedInvoice.daily_id || (selectedInvoice as any).invoice_id;
         const newCollection: ClinicDueCollection = { 
-            collection_id: Date.now().toString(), 
-            invoice_id: selectedInvoice.daily_id, 
+            collection_id: `CDC-${Date.now()}`, 
+            invoice_id: invoiceKey, 
             patient_name: selectedInvoice.patient_name, 
-            collection_date: selectedInvoice.admission_date || new Date().toISOString().split('T')[0], 
+            collection_date: new Date().toISOString().split('T')[0], 
             amount_collected: amount 
         };
-        const updatedInvoice = { ...selectedInvoice, paid_amount: (selectedInvoice.paid_amount || 0) + amount, due_bill: (selectedInvoice.due_bill || 0) - amount };
+        const updatedInvoice = { 
+            ...selectedInvoice, 
+            paid_amount: (selectedInvoice.paid_amount || 0) + amount, 
+            due_bill: Math.max(0, (selectedInvoice.due_bill || 0) - amount) 
+        };
         
         const newCollections = [...(Array.isArray(clinicDueCollections) ? clinicDueCollections : []), newCollection];
         const newInvoices = (Array.isArray(indoorInvoices) ? indoorInvoices : []).map((inv: IndoorInvoice) => inv && inv.daily_id === updatedInvoice.daily_id ? updatedInvoice : inv);
 
         if (performBlockingSync) {
-            const success = await performBlockingSync({ clinicDueCollections: newCollections, indoorInvoices: newInvoices });
+            const success = await performBlockingSync({ dueCollections: newCollections, indoorInvoices: newInvoices });
             if (success) {
                 setClinicDueCollections(newCollections);
                 setIndoorInvoices(newInvoices);
                 setSuccessMessage("ডাটা সঠিকভাবে সেভ হয়েছে!");
                 handlePrintReceipt(selectedInvoice, amount);
                 setSelectedInvoice(null);
+                setAmount(0);
             }
         } else {
             setClinicDueCollections(newCollections);
@@ -6284,6 +6370,7 @@ const ClinicDueCollectionPage: React.FC<{
             setSuccessMessage("Collected Locally!");
             handlePrintReceipt(selectedInvoice, amount);
             setSelectedInvoice(null);
+            setAmount(0);
         }
     };
     return (
@@ -6479,6 +6566,84 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
         win.document.write(html); win.document.close(); win.print();
     };
 
+    const renderShinyBedLabel = (bedId: string, isOccupied: boolean) => {
+        const lower = bedId.toLowerCase();
+        const isFemale = lower.includes('female');
+        const isMale = !isFemale && lower.includes('male');
+        const isCabin = lower.includes('cabin') || lower.includes('cab');
+
+        if (isMale) {
+            const parts = bedId.split('-');
+            const prefix = parts[0] || 'Male';
+            const remainder = parts.slice(1).join('-');
+            return (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-sky-100 to-blue-400 drop-shadow-[0_0_12px_rgba(56,189,248,1)] filter brightness-125 inline-flex items-center gap-1">
+                        <span className="text-sm">🚹</span> {prefix}
+                    </span>
+                    <span className={`text-xs font-black font-mono px-1.5 py-0.5 rounded border ${isOccupied ? 'bg-rose-950/80 border-rose-500/50 text-rose-300 shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-sky-950/80 border-sky-500/50 text-sky-200 shadow-[0_0_8px_rgba(56,189,248,0.4)]'}`}>
+                        {remainder ? `-${remainder}` : ''}
+                    </span>
+                    {isOccupied && (
+                        <span className="text-[9px] px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-500/50 rounded font-black uppercase tracking-wider">
+                            বুকড
+                        </span>
+                    )}
+                </div>
+            );
+        }
+
+        if (isFemale) {
+            const parts = bedId.split('-');
+            const prefix = parts[0] || 'Female';
+            const remainder = parts.slice(1).join('-');
+            return (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-rose-100 to-fuchsia-300 drop-shadow-[0_0_12px_rgba(244,114,182,1)] filter brightness-125 inline-flex items-center gap-1">
+                        <span className="text-sm">🚺</span> {prefix}
+                    </span>
+                    <span className={`text-xs font-black font-mono px-1.5 py-0.5 rounded border ${isOccupied ? 'bg-rose-950/80 border-rose-500/50 text-rose-300 shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-pink-950/80 border-pink-500/50 text-pink-200 shadow-[0_0_8px_rgba(244,114,182,0.4)]'}`}>
+                        {remainder ? `-${remainder}` : ''}
+                    </span>
+                    {isOccupied && (
+                        <span className="text-[9px] px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-500/50 rounded font-black uppercase tracking-wider">
+                            বুকড
+                        </span>
+                    )}
+                </div>
+            );
+        }
+
+        if (isCabin) {
+            const parts = bedId.split('-');
+            const prefix = parts[0] || 'Cabin';
+            const remainder = parts.slice(1).join('-');
+            return (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-100 to-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,1)] filter brightness-125 inline-flex items-center gap-1">
+                        <span className="text-sm">⭐</span> {prefix}
+                    </span>
+                    {remainder && (
+                        <span className={`text-xs font-black font-mono px-1.5 py-0.5 rounded border ${isOccupied ? 'bg-rose-950/80 border-rose-500/50 text-rose-300 shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-amber-950/80 border-amber-500/50 text-amber-200 shadow-[0_0_8px_rgba(251,191,36,0.4)]'}`}>
+                            -{remainder}
+                        </span>
+                    )}
+                    {isOccupied && (
+                        <span className="text-[9px] px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-500/50 rounded font-black uppercase tracking-wider">
+                            বুকড
+                        </span>
+                    )}
+                </div>
+            );
+        }
+
+        return (
+            <span className={`text-lg font-black tracking-tighter ${isOccupied ? 'text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]' : 'text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]'}`}>
+                {bedId}
+            </span>
+        );
+    };
+
     return (
         <div className="bg-slate-950 p-6 sm:p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-slate-800 pb-6 border-b">
@@ -6486,7 +6651,6 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
                     <h3 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
                         <Armchair className="text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" size={28} /> Bed Status Dashboard
                     </h3>
-                    <p className="text-xs text-slate-400 font-medium mt-1">ক্লিনিকের সকল বেড ও কেবিনের লাইভ অকুপেন্সি এবং তাৎক্ষণিক রিলিজ কন্ট্রোল</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -6527,38 +6691,72 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
                 {(Array.isArray(wards) ? wards : []).map(ward => ward && (
                     <div key={ward.id} className="animate-fade-in">
                         <div className="flex items-center gap-4 mb-6">
-                            <h4 className="text-sm font-black text-cyan-300 uppercase tracking-wider flex items-center gap-2 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]">
-                                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"></span>
-                                {ward.name}
+                            <h4 className={`text-base font-black uppercase tracking-wider flex items-center gap-2.5 ${
+                                ward.id === 'female_ward' 
+                                    ? 'text-pink-300 drop-shadow-[0_0_10px_rgba(244,114,182,0.8)]' 
+                                    : ward.id === 'male_ward' 
+                                    ? 'text-sky-300 drop-shadow-[0_0_10px_rgba(56,189,248,0.8)]' 
+                                    : 'text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.8)]'
+                            }`}>
+                                <span className={`w-3 h-3 rounded-full animate-pulse shadow-lg ${
+                                    ward.id === 'female_ward' 
+                                        ? 'bg-pink-400 shadow-[0_0_10px_rgba(244,114,182,1)]' 
+                                        : ward.id === 'male_ward' 
+                                        ? 'bg-sky-400 shadow-[0_0_10px_rgba(56,189,248,1)]' 
+                                        : 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,1)]'
+                                }`}></span>
+                                <span>{ward.id === 'female_ward' ? `🚺 ${ward.name} (Female Ward)` : ward.id === 'male_ward' ? `🚹 ${ward.name} (Male Ward)` : `⭐ ${ward.name} (Cabin)`}</span>
                             </h4>
-                            <div className="h-px bg-cyan-500/30 flex-1"></div>
+                            <div className={`h-px flex-1 ${
+                                ward.id === 'female_ward' 
+                                    ? 'bg-pink-500/40' 
+                                    : ward.id === 'male_ward' 
+                                    ? 'bg-sky-500/40' 
+                                    : 'bg-amber-500/40'
+                            }`}></div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                             {(Array.isArray(ward.beds) ? ward.beds : []).map(bedId => {
                                 const admission = getBedStatus(bedId);
                                 const isOccupied = !!admission;
+                                const isFemale = bedId.toLowerCase().includes('female');
+                                const isMale = !isFemale && bedId.toLowerCase().includes('male');
+
                                 return (
-                                    <div key={bedId} className={`relative p-4 rounded-xl border transition-all duration-300 flex flex-col justify-between min-h-[110px] sm:min-h-[120px] shadow-md overflow-hidden group ${isOccupied ? 'bg-slate-900 border-rose-500/60 shadow-rose-950/30' : 'bg-slate-900 border-emerald-500/60 shadow-emerald-950/30'}`}>
-                                        <div className="flex justify-between items-start relative z-10">
+                                    <div 
+                                        key={bedId} 
+                                        className={`relative p-4 rounded-2xl border-2 transition-all duration-300 flex flex-col justify-between min-h-[120px] shadow-lg overflow-hidden group ${
+                                            isOccupied 
+                                                ? 'bg-slate-900 border-rose-500/70 shadow-rose-950/40' 
+                                                : isFemale
+                                                ? 'bg-slate-900/95 border-pink-500/50 hover:border-pink-400 shadow-pink-950/30'
+                                                : isMale
+                                                ? 'bg-slate-900/95 border-sky-500/50 hover:border-sky-400 shadow-sky-950/30'
+                                                : 'bg-slate-900/95 border-amber-500/50 hover:border-amber-400 shadow-amber-950/30'
+                                        }`}
+                                    >
+                                        <div className="flex justify-between items-start relative z-10 gap-2">
                                             <div className="flex flex-col">
-                                                <span className={`text-lg font-black tracking-tighter ${isOccupied ? 'text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]' : 'text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]'}`}>{bedId}</span>
-                                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{ward.name}</span>
+                                                {renderShinyBedLabel(bedId, isOccupied)}
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                                                    {ward.name}
+                                                </span>
                                             </div>
                                             {isOccupied ? (
                                                 <button 
                                                     onClick={() => handleFreeBed(bedId)} 
-                                                    className="p-1.5 bg-rose-950 hover:bg-rose-600 text-rose-300 hover:text-white rounded-lg transition-all border border-rose-500/40 cursor-pointer text-xs" 
+                                                    className="p-1.5 bg-rose-950 hover:bg-rose-600 text-rose-300 hover:text-white rounded-lg transition-all border border-rose-500/40 cursor-pointer text-xs shadow-sm active:scale-95" 
                                                     title="ম্যানুয়ালি বেড খালি করুন"
                                                 >
-                                                    <TrashIcon size={12}/>
+                                                    <TrashIcon size={13}/>
                                                 </button>
                                             ) : (
-                                                <Armchair className="w-5 h-5 text-emerald-400/60 drop-shadow-[0_0_5px_rgba(16,185,129,0.4)]"/>
+                                                <Armchair className={`w-5 h-5 drop-shadow-[0_0_8px_rgba(255,255,255,0.4)] ${isFemale ? 'text-pink-400' : isMale ? 'text-sky-400' : 'text-amber-400'}`}/>
                                             )}
                                         </div>
                                         
                                         {isOccupied ? (
-                                            <div className="mt-1 relative z-10 flex flex-col justify-between flex-1">
+                                            <div className="mt-2 relative z-10 flex flex-col justify-between flex-1">
                                                 <div>
                                                     <div className="text-sm text-white font-black truncate drop-shadow-[0_0_5px_rgba(255,255,255,0.4)]" title={admission.patient_name}>
                                                         {admission.patient_name}
@@ -6577,10 +6775,10 @@ const BedManagementPage: React.FC<{ admissions: AdmissionRecord[]; setAdmissions
                                                 </button>
                                             </div>
                                         ) : (
-                                            <div className="mt-auto relative z-10 flex items-center justify-between">
+                                            <div className="mt-3 relative z-10 flex items-center justify-between pt-1 border-t border-slate-800/80">
                                                 <div className="flex items-center gap-1.5">
-                                                    <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                                                    <span className="text-[10px] text-emerald-400 font-black uppercase tracking-widest drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]">Available</span>
+                                                    <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,1)]"></div>
+                                                    <span className="text-[10px] text-emerald-400 font-black uppercase tracking-widest drop-shadow-[0_0_5px_rgba(16,185,129,0.7)]">Available</span>
                                                 </div>
                                                 <span className="text-[10px] text-slate-400 font-bold uppercase">খালি</span>
                                             </div>
@@ -6612,6 +6810,8 @@ interface ClinicPageProps {
     setAdmissions: React.Dispatch<React.SetStateAction<AdmissionRecord[]>>;
     indoorInvoices: IndoorInvoice[];
     setIndoorInvoices: React.Dispatch<React.SetStateAction<IndoorInvoice[]>>;
+    dueCollections?: any[];
+    setDueCollections?: React.Dispatch<React.SetStateAction<any[]>>;
     detailedExpenses: Record<string, ExpenseItem[]>;
     performBlockingSync?: (overrides?: any) => Promise<boolean>;
     currentUserEmail?: string;
@@ -6620,7 +6820,7 @@ interface ClinicPageProps {
 }
 
 const ClinicPage: React.FC<ClinicPageProps> = ({ 
-    onBack, patients, setPatients, doctors, setDoctors, referrars, setReferrars, employees, medicines, setMedicines, admissions, setAdmissions, indoorInvoices, setIndoorInvoices, detailedExpenses, performBlockingSync,
+    onBack, patients, setPatients, doctors, setDoctors, referrars, setReferrars, employees, medicines, setMedicines, admissions, setAdmissions, indoorInvoices, setIndoorInvoices, dueCollections, setDueCollections, detailedExpenses, performBlockingSync,
     currentUserEmail = 'Admin', consolidatedClinicEntries, setConsolidatedClinicEntries
 }) => {
     const [now] = useState(() => Date.now());
@@ -6630,7 +6830,9 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
         }
         return 'patient_info';
     });
-    const [clinicDueCollections, setClinicDueCollections] = useState<ClinicDueCollection[]>([]);
+    const [localClinicDueCollections, setLocalClinicDueCollections] = useState<ClinicDueCollection[]>([]);
+    const clinicDueCollections = dueCollections ?? localClinicDueCollections;
+    const setClinicDueCollections = setDueCollections ?? setLocalClinicDueCollections;
     const [successMessage, setSuccessMessage] = useState('');
     const [drugDemands, setDrugDemands] = useState<RequestedDrug[]>([]);
     const [admissionFormData, setAdmissionFormData] = useState<AdmissionRecord>(emptyAdmission);
@@ -6663,16 +6865,16 @@ const ClinicPage: React.FC<ClinicPageProps> = ({
                                 </div>
                             </div>
                         </div>
-                        <div className="flex bg-slate-900/50 rounded-xl p-1.5 border border-slate-800 overflow-x-auto w-full scrollbar-hide gap-1">
-                            <button onClick={() => setActiveTab('patient_info')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'patient_info' ? 'bg-gradient-to-br from-cyan-500 to-blue-700 text-white shadow-lg shadow-cyan-900/40 border border-cyan-400/30' : 'text-slate-500 hover:text-cyan-400 hover:bg-slate-800/50'}`}>Patient Info</button>
-                            <button onClick={() => setActiveTab('admission')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'admission' ? 'bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg shadow-emerald-900/40 border border-emerald-400/30' : 'text-slate-500 hover:text-emerald-400 hover:bg-slate-800/50'}`}>Admission & Treatment</button>
-                            <button onClick={() => setActiveTab('bed_status')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'bed_status' ? 'bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg shadow-teal-900/40 border border-teal-400/30' : 'text-slate-500 hover:text-teal-400 hover:bg-slate-800/50'}`}>Bed Status</button>
-                            <button onClick={() => setActiveTab('invoice')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'invoice' ? 'bg-gradient-to-br from-blue-500 to-indigo-700 text-white shadow-lg shadow-blue-900/40 border border-blue-400/30' : 'text-slate-500 hover:text-blue-400 hover:bg-slate-800/50'}`}>Indoor Invoice</button>
-                            <button onClick={() => setActiveTab('due_collection')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'due_collection' ? 'bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg shadow-amber-900/40 border border-amber-400/30' : 'text-slate-500 hover:text-amber-400 hover:bg-slate-800/50'}`}>Due Collection</button>
-                            <button onClick={() => setActiveTab('report_summary')} className={`flex-1 min-w-[150px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all duration-300 ${activeTab === 'report_summary' ? 'bg-gradient-to-br from-purple-500 to-fuchsia-700 text-white shadow-lg shadow-purple-900/40 border border-purple-400/30' : 'text-slate-500 hover:text-purple-400 hover:bg-slate-800/50'}`}>Report Summary</button>
-                            <button onClick={() => setActiveTab('consolidated_clinic_entry')} className={`flex-1 min-w-[210px] px-4 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'consolidated_clinic_entry' ? 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 text-white shadow-lg shadow-indigo-900/50 border border-indigo-400/40' : 'text-slate-400 hover:text-indigo-300 hover:bg-slate-800/70 border border-transparent'}`}>
-                              <Layers className="w-4 h-4 text-indigo-400" />
-                              <span>Consolidated clinic data entry</span>
+                        <div className="flex items-center bg-slate-900/50 rounded-xl p-1.5 border border-slate-800 overflow-x-auto w-full scrollbar-hide gap-1 flex-nowrap">
+                            <button onClick={() => setActiveTab('patient_info')} className={`flex-1 whitespace-nowrap px-3 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all duration-300 ${activeTab === 'patient_info' ? 'bg-gradient-to-br from-cyan-500 to-blue-700 text-white shadow-lg shadow-cyan-900/40 border border-cyan-400/30' : 'text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50'}`}>Patient Info</button>
+                            <button onClick={() => setActiveTab('admission')} className={`flex-1 whitespace-nowrap px-3 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all duration-300 ${activeTab === 'admission' ? 'bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-lg shadow-emerald-900/40 border border-emerald-400/30' : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800/50'}`}>Admission & Treatment</button>
+                            <button onClick={() => setActiveTab('bed_status')} className={`flex-1 whitespace-nowrap px-3 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all duration-300 ${activeTab === 'bed_status' ? 'bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg shadow-teal-900/40 border border-teal-400/30' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/50'}`}>Bed Status</button>
+                            <button onClick={() => setActiveTab('invoice')} className={`flex-1 whitespace-nowrap px-3 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all duration-300 ${activeTab === 'invoice' ? 'bg-gradient-to-br from-blue-500 to-indigo-700 text-white shadow-lg shadow-blue-900/40 border border-blue-400/30' : 'text-slate-400 hover:text-blue-400 hover:bg-slate-800/50'}`}>Indoor Invoice</button>
+                            <button onClick={() => setActiveTab('due_collection')} className={`flex-1 whitespace-nowrap px-3 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all duration-300 ${activeTab === 'due_collection' ? 'bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg shadow-amber-900/40 border border-amber-400/30' : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800/50'}`}>Due Collection</button>
+                            <button onClick={() => setActiveTab('report_summary')} className={`flex-1 whitespace-nowrap px-3 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all duration-300 ${activeTab === 'report_summary' ? 'bg-gradient-to-br from-purple-500 to-fuchsia-700 text-white shadow-lg shadow-purple-900/40 border border-purple-400/30' : 'text-slate-400 hover:text-purple-400 hover:bg-slate-800/50'}`}>Report Summary</button>
+                            <button onClick={() => setActiveTab('consolidated_clinic_entry')} className={`flex-1 whitespace-nowrap px-3 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-1.5 ${activeTab === 'consolidated_clinic_entry' ? 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 text-white shadow-lg shadow-indigo-900/50 border border-indigo-400/40' : 'text-slate-400 hover:text-indigo-300 hover:bg-slate-800/70 border border-transparent'}`}>
+                              <Layers className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                              <span>Consolidated Data Entry</span>
                             </button>
                         </div>
                     </div>

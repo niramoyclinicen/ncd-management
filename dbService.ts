@@ -961,21 +961,42 @@ export const dbService = {
       // 17. Consolidated Lab Entries
       state.consolidatedLabEntries = (consolidatedLabRes || []).map((r: any) => {
         const raw = r.data && typeof r.data === 'object' ? r.data : {};
+        const id = String(r.id || raw.id || '').trim();
+        const dateStr = normalizeDate(r.date || raw.date || '');
+        const gross = Number(r.grossAmount ?? r.gross_amount ?? raw.grossAmount ?? raw.gross_amount ?? 0);
+        const discount = Number(r.discountAmount ?? r.discount_amount ?? raw.discountAmount ?? raw.discount_amount ?? 0);
+        const net = Number(r.netPayable ?? r.net_payable ?? raw.netPayable ?? raw.net_payable ?? Math.max(0, gross - discount));
+        const cash = Number(r.cashCollected ?? r.cash_collected ?? raw.cashCollected ?? raw.cash_collected ?? 0);
+        const due = Number(r.dueAmount ?? r.due_amount ?? raw.dueAmount ?? raw.due_amount ?? 0);
+        const docPC = Number(r.doctorCommissionPaid ?? r.doctor_commission_paid ?? raw.doctorCommissionPaid ?? raw.doctor_commission_paid ?? 0);
+        const usgFee = Number(r.usgDoctorFeePaid ?? r.usg_doctor_fee_paid ?? raw.usgDoctorFeePaid ?? raw.usg_doctor_fee_paid ?? 0);
+        const patients = Number(r.totalPatients ?? r.total_patients ?? raw.totalPatients ?? raw.total_patients ?? 0);
+        const tests = Number(r.totalTests ?? r.total_tests ?? raw.totalTests ?? raw.total_tests ?? 0);
+        const shiftVal = r.shift || raw.shift || 'Full Day';
+        const entryType = r.entryType || r.entry_type || raw.entryType || raw.entry_type || (shiftVal === 'Monthly' ? 'monthly' : 'daily');
+        const m = r.month !== undefined && r.month !== null ? Number(r.month) : (raw.month !== undefined && raw.month !== null ? Number(raw.month) : (dateStr ? parseInt(dateStr.split('-')[1]) - 1 : new Date().getMonth()));
+        const y = r.year !== undefined && r.year !== null ? Number(r.year) : (raw.year !== undefined && raw.year !== null ? Number(raw.year) : (dateStr ? parseInt(dateStr.split('-')[0]) : new Date().getFullYear()));
         return {
           ...raw,
           ...r,
-          id: String(r.id || raw.id || '').trim(),
-          date: normalizeDate(r.date || raw.date || ''),
-          shift: r.shift || raw.shift || 'Full Day',
-          grossAmount: Number(r.gross_amount ?? raw.grossAmount ?? 0),
-          discountAmount: Number(r.discount_amount ?? raw.discountAmount ?? 0),
-          netPayable: Number(r.net_payable ?? raw.netPayable ?? 0),
-          cashCollected: Number(r.cash_collected ?? raw.cashCollected ?? 0),
-          dueAmount: Number(r.due_amount ?? raw.dueAmount ?? 0),
-          doctorCommissionPaid: Number(r.doctor_commission_paid ?? raw.doctorCommissionPaid ?? 0),
-          usgDoctorFeePaid: Number(r.usg_doctor_fee_paid ?? raw.usgDoctorFeePaid ?? 0),
-          totalPatients: Number(r.total_patients ?? raw.totalPatients ?? 0),
-          totalTests: Number(r.total_tests ?? raw.totalTests ?? 0),
+          id,
+          date: dateStr,
+          shift: shiftVal,
+          entryType,
+          month: m,
+          year: y,
+          grossAmount: gross,
+          discountAmount: discount,
+          netPayable: net,
+          cashCollected: cash,
+          dueAmount: due,
+          doctorCommissionPaid: docPC,
+          usgDoctorFeePaid: usgFee,
+          totalPatients: patients,
+          totalTests: tests,
+          operatorName: r.operatorName || r.operator_name || raw.operatorName || raw.operator_name || '',
+          entryTime: r.entryTime || r.entry_time || raw.entryTime || raw.entry_time || '',
+          createdAt: r.createdAt || r.created_at || raw.createdAt || raw.created_at || '',
           breakdown: r.breakdown || raw.breakdown || {},
           notes: r.notes || raw.notes || ''
         };
@@ -984,21 +1005,42 @@ export const dbService = {
       // 18. Consolidated Clinic Entries
       state.consolidatedClinicEntries = (consolidatedClinicRes || []).map((r: any) => {
         const raw = r.data && typeof r.data === 'object' ? r.data : {};
+        const id = String(r.id || raw.id || '').trim();
+        const dateStr = normalizeDate(r.date || raw.date || '');
+        const gross = Number(r.grossAmount ?? r.gross_amount ?? raw.grossAmount ?? raw.gross_amount ?? 0);
+        const discount = Number(r.discountAmount ?? r.discount_amount ?? raw.discountAmount ?? raw.discount_amount ?? 0);
+        const net = Number(r.netPayable ?? r.net_payable ?? raw.netPayable ?? raw.net_payable ?? Math.max(0, gross - discount));
+        const cash = Number(r.cashCollected ?? r.cash_collected ?? raw.cashCollected ?? raw.cash_collected ?? 0);
+        const due = Number(r.dueAmount ?? r.due_amount ?? raw.dueAmount ?? raw.due_amount ?? 0);
+        const docPC = Number(r.doctorCommissionPaid ?? r.doctor_commission_paid ?? raw.doctorCommissionPaid ?? raw.doctor_commission_paid ?? 0);
+        const otPaid = Number(r.otChargesPaid ?? r.ot_charges_paid ?? raw.otChargesPaid ?? raw.ot_charges_paid ?? 0);
+        const patients = Number(r.totalPatients ?? r.total_patients ?? raw.totalPatients ?? raw.total_patients ?? 0);
+        const indoorRev = Number(r.totalIndoorRevenue ?? r.total_indoor_revenue ?? raw.totalIndoorRevenue ?? raw.total_indoor_revenue ?? 0);
+        const shiftVal = r.shift || raw.shift || 'Full Day';
+        const entryType = r.entryType || r.entry_type || raw.entryType || raw.entry_type || (shiftVal === 'Monthly' ? 'monthly' : 'daily');
+        const m = r.month !== undefined && r.month !== null ? Number(r.month) : (raw.month !== undefined && raw.month !== null ? Number(raw.month) : (dateStr ? parseInt(dateStr.split('-')[1]) - 1 : new Date().getMonth()));
+        const y = r.year !== undefined && r.year !== null ? Number(r.year) : (raw.year !== undefined && raw.year !== null ? Number(raw.year) : (dateStr ? parseInt(dateStr.split('-')[0]) : new Date().getFullYear()));
         return {
           ...raw,
           ...r,
-          id: String(r.id || raw.id || '').trim(),
-          date: normalizeDate(r.date || raw.date || ''),
-          shift: r.shift || raw.shift || 'Full Day',
-          grossAmount: Number(r.gross_amount ?? raw.grossAmount ?? 0),
-          discountAmount: Number(r.discount_amount ?? raw.discountAmount ?? 0),
-          netPayable: Number(r.net_payable ?? raw.netPayable ?? 0),
-          cashCollected: Number(r.cash_collected ?? raw.cashCollected ?? 0),
-          dueAmount: Number(r.due_amount ?? raw.dueAmount ?? 0),
-          doctorCommissionPaid: Number(r.doctor_commission_paid ?? raw.doctorCommissionPaid ?? 0),
-          otChargesPaid: Number(r.ot_charges_paid ?? raw.otChargesPaid ?? 0),
-          totalPatients: Number(r.total_patients ?? raw.totalPatients ?? 0),
-          totalIndoorRevenue: Number(r.total_indoor_revenue ?? raw.totalIndoorRevenue ?? 0),
+          id,
+          date: dateStr,
+          shift: shiftVal,
+          entryType,
+          month: m,
+          year: y,
+          grossAmount: gross,
+          discountAmount: discount,
+          netPayable: net,
+          cashCollected: cash,
+          dueAmount: due,
+          doctorCommissionPaid: docPC,
+          otChargesPaid: otPaid,
+          totalPatients: patients,
+          totalIndoorRevenue: indoorRev,
+          operatorName: r.operatorName || r.operator_name || raw.operatorName || raw.operator_name || '',
+          entryTime: r.entryTime || r.entry_time || raw.entryTime || raw.entry_time || '',
+          createdAt: r.createdAt || r.created_at || raw.createdAt || raw.created_at || '',
           breakdown: r.breakdown || raw.breakdown || {},
           notes: r.notes || raw.notes || ''
         };
@@ -1634,20 +1676,55 @@ export const dbService = {
       const rows = entries.map(e => {
         const id = String(e.id || `LAB-CONS-${Date.now()}`).trim();
         const entryDate = normalizeDate(e.date || now);
+        const gross = Number(e.grossAmount ?? (e as any).gross_amount ?? 0);
+        const discount = Number(e.discountAmount ?? (e as any).discount_amount ?? 0);
+        const net = Number(e.netPayable ?? (e as any).net_payable ?? Math.max(0, gross - discount));
+        const cash = Number(e.cashCollected ?? (e as any).cash_collected ?? 0);
+        const due = Number(e.dueAmount ?? (e as any).due_amount ?? 0);
+        const docPC = Number(e.doctorCommissionPaid ?? (e as any).doctor_commission_paid ?? 0);
+        const usgFee = Number(e.usgDoctorFeePaid ?? (e as any).usg_doctor_fee_paid ?? 0);
+        const patients = Number(e.totalPatients ?? (e as any).total_patients ?? 0);
+        const tests = Number(e.totalTests ?? (e as any).total_tests ?? 0);
+        const shiftVal = e.shift || 'Full Day';
+        const entryTypeVal = e.entryType || (e as any).entry_type || (shiftVal === 'Monthly' ? 'monthly' : 'daily');
+        const monthVal = e.month !== undefined ? Number(e.month) : (entryDate ? parseInt(entryDate.split('-')[1]) - 1 : new Date().getMonth());
+        const yearVal = e.year !== undefined ? Number(e.year) : (entryDate ? parseInt(entryDate.split('-')[0]) : new Date().getFullYear());
+        const opName = e.operatorName || (e as any).operator_name || 'Cashier';
+        const eTime = e.entryTime || (e as any).entry_time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const cAt = e.createdAt || (e as any).created_at || now;
+
         return {
           id: id,
           date: entryDate,
-          shift: e.shift || 'Full Day',
-          entry_type: e.entryType || 'daily',
-          gross_amount: Number(e.grossAmount ?? 0),
-          discount_amount: Number(e.discountAmount ?? 0),
-          net_payable: Number(e.netPayable ?? 0),
-          cash_collected: Number(e.cashCollected ?? 0),
-          due_amount: Number(e.dueAmount ?? 0),
-          doctor_commission_paid: Number(e.doctorCommissionPaid ?? 0),
-          usg_doctor_fee_paid: Number(e.usgDoctorFeePaid ?? 0),
-          total_patients: Number(e.totalPatients ?? 0),
-          total_tests: Number(e.totalTests ?? 0),
+          shift: shiftVal,
+          entry_type: entryTypeVal,
+          entryType: entryTypeVal,
+          entry_time: eTime,
+          entryTime: eTime,
+          operator_name: opName,
+          operatorName: opName,
+          total_patients: patients,
+          totalPatients: patients,
+          total_tests: tests,
+          totalTests: tests,
+          gross_amount: gross,
+          grossAmount: gross,
+          discount_amount: discount,
+          discountAmount: discount,
+          net_payable: net,
+          netPayable: net,
+          cash_collected: cash,
+          cashCollected: cash,
+          due_amount: due,
+          dueAmount: due,
+          doctor_commission_paid: docPC,
+          doctorCommissionPaid: docPC,
+          usg_doctor_fee_paid: usgFee,
+          usgDoctorFeePaid: usgFee,
+          month: monthVal,
+          year: yearVal,
+          created_at: cAt,
+          createdAt: cAt,
           breakdown: e.breakdown || {},
           notes: e.notes || '',
           updated_at: now,
@@ -1669,20 +1746,55 @@ export const dbService = {
       const rows = entries.map(e => {
         const id = String(e.id || `CLN-CONS-${Date.now()}`).trim();
         const entryDate = normalizeDate(e.date || now);
+        const gross = Number(e.grossAmount ?? (e as any).gross_amount ?? 0);
+        const discount = Number(e.discountAmount ?? (e as any).discount_amount ?? 0);
+        const net = Number(e.netPayable ?? (e as any).net_payable ?? Math.max(0, gross - discount));
+        const cash = Number(e.cashCollected ?? (e as any).cash_collected ?? 0);
+        const due = Number(e.dueAmount ?? (e as any).due_amount ?? 0);
+        const docPC = Number(e.doctorCommissionPaid ?? (e as any).doctor_commission_paid ?? 0);
+        const otPaid = Number(e.otChargesPaid ?? (e as any).ot_charges_paid ?? 0);
+        const patients = Number(e.totalPatients ?? (e as any).total_patients ?? 0);
+        const indoorRev = Number(e.totalIndoorRevenue ?? (e as any).total_indoor_revenue ?? 0);
+        const shiftVal = e.shift || 'Full Day';
+        const entryTypeVal = e.entryType || (e as any).entry_type || (shiftVal === 'Monthly' ? 'monthly' : 'daily');
+        const monthVal = e.month !== undefined ? Number(e.month) : (entryDate ? parseInt(entryDate.split('-')[1]) - 1 : new Date().getMonth());
+        const yearVal = e.year !== undefined ? Number(e.year) : (entryDate ? parseInt(entryDate.split('-')[0]) : new Date().getFullYear());
+        const opName = e.operatorName || (e as any).operator_name || 'Cashier';
+        const eTime = e.entryTime || (e as any).entry_time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const cAt = e.createdAt || (e as any).created_at || now;
+
         return {
           id: id,
           date: entryDate,
-          shift: e.shift || 'Full Day',
-          entry_type: e.entryType || 'daily',
-          gross_amount: Number(e.grossAmount ?? 0),
-          discount_amount: Number(e.discountAmount ?? 0),
-          net_payable: Number(e.netPayable ?? 0),
-          cash_collected: Number(e.cashCollected ?? 0),
-          due_amount: Number(e.dueAmount ?? 0),
-          doctor_commission_paid: Number(e.doctorCommissionPaid ?? 0),
-          ot_charges_paid: Number(e.otChargesPaid ?? 0),
-          total_patients: Number(e.totalPatients ?? 0),
-          total_indoor_revenue: Number(e.totalIndoorRevenue ?? 0),
+          shift: shiftVal,
+          entry_type: entryTypeVal,
+          entryType: entryTypeVal,
+          entry_time: eTime,
+          entryTime: eTime,
+          operator_name: opName,
+          operatorName: opName,
+          total_patients: patients,
+          totalPatients: patients,
+          gross_amount: gross,
+          grossAmount: gross,
+          discount_amount: discount,
+          discountAmount: discount,
+          net_payable: net,
+          netPayable: net,
+          cash_collected: cash,
+          cashCollected: cash,
+          due_amount: due,
+          dueAmount: due,
+          doctor_commission_paid: docPC,
+          doctorCommissionPaid: docPC,
+          ot_charges_paid: otPaid,
+          otChargesPaid: otPaid,
+          total_indoor_revenue: indoorRev,
+          totalIndoorRevenue: indoorRev,
+          month: monthVal,
+          year: yearVal,
+          created_at: cAt,
+          createdAt: cAt,
           breakdown: e.breakdown || {},
           notes: e.notes || '',
           updated_at: now,

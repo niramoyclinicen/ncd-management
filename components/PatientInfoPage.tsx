@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Patient, emptyPatient } from './DiagnosticData'; 
 import { formatDateTime } from '../utils/dateUtils'; 
+import MobileNumberInput from './MobileNumberInput'; 
 
 interface PatientInfoPageProps {
   patients: Patient[];
@@ -815,31 +816,31 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                                 
                                 {/* Mobile Number & Relation (Live Search) */}
                                 <div>
-                                    <div className="flex justify-between items-center mb-0.5">
-                                        <label className="text-[11px] font-bold text-sky-200">Mobile Number (মোবাইল)</label>
-                                        <span className="text-[9px] text-emerald-400 font-mono">01XXX-XXXXXX</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <select 
-                                            name="relation" 
-                                            value={formData.relation || 'Self'} 
-                                            onChange={handleInputChange} 
-                                            className="py-1 px-1.5 border border-sky-500/60 rounded-lg text-xs font-semibold bg-[#0a192f] text-white outline-none w-[80px] shrink-0 h-8"
-                                        >
-                                            <option value="Self" className="bg-slate-900">Self</option>
-                                            <option value="Husband" className="bg-slate-900">Husband</option>
-                                            <option value="Father" className="bg-slate-900">Father</option>
-                                            <option value="Mother" className="bg-slate-900">Mother</option>
-                                            <option value="Guardian" className="bg-slate-900">Guardian</option>
-                                        </select>
-                                        <input 
-                                            type="tel" 
-                                            name="mobile" 
-                                            value={formData.mobile} 
-                                            onChange={handleInputChange} 
-                                            placeholder="01XXXXXXXXX" 
-                                            className="py-1 px-2.5 border border-sky-500/60 rounded-lg text-xs font-mono tracking-wider text-emerald-300 font-bold bg-[#0a192f] outline-none flex-1 min-w-0 h-8" 
-                                        />
+                                    <div className="flex items-end gap-1.5">
+                                        <div className="w-[85px] shrink-0">
+                                            <label className="text-[10px] font-bold text-sky-200 uppercase tracking-wider mb-1 block">Relation</label>
+                                            <select 
+                                                name="relation" 
+                                                value={formData.relation || 'Self'} 
+                                                onChange={handleInputChange} 
+                                                className="py-1 px-1.5 border border-sky-500/60 rounded-lg text-xs font-semibold bg-[#0a192f] text-white outline-none w-full h-8"
+                                            >
+                                                <option value="Self" className="bg-slate-900">Self</option>
+                                                <option value="Husband" className="bg-slate-900">Husband</option>
+                                                <option value="Father" className="bg-slate-900">Father</option>
+                                                <option value="Mother" className="bg-slate-900">Mother</option>
+                                                <option value="Guardian" className="bg-slate-900">Guardian</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <MobileNumberInput 
+                                                label="Mobile (মোবাইল)"
+                                                name="mobile" 
+                                                value={formData.mobile} 
+                                                onChange={handleInputChange} 
+                                                className="py-1 px-2.5 border border-sky-500/60 rounded-lg text-xs font-mono tracking-wider text-emerald-300 font-bold bg-[#0a192f] outline-none w-full h-8" 
+                                            />
+                                        </div>
                                     </div>
                                     {mobileError && <p className="text-red-400 text-[10px] mt-0.5 font-medium">{mobileError}</p>}
                                 </div>
@@ -1163,21 +1164,32 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                             </div>
                             
                             <div>
-                                <label className={labelBaseClasses}>Mobile Number & Relation</label>
-                                <div className="flex items-center gap-2">
-                                    <select 
-                                        name="relation" 
-                                        value={formData.relation || 'Self'} 
-                                        onChange={handleInputChange} 
-                                        className={`${inputBaseClasses} py-2 px-2 w-[115px] shrink-0`}
-                                    >
-                                        <option value="Self" className="bg-slate-900">Self (নিজের)</option>
-                                        <option value="Husband" className="bg-slate-900">Husband (স্বামী)</option>
-                                        <option value="Father" className="bg-slate-900">Father (পিতা)</option>
-                                        <option value="Mother" className="bg-slate-900">Mother (মাতা)</option>
-                                        <option value="Guardian" className="bg-slate-900">Guardian (অভিভাবক)</option>
-                                    </select>
-                                    <input type="tel" name="mobile" value={formData.mobile} onChange={handleInputChange} placeholder="01XXX-XXXXXX" className={`${inputBaseClasses} py-2 px-3 flex-1 font-mono tracking-wider`} />
+                                <div className="flex items-end gap-2">
+                                    <div className="w-[120px] shrink-0">
+                                        <label className={labelBaseClasses}>Relation</label>
+                                        <select 
+                                            name="relation" 
+                                            value={formData.relation || 'Self'} 
+                                            onChange={handleInputChange} 
+                                            className={`${inputBaseClasses} py-2 px-2 w-full`}
+                                        >
+                                            <option value="Self" className="bg-slate-900">Self (নিজের)</option>
+                                            <option value="Husband" className="bg-slate-900">Husband (স্বামী)</option>
+                                            <option value="Father" className="bg-slate-900">Father (পিতা)</option>
+                                            <option value="Mother" className="bg-slate-900">Mother (মাতা)</option>
+                                            <option value="Guardian" className="bg-slate-900">Guardian (অভিভাবক)</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex-1">
+                                        <MobileNumberInput 
+                                            label="Mobile Number (মোবাইল নম্বর)"
+                                            name="mobile" 
+                                            value={formData.mobile} 
+                                            onChange={handleInputChange} 
+                                            placeholder="01XXX-XXXXXX"
+                                            className={`${inputBaseClasses} py-2 px-3 w-full font-mono tracking-wider`} 
+                                        />
+                                    </div>
                                 </div>
                                 {mobileError && <p className="text-red-400 text-xs mt-1.5 font-medium">{mobileError}</p>}
                             </div>

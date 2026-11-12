@@ -110,6 +110,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   // Live History filters on entry tab
   const [liveSearchQuery, setLiveSearchQuery] = useState('');
   const [liveTypeFilter, setLiveTypeFilter] = useState<'all' | 'daily' | 'monthly'>('all');
+  const [liveDateFilter, setLiveDateFilter] = useState<string>('');
   const [liveMonthFilter, setLiveMonthFilter] = useState<string>('all');
   const [liveYearFilter, setLiveYearFilter] = useState<string>('all');
   const [liveDueFilter, setLiveDueFilter] = useState<'all' | 'due' | 'paid'>('all');
@@ -124,7 +125,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   useEffect(() => {
     const local = dbService.getConsolidatedEntries();
     const propList = Array.isArray(consolidatedLabEntries) ? consolidatedLabEntries : [];
-    const merged = dbService.mergeEntityList(local, propList, ['id', '_id']);
+    const merged = dbService.mergeEntityList(propList, local, ['id', '_id']);
     if (merged.length > 0) {
       setEntries(merged);
       dbService.saveConsolidatedEntries(merged);
@@ -137,7 +138,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
   useEffect(() => {
     const local = dbService.getConsolidatedEntries();
     const propList = Array.isArray(consolidatedLabEntries) ? consolidatedLabEntries : [];
-    const merged = dbService.mergeEntityList(local, propList, ['id', '_id']);
+    const merged = dbService.mergeEntityList(propList, local, ['id', '_id']);
     if (merged.length > 0) {
       setEntries(merged);
     }
@@ -348,14 +349,18 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
     try {
       const monthBn = BENGALI_MONTHS[selectedMonth]?.bn || '';
       const savedRecords: DailyConsolidatedEntry[] = [];
+      const isEditing = !!editingRecordId;
 
       for (let i = 0; i < activeRows.length; i++) {
         const r = activeRows[i];
         const uniqueSuffix = Math.random().toString(36).substring(2, 7);
         const shiftSlug = String(r.shift || 'shift').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-        const generatedId = (editingRecordId && activeRows.length === 1) 
-          ? editingRecordId 
-          : (r.isExistingRecord ? r.id : ((isMonthly ? `MCE-${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}` : `DCE-${computedDate}-${shiftSlug}`) + '-' + Date.now() + '-' + uniqueSuffix));
+        
+        // Preserve exact ID when editing; create unique timestamped ID when new
+        const isThisRowBeingEdited = isEditing && (activeRows.length === 1 || r.id === editingRecordId || r.isExistingRecord);
+        const generatedId = isThisRowBeingEdited 
+          ? (editingRecordId || r.id) 
+          : ((isMonthly ? `MCE-${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}` : `DCE-${computedDate}-${shiftSlug}`) + '-' + Date.now() + '-' + uniqueSuffix);
 
         const gross = Number(r.grossAmount) || 0;
         const discount = Number(r.discountAmount) || 0;
@@ -370,6 +375,10 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
           due = net - cash;
         }
 
+        // Find existing record if editing to preserve original creation time
+        const existingEntry = (entries || []).find(e => String(e.id || (e as any)._id).trim() === String(generatedId).trim()) 
+          || (dbService.getConsolidatedEntries() || []).find(e => String(e.id || (e as any)._id).trim() === String(generatedId).trim());
+
         const rec: DailyConsolidatedEntry = {
           id: generatedId,
           date: computedDate,
@@ -377,7 +386,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
           entryType: isMonthly ? 'monthly' : 'daily',
           month: isMonthly ? selectedMonth : (computedDate ? parseInt(computedDate.split('-')[1]) - 1 : new Date().getMonth()),
           year: isMonthly ? selectedYear : (computedDate ? parseInt(computedDate.split('-')[0]) : new Date().getFullYear()),
-          entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          entryTime: existingEntry?.entryTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           operatorName: r.operatorName || defaultOperator || currentUserEmail || 'Cashier',
           totalPatients: Number(r.totalPatients) || 0,
           totalTests: 0,
@@ -397,18 +406,38 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
             others: Number(r.others) || 0
           },
           notes: r.notes || (isMonthly ? `মাসিক এককালীন এন্ট্রি: ${monthBn} ${selectedYear}` : ''),
-          createdAt: new Date().toISOString()
+          createdAt: existingEntry?.createdAt || new Date().toISOString()
         };
 
         await dbService.saveConsolidatedEntryDirectly(rec);
         savedRecords.push(rec);
       }
 
-      // Merge saved records into state
-      const currentList = entries || [];
-      const savedIds = new Set(savedRecords.map(s => String(s.id).trim()));
-      const remaining = currentList.filter(e => !savedIds.has(String(e.id || (e as any)._id).trim()));
-      const updatedList = [...savedRecords, ...remaining];
+      // Merge saved records cleanly using Map to guarantee in-place updates and safe additions
+      const localList = dbService.getConsolidatedEntries() || [];
+      const currentList = (entries && entries.length >= localList.length) ? entries : localList;
+
+      const recordMap = new Map<string, DailyConsolidatedEntry>();
+      currentList.forEach(item => {
+        if (item && item.id) {
+          recordMap.set(String(item.id || (item as any)._id).trim(), item);
+        }
+      });
+      // Replace edited records or add new same-day entries
+      savedRecords.forEach(rec => {
+        recordMap.set(String(rec.id).trim(), rec);
+      });
+
+      const updatedList = Array.from(recordMap.values());
+      updatedList.sort((a, b) => {
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        const createdA = a.createdAt || '';
+        const createdB = b.createdAt || '';
+        if (createdA !== createdB) return createdB.localeCompare(createdA);
+        return String(b.id || '').localeCompare(String(a.id || ''));
+      });
 
       setEntries(updatedList);
       dbService.saveConsolidatedEntries(updatedList);
@@ -419,9 +448,13 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         performBlockingSync({ consolidatedLabEntries: updatedList }).catch(err => console.warn("Sync error:", err));
       }
 
-      triggerSuccess(isMonthly ? `মাসিক কনসোলিডেটেড ভাউচার (${monthBn} ${selectedYear}) সফলভাবে সংরক্ষিত হয়েছে!` : `তারিখ ${computedDate} এর ${savedRecords.length}টি শিফটের ডাটা সফলভাবে সংরক্ষিত হয়েছে!`);
+      if (isEditing) {
+        triggerSuccess('কনসোলিডেটেড ভাউচার সফলভাবে আপডেট ও সংরক্ষিত হয়েছে!');
+      } else {
+        triggerSuccess(isMonthly ? `মাসিক কনসোলিডেটেড ভাউচার (${monthBn} ${selectedYear}) সফলভাবে সংরক্ষিত হয়েছে!` : `তারিখ ${computedDate} এর ${savedRecords.length}টি শিফটের ডাটা সফলভাবে সংরক্ষিত হয়েছে!`);
+      }
 
-      // Reset editing and sheet
+      // Reset editing and sheet back to pristine clean state
       setEditingRecordId(null);
       handleResetSheet();
 
@@ -647,13 +680,20 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
         if (String(itemYear) !== liveYearFilter) return false;
       }
 
+      // Date filter
+      if (liveDateFilter) {
+        const targetDate = normalizeDate(liveDateFilter);
+        const itemDate = normalizeDate(item.date || '');
+        if (itemDate !== targetDate) return false;
+      }
+
       // Search query (date, month, year, operator, etc.)
       if (liveSearchQuery && !matchesSearchQuery(item, liveSearchQuery)) {
         return false;
       }
       return true;
     });
-  }, [sortedEntries, liveTypeFilter, liveDueFilter, liveMonthFilter, liveYearFilter, liveSearchQuery]);
+  }, [sortedEntries, liveTypeFilter, liveDateFilter, liveDueFilter, liveMonthFilter, liveYearFilter, liveSearchQuery]);
 
   // Live Stats for embedded entry view
   const liveStats = useMemo(() => {
@@ -875,9 +915,6 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               <h1 className="text-sm sm:text-base font-black uppercase tracking-tight text-white flex items-center gap-2">
                 <Layers className="text-sky-400" size={18} /> কনসোলিডেটেড ল্যাব ডাটা এন্ট্রি
               </h1>
-              <p className="text-[10.5px] text-slate-400 font-medium">
-                ব্যস্ত দিনের দিনভিত্তিক অথবা সারামাসের মোট হিসেব একবারে জমা ও একাউন্টস সমন্বয়
-              </p>
             </div>
           </div>
         </div>
@@ -1352,18 +1389,42 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     type="button"
                     onClick={handleResetSheet}
                     className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all border border-slate-700 cursor-pointer"
-                    title="সম্পূর্ণ শিট ক্লিয়ার করুন"
+                    title={editingRecordId ? "এডিট বাতিল করুন" : "সম্পূর্ণ শিট ক্লিয়ার করুন"}
                   >
-                    🔄 ক্লিয়ার
+                    {editingRecordId ? '✕ এডিট বাতিল' : '🔄 ক্লিয়ার'}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleSaveAllShifts()}
                     disabled={isSaving}
-                    className="flex-1 sm:flex-initial px-5 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-xl shadow-emerald-950/60 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    className={`flex-1 sm:flex-initial px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 ${
+                      editingRecordId
+                        ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white shadow-amber-950/60 active:scale-95'
+                        : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-950/60 active:scale-95'
+                    }`}
                   >
-                    <Save size={15} /> {isSaving ? 'সংরক্ষণ হচ্ছে...' : '💾 সেভ ও প্রিন্ট স্লিপ'}
+                    {editingRecordId ? (
+                      isSaving ? (
+                        <>
+                          <RefreshCwIcon size={15} className="animate-spin" /> আপডেট হচ্ছে...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCwIcon size={15} /> 🔄 আপডেট ও প্রিন্ট
+                        </>
+                      )
+                    ) : (
+                      isSaving ? (
+                        <>
+                          <RefreshCwIcon size={15} className="animate-spin" /> সংরক্ষণ হচ্ছে...
+                        </>
+                      ) : (
+                        <>
+                          <Save size={15} /> 💾 সেভ ও প্রিন্ট স্লিপ
+                        </>
+                      )
+                    )}
                   </button>
                 </div>
               </div>
@@ -1374,11 +1435,8 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
               <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 border-b border-slate-300 pb-3">
                 <div className="shrink-0">
                   <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2 whitespace-nowrap">
-                    <FileSpreadsheet className="text-emerald-700" size={17} /> সংরক্ষিত ভাউচার তালিকা ও হিস্ট্রি ({sortedEntries.length} টি)
+                    <FileSpreadsheet className="text-emerald-700" size={17} /> সংরক্ষিত ভাউচার তালিকা ও হিস্ট্রি ({liveFilteredEntries.length} টি)
                   </h3>
-                  <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                    পূর্বের সকল সংরক্ষিত ভাউচার দেখুন, ফিল্টার করুন এবং এডিট বা প্রিন্ট করুন।
-                  </p>
                 </div>
 
                 {/* Filter & Search Bar Placed Neatly on the Right Side of Heading */}
@@ -1406,6 +1464,31 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <option value="due">⚠️ বকেয়া</option>
                     <option value="paid">✅ পরিশোধিত</option>
                   </select>
+
+                  {/* তারিখ এন্ট্রি ফিল্টার - সকল পেমেন্ট এবং সকল মাস এর মাঝখানে */}
+                  <div className="relative flex items-center">
+                    <input
+                      type="date"
+                      value={liveDateFilter}
+                      onChange={e => setLiveDateFilter(e.target.value)}
+                      className={`bg-white border rounded-xl px-2.5 py-1.5 font-bold text-xs outline-none shadow-sm cursor-pointer transition-all ${
+                        liveDateFilter
+                          ? 'border-emerald-600 text-emerald-900 ring-2 ring-emerald-500/20'
+                          : 'border-slate-300 text-slate-800 focus:border-emerald-600'
+                      }`}
+                      title="নির্দিষ্ট তারিখ দিয়ে ভাউচার খুঁজুন"
+                    />
+                    {liveDateFilter && (
+                      <button
+                        type="button"
+                        onClick={() => setLiveDateFilter('')}
+                        className="ml-1 px-1.5 py-1 bg-slate-200 hover:bg-rose-100 text-slate-600 hover:text-rose-600 rounded-lg text-[10px] font-black cursor-pointer transition-all border border-slate-300"
+                        title="তারিখ ফিল্টার মুছুন"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
 
                   <select
                     value={liveMonthFilter}

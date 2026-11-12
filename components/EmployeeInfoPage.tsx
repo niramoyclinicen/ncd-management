@@ -3,6 +3,7 @@ import { Employee, emptyEmployee, ExpenseItem } from './DiagnosticData';
 import { MapPinIcon, PhoneIcon, EmployeeInfoIcon, PrinterIcon, RefreshIcon, DatabaseIcon, SettingsIcon, Activity, BackIcon, SearchIcon, SaveIcon, UsersIcon } from './Icons';
 import SearchableSelect from './SearchableSelect';
 import { ZKTecoBridgeModal } from './ZKTecoBridgeModal';
+import MobileNumberInput from './MobileNumberInput';
 import { dbService } from '../dbService';
 
 interface EmployeeInfoPageProps {
@@ -878,7 +879,16 @@ const EmployeeInfoPage: React.FC<EmployeeInfoPageProps> = ({
                     
                     <div><label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block ml-1">Joining Date</label><input type="date" name="joining_date" value={formData.joining_date} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-emerald-900/20 rounded-xl p-3 text-slate-800 dark:text-white font-bold" /></div>
                     <div><label className="text-[10px] font-bold text-rose-600 uppercase mb-1 block ml-1">Release Date</label><input type="date" name="release_date" value={formData.release_date || ''} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-rose-900/20 rounded-xl p-3 text-slate-800 dark:text-white font-bold" /></div>
-                    <div><label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block ml-1">Mobile No</label><input type="text" name="mobile" value={formData.mobile || ''} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold" placeholder="017XXX..."/></div>
+                    <div>
+                      <MobileNumberInput 
+                        label="Mobile No" 
+                        name="mobile" 
+                        value={formData.mobile || ''} 
+                        onChange={handleInputChange} 
+                        placeholder="01XXX-XXXXXX"
+                        className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold font-mono tracking-wider text-sm" 
+                      />
+                    </div>
                     
                     <div className="md:col-span-2"><label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Address</label><input type="text" name="address" value={formData.address || ''} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-800 dark:text-white font-bold" placeholder="Vill, Post, Thana, Dist"/></div>
                     <div><label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block ml-1">Monthly Salary</label><input type="number" name="salary" value={formData.salary} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-emerald-900/20 rounded-xl p-3 text-emerald-600 dark:text-emerald-400 font-bold text-xl" /></div>

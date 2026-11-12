@@ -279,8 +279,12 @@ export interface SalesItem {
 }
 
 export interface PurchaseInvoice {
+  id?: string;
   invoiceId: string; 
   invoiceDate: string; 
+  expenseMonth?: number; 
+  expenseYear?: number;
+  expenseDate?: string;
   source: string; 
   items: InvoiceItem[]; 
   totalAmount: number; 

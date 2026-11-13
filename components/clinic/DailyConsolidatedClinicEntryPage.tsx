@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { dbService, DailyConsolidatedClinicEntry, ClinicProfile } from '../../dbService';
+import { dbService, DailyConsolidatedClinicEntry, ClinicProfile, normalizeDate } from '../../dbService';
 import { BackIcon, PrinterIcon, PlusIcon, TrashIcon, SearchIcon, Activity } from '../Icons';
 import { 
   Save, RefreshCw, Layers, Calendar, Clock, DollarSign, UserCheck, 
@@ -579,7 +579,7 @@ export const DailyConsolidatedClinicEntryPage: React.FC<DailyConsolidatedClinicE
       if (historyDueFilter === 'due' && itemDue <= 0) return false;
       if (historyDueFilter === 'paid' && itemDue > 0) return false;
 
-      if (searchDate && item.date !== searchDate) return false;
+      if (searchDate && normalizeDate(item.date || '') !== normalizeDate(searchDate)) return false;
       if (filterShift !== 'all' && item.shift !== filterShift) return false;
 
       if (historyYearFilter !== 'all') {

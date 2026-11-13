@@ -2,7 +2,7 @@ import SearchableSelect from "../SearchableSelect";
 import React, { useMemo, useState, useEffect } from 'react';
 import { LabInvoice as Invoice, DueCollection, ExpenseItem, Employee, testCategories } from '../DiagnosticData';
 import { Activity, BackIcon, FileTextIcon, SearchIcon, PrinterIcon, XIcon, PlusIcon } from '../Icons';
-import { Settings } from 'lucide-react';
+import { Settings, RefreshCw, Calendar, Filter } from 'lucide-react';
 import { dbService, normalizeDate } from '../../dbService';
 
 // --- Configuration & Data ---
@@ -2150,11 +2150,27 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     const [activeTab, setActiveTab] = useState<'entry' | 'diagnostic_expense' | 'daily' | 'monthly' | 'yearly' | 'detail' | 'due'>('entry');
     
     // Detailed Collection States
-    const [detailViewMode, setDetailViewMode] = useState<'today' | 'month' | 'year' | 'date'>('today');
+    const [detailViewMode, setDetailViewMode] = useState<'today' | 'date' | 'month' | 'year' | 'range'>('today');
+    const [detailStartDate, setDetailStartDate] = useState(todayStr);
+    const [detailEndDate, setDetailEndDate] = useState(todayStr);
     const [detailSearch, setDetailSearch] = useState('');
     const [detailFilterCategory, setDetailFilterCategory] = useState('All');
+    const [selectedTestFilter, setSelectedTestFilter] = useState('');
     const [viewingInvoice, setViewingInvoice] = useState<any>(null);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
+    const handleResetDetailFilters = () => {
+        setDetailViewMode('today');
+        setSelectedDate(todayStr);
+        setDetailStartDate(todayStr);
+        setDetailEndDate(todayStr);
+        setSelectedMonth(new Date().getMonth());
+        setSelectedYear(new Date().getFullYear());
+        setDetailFilterCategory('All');
+        setSelectedTestFilter('');
+        setDetailSearch('');
+        setOpenDropdownIndex(null);
+    };
     
     const [dueSearch, setDueSearch] = useState('');
     const [dueViewMode, setDueViewMode] = useState<'all' | 'date' | 'month' | 'year'>('all');
@@ -2613,12 +2629,46 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         return 'Others';
     };
 
+    const allTestOptions = useMemo(() => {
+        const map = new Map<string, { name: string; category: string; price: number }>();
+        (availableTests || []).forEach((t: any) => {
+            if (t?.test_name) {
+                map.set(t.test_name.trim(), {
+                    name: t.test_name.trim(),
+                    category: getTestCategoryGroup(t.test_name.trim()),
+                    price: Number(t.price) || 0
+                });
+            }
+        });
+        (invoices || []).forEach((inv: any) => {
+            (inv.items || []).forEach((it: any) => {
+                if (it?.test_name && !map.has(it.test_name.trim())) {
+                    map.set(it.test_name.trim(), {
+                        name: it.test_name.trim(),
+                        category: getTestCategoryGroup(it.test_name.trim()),
+                        price: Number(it.price) || 0
+                    });
+                }
+            });
+        });
+        return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [availableTests, invoices]);
+
     const detailTableData = useMemo(() => {
+        const startBound = detailStartDate && detailEndDate && detailStartDate > detailEndDate ? detailEndDate : detailStartDate;
+        const endBound = detailStartDate && detailEndDate && detailStartDate > detailEndDate ? detailStartDate : detailEndDate;
+
         const filtered = (invoices || []).filter((inv: any) => {
             const rawDate = inv.invoice_date || inv.date || inv.invoiceDate || inv.created_at || '';
             const normDate = normalizeDate(rawDate);
             if (detailViewMode === 'today') return normDate === todayStr || rawDate === todayStr;
             if (detailViewMode === 'date') return normDate === selectedDate || rawDate === selectedDate;
+            if (detailViewMode === 'range') {
+                if (!normDate) return false;
+                if (startBound && normDate < startBound) return false;
+                if (endBound && normDate > endBound) return false;
+                return true;
+            }
             
             if (!normDate) return true;
             const [y, m] = normDate.split('-').map(Number);
@@ -2629,21 +2679,35 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         }).filter((inv: any) => {
             const doc = (doctors || []).find((d: any) => d.doctor_id === inv.doctor_id);
             const docName = doc ? (doc.doctor_name || '') : '';
-            const query = detailSearch.toLowerCase();
-            const matchesSearch = (inv.patient_name || '').toLowerCase().includes(query) || 
+            const query = detailSearch.trim().toLowerCase();
+            const matchesSearch = !query ||
+                                 (inv.patient_name || '').toLowerCase().includes(query) || 
                                  (inv.invoice_id || '').toLowerCase().includes(query) ||
                                  (inv.referrar_name || '').toLowerCase().includes(query) ||
                                  docName.toLowerCase().includes(query) ||
-                                 (inv.items || []).some((it: any) => (it.test_name || '').toLowerCase().includes(query));
+                                 (inv.items || []).some((it: any) => {
+                                     const tName = (it.test_name || '').toLowerCase();
+                                     const tCat = getTestCategoryGroup(it.test_name).toLowerCase();
+                                     return tName.includes(query) || tCat.includes(query);
+                                 });
+            if (!matchesSearch) return false;
+
+            if (selectedTestFilter) {
+                const targetTest = selectedTestFilter.trim().toLowerCase();
+                const hasSelectedTest = (inv.items || []).some((it: any) =>
+                    (it.test_name || '').toLowerCase().includes(targetTest)
+                );
+                if (!hasSelectedTest) return false;
+            }
             
-            if (detailFilterCategory === 'All') return matchesSearch;
-            if (detailFilterCategory === 'Due Recovery') return matchesSearch && inv.due_amount > 0;
+            if (detailFilterCategory === 'All') return true;
+            if (detailFilterCategory === 'Due Recovery') return inv.due_amount > 0;
 
             const matchesCat = (inv.items || []).some((it: any) => {
                 const catGroup = getTestCategoryGroup(it.test_name);
                 return catGroup === detailFilterCategory;
             });
-            return matchesSearch && matchesCat;
+            return matchesCat;
         });
 
         return filtered.map((inv: any) => {
@@ -2674,7 +2738,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 netProfit: paid - (totalPC + usgFee) 
             };
         });
-    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, detailFilterCategory, todayStr, doctors, getTestCategoryGroup]);
+    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, detailStartDate, detailEndDate, detailFilterCategory, selectedTestFilter, todayStr, doctors, getTestCategoryGroup]);
 
     const reportSummary = useMemo(() => {
         return detailTableData.reduce((acc, curr) => {
@@ -2708,11 +2772,20 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     }, [invoices, doctors]);
 
     const diagStats = useMemo(() => {
+        const startBound = detailStartDate && detailEndDate && detailStartDate > detailEndDate ? detailEndDate : detailStartDate;
+        const endBound = detailStartDate && detailEndDate && detailStartDate > detailEndDate ? detailStartDate : detailEndDate;
+
         const baseFiltered = (invoices || []).filter((inv: any) => {
             const rawDate = inv.invoice_date || inv.date || inv.invoiceDate || inv.created_at || '';
             const normDate = normalizeDate(rawDate);
             if (detailViewMode === 'today') return normDate === todayStr || rawDate === todayStr;
             if (detailViewMode === 'date') return normDate === selectedDate || rawDate === selectedDate;
+            if (detailViewMode === 'range') {
+                if (!normDate) return false;
+                if (startBound && normDate < startBound) return false;
+                if (endBound && normDate > endBound) return false;
+                return true;
+            }
             
             if (!normDate) return true;
             const [y, m] = normDate.split('-').map(Number);
@@ -2722,19 +2795,32 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         }).filter((inv: any) => {
             const doc = (doctors || []).find((d: any) => d.doctor_id === inv.doctor_id);
             const docName = doc ? (doc.doctor_name || '') : '';
-            const query = detailSearch.toLowerCase();
+            const query = detailSearch.trim().toLowerCase();
+            if (!query) return true;
             return (inv.patient_name || '').toLowerCase().includes(query) || 
                    (inv.invoice_id || '').toLowerCase().includes(query) ||
                    (inv.referrar_name || '').toLowerCase().includes(query) ||
                    docName.toLowerCase().includes(query) ||
-                   (inv.items || []).some((it: any) => (it.test_name || '').toLowerCase().includes(query));
+                   (inv.items || []).some((it: any) => {
+                       const tName = (it.test_name || '').toLowerCase();
+                       const tCat = getTestCategoryGroup(it.test_name).toLowerCase();
+                       return tName.includes(query) || tCat.includes(query);
+                   });
         });
 
         const categoryCounts: Record<string, number> = { All: baseFiltered.length };
+        const categoryFinancials: Record<string, { invoiceCount: number; testQty: number; billAmount: number; paidAmount: number }> = {
+            All: { invoiceCount: 0, testQty: 0, billAmount: 0, paidAmount: 0 }
+        };
         const customTestCounts: Record<string, number> = {};
-        trackedTests.forEach(t => customTestCounts[t] = 0);
+        const customTestAmounts: Record<string, number> = {};
+        trackedTests.forEach(t => {
+            customTestCounts[t] = 0;
+            customTestAmounts[t] = 0;
+        });
 
         ['Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone', 'Others'].forEach(cat => {
+            categoryFinancials[cat] = { invoiceCount: 0, testQty: 0, billAmount: 0, paidAmount: 0 };
             categoryCounts[cat] = baseFiltered.filter(inv => {
                 let match = false;
                 (inv.items || []).forEach((it: any) => {
@@ -2744,23 +2830,160 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             }).length;
         });
 
-        // Calculate Custom Tracked Tests from baseFiltered Invoices
         baseFiltered.forEach(inv => {
-            (inv.items || []).forEach((it: any) => {
+            const isReturned = inv.status === 'Returned' || inv.status === 'Cancelled';
+            if (isReturned) return;
+
+            const invItems = Array.isArray(inv.items) ? inv.items : [];
+            const invGross = invItems.reduce((s: number, it: any) => s + ((Number(it.price) || 0) * (Number(it.quantity) || 1)), 0) || Number(inv.total_amount) || 0;
+            const invPaid = Number(inv.paid_amount) || 0;
+            const catsInInv = new Set<string>();
+
+            categoryFinancials.All.invoiceCount += 1;
+            categoryFinancials.All.billAmount += Number(inv.total_amount) || invGross;
+            categoryFinancials.All.paidAmount += invPaid;
+
+            invItems.forEach((it: any) => {
+                const qty = Number(it.quantity) || 1;
+                const itemBill = (Number(it.price) || 0) * qty;
+                const itemPaid = invGross > 0 ? Math.round(invPaid * (itemBill / invGross)) : 0;
+                const cat = getTestCategoryGroup(it.test_name);
+
+                categoryFinancials.All.testQty += qty;
+                if (!categoryFinancials[cat]) {
+                    categoryFinancials[cat] = { invoiceCount: 0, testQty: 0, billAmount: 0, paidAmount: 0 };
+                }
+                categoryFinancials[cat].testQty += qty;
+                categoryFinancials[cat].billAmount += itemBill;
+                categoryFinancials[cat].paidAmount += itemPaid;
+                catsInInv.add(cat);
+
                 const name = (it.test_name || '').toLowerCase();
                 trackedTests.forEach(tracked => {
                     if (tracked && name.includes(tracked.toLowerCase())) {
-                        customTestCounts[tracked] += it.quantity;
+                        customTestCounts[tracked] = (customTestCounts[tracked] || 0) + qty;
+                        customTestAmounts[tracked] = (customTestAmounts[tracked] || 0) + itemBill;
                     }
                 });
             });
+
+            catsInInv.forEach(cat => {
+                if (categoryFinancials[cat]) categoryFinancials[cat].invoiceCount += 1;
+            });
         });
 
-        return { categoryCounts, customTestCounts };
-    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, todayStr, trackedTests, doctors, getTestCategoryGroup]);
+        return { categoryCounts, categoryFinancials, customTestCounts, customTestAmounts };
+    }, [invoices, detailSearch, selectedMonth, selectedYear, detailViewMode, selectedDate, detailStartDate, detailEndDate, todayStr, trackedTests, doctors, getTestCategoryGroup]);
 
     const categoryCounts = diagStats.categoryCounts;
+    const categoryFinancials = diagStats.categoryFinancials;
     const customTestCounts = diagStats.customTestCounts;
+    const customTestAmounts = diagStats.customTestAmounts;
+
+    const selectedItemsSummary = useMemo(() => {
+        const query = detailSearch.trim().toLowerCase();
+        const targetTest = selectedTestFilter.trim().toLowerCase();
+        const targetCat = detailFilterCategory;
+
+        // Determine if detailSearch specifically matches any test name or category across active invoices
+        let searchMatchesAnyTestItem = false;
+        if (query) {
+            for (const inv of detailTableData) {
+                if (inv.status === 'Cancelled' || inv.status === 'Returned') continue;
+                for (const it of (inv.items || [])) {
+                    const tName = (it.test_name || '').toLowerCase();
+                    const tCat = getTestCategoryGroup(it.test_name).toLowerCase();
+                    if (tName.includes(query) || tCat.includes(query)) {
+                        searchMatchesAnyTestItem = true;
+                        break;
+                    }
+                }
+                if (searchMatchesAnyTestItem) break;
+            }
+        }
+
+        let invoiceCount = 0;
+        let totalTestQty = 0;
+        let totalTestBill = 0;
+        let totalTestDiscount = 0;
+        let totalTestPaid = 0;
+        let totalTestDue = 0;
+        const breakdownMap = new Map<string, { name: string; category: string; count: number; billAmount: number; paidAmount: number }>();
+
+        detailTableData.forEach((inv: any) => {
+            if (inv.status === 'Cancelled' || inv.status === 'Returned') return;
+            const invItems = Array.isArray(inv.items) ? inv.items : [];
+            const invGross = invItems.reduce((s: number, it: any) => s + ((Number(it.price) || 0) * (Number(it.quantity) || 1)), 0) || Number(inv.total_amount) || 0;
+            const invPaid = Number(inv.paid_amount) || 0;
+            const invDisc = Number(inv.discount_amount) || 0;
+
+            const matchingItems = invItems.filter((it: any) => {
+                const tName = (it.test_name || '').toLowerCase();
+                const tCat = getTestCategoryGroup(it.test_name);
+
+                if (targetCat !== 'All' && targetCat !== 'Due Recovery' && tCat !== targetCat) {
+                    return false;
+                }
+                if (targetTest && !tName.includes(targetTest)) {
+                    return false;
+                }
+                if (query && searchMatchesAnyTestItem && !targetTest && targetCat === 'All') {
+                    return tName.includes(query) || tCat.toLowerCase().includes(query);
+                }
+                return true;
+            });
+
+            if (matchingItems.length > 0) {
+                invoiceCount += 1;
+                const matchedGross = matchingItems.reduce((s: number, it: any) => s + ((Number(it.price) || 0) * (Number(it.quantity) || 1)), 0);
+                const ratio = invGross > 0 ? (matchedGross / invGross) : 1;
+                const matchedDisc = Math.round(invDisc * ratio);
+                const matchedPaid = Math.round(invPaid * ratio);
+                const matchedDue = Math.max(0, matchedGross - matchedDisc - matchedPaid);
+
+                totalTestBill += matchedGross;
+                totalTestDiscount += matchedDisc;
+                totalTestPaid += matchedPaid;
+                totalTestDue += matchedDue;
+
+                matchingItems.forEach((it: any) => {
+                    const qty = Number(it.quantity) || 1;
+                    const itemBill = (Number(it.price) || 0) * qty;
+                    const itemPaid = invGross > 0 ? Math.round(invPaid * (itemBill / invGross)) : 0;
+                    const rawName = (it.test_name || 'Unknown Test').trim();
+                    const cat = getTestCategoryGroup(rawName);
+                    totalTestQty += qty;
+
+                    const prev = breakdownMap.get(rawName) || { name: rawName, category: cat, count: 0, billAmount: 0, paidAmount: 0 };
+                    prev.count += qty;
+                    prev.billAmount += itemBill;
+                    prev.paidAmount += itemPaid;
+                    breakdownMap.set(rawName, prev);
+                });
+            }
+        });
+
+        const testBreakdown = Array.from(breakdownMap.values()).sort((a, b) => b.billAmount - a.billAmount || b.count - a.count);
+
+        const labelParts: string[] = [];
+        if (targetCat !== 'All') labelParts.push(`বিভাগ: ${targetCat}`);
+        if (selectedTestFilter) labelParts.push(`টেস্ট: ${selectedTestFilter}`);
+        if (detailSearch.trim()) labelParts.push(`সার্চ: "${detailSearch.trim()}"`);
+        const activeLabel = labelParts.length > 0 ? labelParts.join(' • ') : 'সকল টেস্ট (All Tests)';
+        const isFilteredByTestOrCat = targetCat !== 'All' || Boolean(selectedTestFilter) || Boolean(detailSearch.trim());
+
+        return {
+            isFilteredByTestOrCat,
+            activeLabel,
+            invoiceCount,
+            totalTestQty,
+            totalTestBill,
+            totalTestDiscount,
+            totalTestPaid,
+            totalTestDue,
+            testBreakdown
+        };
+    }, [detailTableData, detailFilterCategory, selectedTestFilter, detailSearch, getTestCategoryGroup]);
 
     const stats = useMemo(() => {
         const parseDateParts = (raw: any) => {
@@ -3208,20 +3431,30 @@ const DiagnosticAccountsPage: React.FC<any> = ({
     });
 
     const handlePrintTestSummary = () => {
-        const testCounts: Record<string, { count: number, price: number }> = {};
+        const testCounts: Record<string, { count: number, price: number, total: number }> = {};
         let totalCount = 0;
         let totalRevenue = 0;
+
+        const targetCat = detailFilterCategory;
+        const targetTest = selectedTestFilter.trim().toLowerCase();
 
         detailTableData.forEach((inv: any) => {
             if (inv.status === 'Cancelled' || inv.status === 'Returned') return;
             (inv.items || []).forEach((it: any) => {
-                const name = it.test_name;
+                const name = it.test_name || 'Unknown Test';
+                const cat = getTestCategoryGroup(name);
+                if (targetCat !== 'All' && targetCat !== 'Due Recovery' && cat !== targetCat) return;
+                if (targetTest && !name.toLowerCase().includes(targetTest)) return;
+
+                const qty = Number(it.quantity) || 1;
+                const price = Number(it.price) || 0;
                 if (!testCounts[name]) {
-                    testCounts[name] = { count: 0, price: it.price };
+                    testCounts[name] = { count: 0, price, total: 0 };
                 }
-                testCounts[name].count += it.quantity;
-                totalCount += it.quantity;
-                totalRevenue += (it.price * it.quantity);
+                testCounts[name].count += qty;
+                testCounts[name].total += (price * qty);
+                totalCount += qty;
+                totalRevenue += (price * qty);
             });
         });
 
@@ -3232,7 +3465,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
             categorized[cat].push({
                 name,
                 count: testCounts[name].count,
-                total: testCounts[name].count * testCounts[name].price
+                total: testCounts[name].total
             });
         });
 
@@ -3241,9 +3474,14 @@ const DiagnosticAccountsPage: React.FC<any> = ({
         });
 
         const periodLabel = detailViewMode === 'today' ? 'Today (' + todayStr + ')' : 
-                            detailViewMode === 'date' ? selectedDate : 
+                            detailViewMode === 'date' ? 'Date: ' + selectedDate : 
                             detailViewMode === 'month' ? monthOptions[selectedMonth].name + ' ' + selectedYear : 
-                            'Year ' + selectedYear;
+                            detailViewMode === 'year' ? 'Year ' + selectedYear :
+                            `Date-to-Date: ${detailStartDate} to ${detailEndDate}`;
+
+        const filterSubLabel = (detailFilterCategory !== 'All' || selectedTestFilter || detailSearch.trim())
+            ? `<p style="text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 16px; color: #1e40af;"><b>Filter:</b> ${selectedItemsSummary.activeLabel}</p>`
+            : '';
 
         let html = `
             <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
@@ -3252,6 +3490,7 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 <p style="text-align: center; font-size: 14px; margin-bottom: 20px;">
                     <b>Period:</b> ${periodLabel}
                 </p>
+                ${filterSubLabel}
                 
                 <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                     <thead>
@@ -3524,38 +3763,122 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                 {activeTab === 'detail' && (
                     <div className="animate-fade-in space-y-4">
                         <div className="bg-slate-800/80 p-6 rounded-[2rem] border border-slate-700 shadow-2xl flex flex-col gap-4">
-                            <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-3 no-print">
-                                <div className="flex items-center gap-4 flex-wrap">
-                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Collection Record Detail</h3>
-                                    <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-700 overflow-hidden shadow-inner">
-                                        <button onClick={() => setDetailViewMode('today')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'today' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>Today</button>
-                                        <button onClick={() => setDetailViewMode('month')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'month' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>Monthly</button>
-                                        <button onClick={() => setDetailViewMode('year')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${detailViewMode === 'year' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>Yearly</button>
-                                    </div>
+                            <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-4 no-print">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter mr-1">Collection Record Detail</h3>
                                     
-                                    <div className="flex items-center gap-3 bg-slate-900 p-1 rounded-2xl border border-slate-700 shadow-inner">
-                                        <input 
-                                            type="date" 
-                                            value={selectedDate} 
-                                            onChange={(e) => {
-                                                setSelectedDate(e.target.value);
-                                                setDetailViewMode('date');
-                                            }} 
-                                            className="bg-slate-950 border-none rounded-xl px-4 py-2 text-white text-xs font-black outline-none focus:ring-1 focus:ring-blue-500" 
-                                        />
-                                        <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${detailViewMode === 'date' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>Selected</span>
+                                    {/* Ordered Period Selection: 1. Today -> 2. Date Selection -> 3. Monthly -> 4. Yearly -> 5. Date-to-Date -> 6. Reset */}
+                                    <div className="flex flex-wrap items-center gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-700 shadow-inner">
+                                        {/* 1. Today */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setDetailViewMode('today')}
+                                            className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all ${detailViewMode === 'today' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                        >
+                                            টুডে (Today)
+                                        </button>
+
+                                        {/* 2. Date Selection */}
+                                        <div className={`flex items-center gap-1.5 rounded-xl px-2 py-1 transition-all ${detailViewMode === 'date' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-950/70 text-slate-400 border border-slate-800'}`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDetailViewMode('date')}
+                                                className="px-2 py-1 text-[11px] font-black uppercase whitespace-nowrap"
+                                            >
+                                                ডেট নির্বাচন
+                                            </button>
+                                            <input 
+                                                type="date" 
+                                                value={selectedDate} 
+                                                onChange={(e) => {
+                                                    setSelectedDate(e.target.value);
+                                                    setDetailViewMode('date');
+                                                }} 
+                                                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-black outline-none focus:ring-1 focus:ring-blue-400" 
+                                            />
+                                        </div>
+
+                                        {/* 3. Monthly */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setDetailViewMode('month')}
+                                            className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all ${detailViewMode === 'month' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                        >
+                                            মান্থলি (Monthly)
+                                        </button>
+
+                                        {/* 4. Yearly */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setDetailViewMode('year')}
+                                            className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all ${detailViewMode === 'year' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                        >
+                                            ইয়ারলি (Yearly)
+                                        </button>
+
+                                        {/* 5. Date-to-Date Selection */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setDetailViewMode('range')}
+                                            className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all flex items-center gap-1.5 ${detailViewMode === 'range' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                        >
+                                            <Calendar className="w-3.5 h-3.5" />
+                                            ডেট-টু-ডেট (Range)
+                                        </button>
+
+                                        {/* 6. Reset Button */}
+                                        <button
+                                            type="button"
+                                            onClick={handleResetDetailFilters}
+                                            className="px-3.5 py-2 rounded-xl text-[11px] font-black uppercase bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all flex items-center gap-1.5 shadow-sm"
+                                            title="সব ফিল্টার রিসেট করুন"
+                                        >
+                                            <RefreshCw className="w-3.5 h-3.5" />
+                                            রিসেট (Reset)
+                                        </button>
                                     </div>
+
+                                    {/* Contextual Sub-Selectors for Monthly, Yearly, and Date-to-Date Range */}
                                     {detailViewMode === 'month' && (
-                                        <div className="flex gap-2">
-                                            <select value={selectedMonth} onChange={e=>setSelectedMonth(parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-xs font-bold">{monthOptions.map(m=><option key={m.value} value={m.value}>{m.name}</option>)}</select>
-                                            <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-xs font-bold">{[2024,2025,2026].map(y=><option key={y} value={y}>{y}</option>)}</select>
+                                        <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-blue-500/40 shadow-inner">
+                                            <span className="text-[10px] font-black uppercase text-blue-400">মাস ও বছর:</span>
+                                            <select value={selectedMonth} onChange={e=>setSelectedMonth(parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-bold outline-none">{monthOptions.map(m=><option key={m.value} value={m.value}>{m.name}</option>)}</select>
+                                            <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-bold outline-none">{[2023,2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
                                         </div>
                                     )}
                                     {detailViewMode === 'year' && (
-                                        <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-xs font-bold">{[2024,2025,2026].map(y=><option key={y} value={y}>{y}</option>)}</select>
+                                        <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-blue-500/40 shadow-inner">
+                                            <span className="text-[10px] font-black uppercase text-blue-400">বছর:</span>
+                                            <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-bold outline-none">{[2023,2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
+                                        </div>
+                                    )}
+                                    {detailViewMode === 'range' && (
+                                        <div className="flex flex-wrap items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-emerald-500/50 shadow-inner">
+                                            <span className="text-[10px] font-black uppercase text-emerald-400">শুরু (From):</span>
+                                            <input
+                                                type="date"
+                                                value={detailStartDate}
+                                                onChange={(e) => {
+                                                    setDetailStartDate(e.target.value);
+                                                    setDetailViewMode('range');
+                                                }}
+                                                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-black outline-none focus:ring-1 focus:ring-emerald-400"
+                                            />
+                                            <span className="text-[10px] font-black uppercase text-emerald-400">পর্যন্ত (To):</span>
+                                            <input
+                                                type="date"
+                                                value={detailEndDate}
+                                                onChange={(e) => {
+                                                    setDetailEndDate(e.target.value);
+                                                    setDetailViewMode('range');
+                                                }}
+                                                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-black outline-none focus:ring-1 focus:ring-emerald-400"
+                                            />
+                                        </div>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-3">
+
+                                <div className="flex items-center gap-3 flex-wrap">
                                     <button onClick={handlePrintTestSummary} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2">
                                         <PrinterIcon size={16} /> Test Summary
                                     </button>
@@ -3570,8 +3893,18 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                             value={detailSearch} 
                                             onChange={e => setDetailSearch(e.target.value)} 
                                             list="detail-search-suggestions"
-                                            className="w-full bg-slate-950 border border-slate-700 rounded-full pl-12 pr-6 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" 
+                                            className="w-full bg-slate-950 border border-slate-700 rounded-full pl-12 pr-8 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" 
                                         />
+                                        {detailSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setDetailSearch('')}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-black px-1.5 py-0.5 rounded-full bg-slate-800"
+                                                title="সার্চ মুছুন"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
                                         <datalist id="detail-search-suggestions">
                                             {searchSuggestions.map((suggestion, idx) => (
                                                 <option key={idx} value={suggestion} />
@@ -3582,18 +3915,71 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                             </div>
                             
                             <div className="flex flex-col gap-4 no-print border-b border-slate-700 pb-3">
-                                <div className="flex flex-wrap gap-2 items-center">
-                                    {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone', 'Others'].map(cat => (
-                                        <button key={cat} onClick={()=>setDetailFilterCategory(cat)} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border transition-all ${detailFilterCategory === cat ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'}`}>
-                                            {cat === 'Others' ? 'Others' : cat} <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[8px] ${detailFilterCategory === cat ? 'bg-white/20' : 'bg-slate-800'}`}>{categoryCounts[cat] || 0}</span>
-                                        </button>
-                                    ))}
+                                <div className="flex flex-wrap justify-between items-center gap-3">
+                                    {/* Category Filter Buttons with Invoice Count and Total Taka */}
+                                    <div className="flex flex-wrap gap-2 items-center">
+                                        {['All', 'Pathology', 'USG', 'X-Ray', 'ECG', 'Hormone', 'Others'].map(cat => {
+                                            const fin = categoryFinancials[cat] || { invoiceCount: 0, testQty: 0, billAmount: 0, paidAmount: 0 };
+                                            const isSelected = detailFilterCategory === cat;
+                                            return (
+                                                <button
+                                                    key={cat}
+                                                    type="button"
+                                                    onClick={() => setDetailFilterCategory(cat)}
+                                                    className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase border transition-all flex items-center gap-2 ${
+                                                        isSelected
+                                                            ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg ring-2 ring-indigo-400/30'
+                                                            : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500 hover:text-white'
+                                                    }`}
+                                                >
+                                                    <span>{cat === 'All' ? 'সকল বিভাগ (All)' : cat}</span>
+                                                    <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-800 text-sky-400'}`}>
+                                                        {fin.testQty} টি
+                                                    </span>
+                                                    <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono ${isSelected ? 'bg-emerald-500/30 text-emerald-100' : 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50'}`}>
+                                                        ৳{fin.billAmount.toLocaleString()}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Direct Specific Test Selector Dropdown */}
+                                    <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700">
+                                        <Filter className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                        <span className="text-[10px] font-black uppercase text-slate-300 whitespace-nowrap">নির্দিষ্ট টেস্ট নির্বাচন:</span>
+                                        <select
+                                            value={selectedTestFilter}
+                                            onChange={(e) => setSelectedTestFilter(e.target.value)}
+                                            className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-bold text-amber-300 outline-none focus:ring-1 focus:ring-amber-400 max-w-[230px]"
+                                        >
+                                            <option value="">-- সকল টেস্ট (All Tests) --</option>
+                                            {allTestOptions
+                                                .filter(t => detailFilterCategory === 'All' || t.category === detailFilterCategory)
+                                                .map((t, idx) => (
+                                                    <option key={idx} value={t.name}>
+                                                        {t.name} ({t.category}) - ৳{t.price}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                        {selectedTestFilter && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedTestFilter('')}
+                                                className="text-xs font-black text-rose-400 hover:text-rose-200 px-1.5 py-0.5 bg-rose-950/60 rounded-lg border border-rose-800/50"
+                                                title="টেস্ট ফিল্টার সরান"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
+
                                 <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 w-full">
                                     <div className="flex justify-between items-center mb-2 px-1">
                                         <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
                                             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
-                                            Tracked Tests Overview
+                                            Tracked Tests Overview <span className="text-slate-500 font-bold normal-case">(কোনো টেস্টে ক্লিক করলে নিচে ও সামারিতে ওই টেস্টের হিসাব দেখাবে, ▼ আইকনে ক্লিক করে টেস্ট পরিবর্তন করা যাবে)</span>
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-2 pb-1 items-center relative">
@@ -3603,90 +3989,227 @@ const DiagnosticAccountsPage: React.FC<any> = ({
                                                 onClick={() => setOpenDropdownIndex(null)} 
                                             />
                                         )}
-                                        {trackedTests.map((test, i) => (
-                                            <div 
-                                                key={i} 
-                                                className={`bg-slate-950 px-3 py-1.5 rounded-lg border flex-shrink-0 relative min-w-[140px] transition-all cursor-pointer hover:border-sky-500/50 hover:bg-slate-900 ${openDropdownIndex === i ? 'border-sky-500 ring-1 ring-sky-500/30 z-50' : 'border-slate-800 z-10'}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (openDropdownIndex === i) {
-                                                        setOpenDropdownIndex(null);
-                                                    } else {
-                                                        setOpenDropdownIndex(i);
-                                                        setDropdownSearch(''); // Reset search on open
-                                                    }
-                                                }}
-                                            >
-                                                {openDropdownIndex === i ? (
-                                                    <div className="flex flex-col w-full relative">
-                                                        <input 
-                                                            type="text" 
-                                                            value={dropdownSearch} 
-                                                            autoFocus
-                                                            onClick={(e) => e.stopPropagation()}
-                                                            onChange={(e) => setDropdownSearch(e.target.value)}
-                                                            className="w-full bg-transparent border-none text-[10px] text-white p-0 outline-none font-bold placeholder:text-slate-600 mb-1" 
-                                                            placeholder="Search to switch..."
-                                                        />
-                                                        {(() => {
-                                                            const otherSelected = trackedTests.filter((_, idx) => idx !== i && _ !== '');
-                                                            const filteredSuggestions = availableTests.filter((t: any) => {
-                                                                const isDuplicate = otherSelected.some(
-                                                                    (sel) => sel && sel.toLowerCase().trim() === t.test_name.toLowerCase().trim()
-                                                                );
-                                                                if (isDuplicate) return false;
-                                                                if (dropdownSearch) {
-                                                                    return t.test_name.toLowerCase().includes(dropdownSearch.toLowerCase());
-                                                                }
-                                                                return true;
-                                                            });
+                                        {trackedTests.map((test, i) => {
+                                            const isTestActive = Boolean(test && selectedTestFilter && selectedTestFilter.toLowerCase() === test.toLowerCase());
+                                            const tCount = test ? (customTestCounts[test] || 0) : 0;
+                                            const tAmount = test ? (customTestAmounts[test] || 0) : 0;
+                                            return (
+                                                <div 
+                                                    key={i} 
+                                                    className={`px-3 py-1.5 rounded-lg border flex-shrink-0 relative min-w-[165px] transition-all cursor-pointer ${
+                                                        openDropdownIndex === i
+                                                            ? 'bg-slate-900 border-sky-500 ring-1 ring-sky-500/30 z-50'
+                                                            : isTestActive
+                                                            ? 'bg-indigo-950/90 border-indigo-400 ring-2 ring-indigo-400/40 z-10'
+                                                            : 'bg-slate-950 border-slate-800 hover:border-sky-500/50 hover:bg-slate-900 z-10'
+                                                    }`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (!test) {
+                                                            setOpenDropdownIndex(i);
+                                                            setDropdownSearch('');
+                                                            return;
+                                                        }
+                                                        if (selectedTestFilter.toLowerCase() === test.toLowerCase()) {
+                                                            setSelectedTestFilter('');
+                                                        } else {
+                                                            setSelectedTestFilter(test);
+                                                        }
+                                                    }}
+                                                >
+                                                    {openDropdownIndex === i ? (
+                                                        <div className="flex flex-col w-full relative">
+                                                            <input 
+                                                                type="text" 
+                                                                value={dropdownSearch} 
+                                                                autoFocus
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                onChange={(e) => setDropdownSearch(e.target.value)}
+                                                                className="w-full bg-transparent border-none text-[10px] text-white p-0 outline-none font-bold placeholder:text-slate-600 mb-1" 
+                                                                placeholder="Search to switch..."
+                                                            />
+                                                            {(() => {
+                                                                const otherSelected = trackedTests.filter((_, idx) => idx !== i && _ !== '');
+                                                                const filteredSuggestions = availableTests.filter((t: any) => {
+                                                                    const isDuplicate = otherSelected.some(
+                                                                        (sel) => sel && sel.toLowerCase().trim() === t.test_name.toLowerCase().trim()
+                                                                    );
+                                                                    if (isDuplicate) return false;
+                                                                    if (dropdownSearch) {
+                                                                        return t.test_name.toLowerCase().includes(dropdownSearch.toLowerCase());
+                                                                    }
+                                                                    return true;
+                                                                });
 
-                                                            return (
-                                                                <div 
-                                                                    className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-xl max-h-48 overflow-y-auto z-50 shadow-2xl py-1 divide-y divide-slate-800 no-scrollbar min-w-[200px]"
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                >
-                                                                    {filteredSuggestions.length > 0 ? (
-                                                                        filteredSuggestions.map((t: any) => (
-                                                                            <div
-                                                                                key={t.test_id}
-                                                                                className="px-3 py-2 hover:bg-sky-600/20 text-white text-[10px] font-bold cursor-pointer transition-all flex justify-between items-center"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    const n = [...trackedTests];
-                                                                                    n[i] = t.test_name;
-                                                                                    setTrackedTests(n);
-                                                                                    setOpenDropdownIndex(null);
-                                                                                }}
-                                                                            >
-                                                                                <span className="truncate max-w-[130px]">{t.test_name}</span>
-                                                                                <span className="text-[8px] text-slate-500 font-normal ml-1">{t.price}</span>
+                                                                return (
+                                                                    <div 
+                                                                        className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-xl max-h-48 overflow-y-auto z-50 shadow-2xl py-1 divide-y divide-slate-800 no-scrollbar min-w-[200px]"
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    >
+                                                                        {filteredSuggestions.length > 0 ? (
+                                                                            filteredSuggestions.map((t: any) => (
+                                                                                <div
+                                                                                    key={t.test_id}
+                                                                                    className="px-3 py-2 hover:bg-sky-600/20 text-white text-[10px] font-bold cursor-pointer transition-all flex justify-between items-center"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        const n = [...trackedTests];
+                                                                                        n[i] = t.test_name;
+                                                                                        setTrackedTests(n);
+                                                                                        setOpenDropdownIndex(null);
+                                                                                    }}
+                                                                                >
+                                                                                    <span className="truncate max-w-[130px]">{t.test_name}</span>
+                                                                                    <span className="text-[8px] text-slate-500 font-normal ml-1">{t.price}</span>
+                                                                                </div>
+                                                                            ))
+                                                                        ) : (
+                                                                            <div className="px-3 py-2 text-slate-500 text-[10px] font-bold italic">
+                                                                                No matching tests
                                                                             </div>
-                                                                        ))
-                                                                    ) : (
-                                                                        <div className="px-3 py-2 text-slate-500 text-[10px] font-bold italic">
-                                                                            No matching tests
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })()}
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center justify-between gap-3 min-w-[120px]">
-                                                        <div className="flex items-center gap-2 max-w-[100px] overflow-hidden">
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase truncate" title={test}>{test || 'Select Test'}</p>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </div>
-                                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                                            <p className="text-sm font-black text-indigo-400 leading-none">{test ? (customTestCounts[test] || 0) : 0}</p>
-                                                            <span className="text-slate-600 text-[8px]">▼</span>
+                                                    ) : (
+                                                        <div className="flex items-center justify-between gap-2 min-w-[145px]">
+                                                            <div className="flex flex-col max-w-[100px] overflow-hidden">
+                                                                <p className={`text-[10px] font-black uppercase truncate ${isTestActive ? 'text-white' : 'text-slate-300'}`} title={test}>{test || 'Select Test'}</p>
+                                                                <span className="text-[9px] font-mono font-bold text-emerald-400">৳{tAmount.toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                                <span className={`px-1.5 py-0.5 rounded text-xs font-black font-mono leading-none ${isTestActive ? 'bg-indigo-500 text-white' : 'bg-slate-900 text-indigo-400'}`}>
+                                                                    {tCount}
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setOpenDropdownIndex(i);
+                                                                        setDropdownSearch('');
+                                                                    }}
+                                                                    className="text-slate-500 hover:text-sky-400 px-1 py-0.5 rounded hover:bg-slate-800 text-[9px]"
+                                                                    title="এই বক্সের টেস্ট পরিবর্তন করুন"
+                                                                >
+                                                                    ▼
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* Dedicated Selected Test / Category Summary Section RIGHT ABOVE THE LIST */}
+                            <div className={`rounded-2xl border p-4 shadow-xl transition-all ${
+                                selectedItemsSummary.isFilteredByTestOrCat
+                                    ? 'bg-gradient-to-r from-indigo-950/90 via-slate-900 to-emerald-950/80 border-indigo-500/60'
+                                    : 'bg-slate-900/90 border-slate-700'
+                            }`}>
+                                <div className="flex flex-wrap justify-between items-center gap-3 mb-3 pb-2 border-b border-slate-700/80">
+                                    <div className="flex items-center gap-2.5 flex-wrap">
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                            selectedItemsSummary.isFilteredByTestOrCat ? 'bg-amber-500 text-slate-950' : 'bg-blue-600 text-white'
+                                        }`}>
+                                            {selectedItemsSummary.isFilteredByTestOrCat ? 'নির্বাচিত টেস্ট / বিভাগের আলাদা সামারি' : 'সার্চকৃত তালিকার টেস্ট সামারি'}
+                                        </span>
+                                        <span className="text-sm font-black text-white">
+                                            {selectedItemsSummary.activeLabel}
+                                        </span>
+                                        <span className="text-xs font-bold text-sky-300 bg-slate-950/80 px-3 py-1 rounded-lg border border-slate-700 font-mono">
+                                            সময়কাল: {
+                                                detailViewMode === 'today' ? `টুডে (${todayStr})` :
+                                                detailViewMode === 'date' ? `তারিখ: ${selectedDate}` :
+                                                detailViewMode === 'month' ? `${monthOptions[selectedMonth].name} ${selectedYear}` :
+                                                detailViewMode === 'year' ? `বছর: ${selectedYear}` :
+                                                `${detailStartDate} হতে ${detailEndDate}`
+                                            }
+                                        </span>
+                                    </div>
+                                    {selectedItemsSummary.isFilteredByTestOrCat && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDetailFilterCategory('All');
+                                                setSelectedTestFilter('');
+                                                setDetailSearch('');
+                                            }}
+                                            className="text-[10px] font-black uppercase px-3 py-1.5 rounded-lg bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40 transition-all no-print"
+                                        >
+                                            টেস্ট ফিল্টার ক্লিয়ার করুন ✕
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
+                                        <span className="text-[10px] font-black uppercase text-slate-400">মোট রোগী / ভাউচার</span>
+                                        <span className="text-xl font-black text-white font-mono mt-1">
+                                            {selectedItemsSummary.invoiceCount.toLocaleString()} <span className="text-xs font-bold text-slate-400">জন</span>
+                                        </span>
+                                    </div>
+                                    <div className="bg-slate-950/80 border border-indigo-500/40 rounded-xl p-3 flex flex-col justify-between">
+                                        <span className="text-[10px] font-black uppercase text-indigo-300">নির্বাচিত টেস্টের মোট সংখ্যা</span>
+                                        <span className="text-xl font-black text-indigo-400 font-mono mt-1">
+                                            {selectedItemsSummary.totalTestQty.toLocaleString()} <span className="text-xs font-bold text-indigo-300">টি টেস্ট</span>
+                                        </span>
+                                    </div>
+                                    <div className="bg-emerald-950/50 border-2 border-emerald-500/60 rounded-xl p-3 flex flex-col justify-between shadow-lg">
+                                        <span className="text-[10px] font-black uppercase text-emerald-300">নির্বাচিত টেস্ট বাবদ মোট টাকা (Bill)</span>
+                                        <span className="text-2xl font-black text-emerald-400 font-mono mt-1">
+                                            ৳{selectedItemsSummary.totalTestBill.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div className="bg-slate-950/80 border border-sky-500/40 rounded-xl p-3 flex flex-col justify-between">
+                                        <span className="text-[10px] font-black uppercase text-sky-300">ডিসকাউন্ট বাদে আনুপাতিক আদায় (Paid)</span>
+                                        <div className="flex items-baseline justify-between gap-2 mt-1">
+                                            <span className="text-xl font-black text-sky-400 font-mono">
+                                                ৳{selectedItemsSummary.totalTestPaid.toLocaleString()}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-purple-300 font-mono">
+                                                ছাড়: ৳{selectedItemsSummary.totalTestDiscount.toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Sub-test breakdown chips inside the summary card so the user sees exact test-by-test count & Taka */}
+                                {selectedItemsSummary.testBreakdown.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-slate-800/90">
+                                        <p className="text-[10px] font-black uppercase text-slate-400 mb-2">
+                                            সার্চকৃত তালিকার টেস্ট ওয়ারী বিস্তারিত হিসাব (ক্লিক করলে নির্দিষ্ট টেস্ট আলাদা হবে):
+                                        </p>
+                                        <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1">
+                                            {selectedItemsSummary.testBreakdown.map((tb, idx) => {
+                                                const isThisTestSelected = selectedTestFilter.toLowerCase() === tb.name.toLowerCase();
+                                                return (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => setSelectedTestFilter(isThisTestSelected ? '' : tb.name)}
+                                                        className={`px-3 py-1.5 rounded-xl border text-left transition-all flex items-center gap-2.5 ${
+                                                            isThisTestSelected
+                                                                ? 'bg-amber-500/20 border-amber-400 text-white ring-1 ring-amber-400'
+                                                                : 'bg-slate-950/90 border-slate-800 hover:border-slate-600 text-slate-200'
+                                                        }`}
+                                                    >
+                                                        <span className="text-xs font-black text-white">{tb.name}</span>
+                                                        <span className="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 text-[11px] font-black font-mono">
+                                                            {tb.count} টি
+                                                        </span>
+                                                        <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800/60 text-[11px] font-black font-mono">
+                                                            ৳{tb.billAmount.toLocaleString()}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-xl">

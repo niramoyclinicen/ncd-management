@@ -343,29 +343,39 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const st = String(inv.status || '').toLowerCase().trim();
         if (st === 'cancelled' || st === 'returned' || st === 'deleted') return 0;
         const items = Array.isArray(inv.items) ? inv.items : [];
-        const isDoc = (it: any) => {
-            const t = (it?.service_type || '').toLowerCase();
-            const p = (it?.service_provider || '').toLowerCase();
-            return [
+        const isItemClinicFund = (it: any): boolean => {
+            if (!it) return false;
+            const typeLower = (it.service_type || '').trim().toLowerCase();
+            const providerLower = (it.service_provider || '').trim().toLowerCase();
+            const isNonClinic = [
                 'surgeon', 'anaesthetist', 'obstetrician', 'midwife',
                 'doctor round fee', 'doctor prescription fee', 'discharge writing fee',
-                'assistant_1', 'assistant_2', 'staff', 'medicine'
-            ].some(d => t.includes(d)) || p.startsWith('dr') || p.includes('doctor');
-        };
-        const fundedRevenue = items.filter(it => {
-            if (!it) return false;
+                'assistant_1', 'assistant_2', 'doctor', 'staff', 'stuff',
+                'staff cost', 'stuff_cost', 'স্টাফ', 'cost', 'salary', 'medicine', 'discharge'
+            ].some(d => typeLower.includes(d)) || providerLower.startsWith('dr') || providerLower.includes('doctor');
+            if (isNonClinic) return false;
             if (it.isClinicFund === true) return true;
             if (it.isClinicFund === false) return false;
-            return !isDoc(it);
-        }).reduce((ss, ii) => ss + (Number(ii.payable_amount) || 0), 0);
+            return true;
+        };
+        let doctorNonFundFees = 0;
+        items.forEach((it: any) => {
+            if (!it) return;
+            const amt = Number(
+                it.payable_amount ?? 
+                ((Number(it.service_charge || 0) * Number(it.quantity || 0)) - Number(it.discount || 0))
+            );
+            if (!isItemClinicFund(it)) {
+                doctorNonFundFees += amt;
+            }
+        });
+        const paidAmount = Number(inv.paid_amount || 0);
         const pcAmount = (Number(inv.commission_paid) || 0) + (Number(inv.special_commission) || 0);
-        const specialDiscount = Number(inv.special_discount_amount) || 0;
-        const currentDue = Math.max(0, Number(inv.due_bill ?? (inv as any).due_amount ?? (inv as any).dueAmount) || 0);
         const allClinicDuesForInv = (dueCollections || []).filter(dc =>
             dc && !isDiagDue(dc) && (dc.invoice_id === inv.invoice_id || dc.invoice_id === inv.daily_id)
         ).reduce((s, dc) => s + (Number(dc.amount_collected) || 0), 0);
 
-        return Math.max(0, fundedRevenue - pcAmount - specialDiscount - currentDue - allClinicDuesForInv);
+        return Math.max(0, Math.round((paidAmount - doctorNonFundFees - pcAmount - allClinicDuesForInv) * 100) / 100);
     };
 
     const [consolidatedEntries, setConsolidatedEntries] = useState<any[]>(() => {

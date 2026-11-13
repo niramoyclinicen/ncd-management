@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { dbService, DailyConsolidatedEntry, ClinicProfile } from '../../dbService';
+import { dbService, DailyConsolidatedEntry, ClinicProfile, normalizeDate } from '../../dbService';
 import { BackIcon, PrinterIcon, PlusIcon, TrashIcon, SearchIcon, Activity } from '../Icons';
 import { Save, RefreshCw, Layers, Calendar, Clock, DollarSign, UserCheck, FileSpreadsheet, CheckCircle2, AlertCircle, CalendarRange } from 'lucide-react';
 
@@ -41,6 +41,14 @@ interface ShiftRowItem {
   doctorCommissionPaid: number;
   usgDoctorFeePaid: number;
   notes: string;
+}
+
+export interface DailyConsolidatedEntryPageProps {
+  onBack?: () => void;
+  performBlockingSync?: (overrides?: any) => Promise<boolean>;
+  currentUserEmail?: string;
+  consolidatedLabEntries?: DailyConsolidatedEntry[];
+  setConsolidatedLabEntries?: React.Dispatch<React.SetStateAction<DailyConsolidatedEntry[]>>;
 }
 
 export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProps> = ({
@@ -722,7 +730,7 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
       if (historyDueFilter === 'due' && itemDue <= 0) return false;
       if (historyDueFilter === 'paid' && itemDue > 0) return false;
 
-      if (searchDate && item.date !== searchDate) return false;
+      if (searchDate && normalizeDate(item.date || '') !== normalizeDate(searchDate)) return false;
       if (filterShift !== 'all' && item.shift !== filterShift) return false;
 
       if (historyYearFilter !== 'all') {
@@ -1407,17 +1415,17 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     {editingRecordId ? (
                       isSaving ? (
                         <>
-                          <RefreshCwIcon size={15} className="animate-spin" /> আপডেট হচ্ছে...
+                          <RefreshCw size={15} className="animate-spin" /> আপডেট হচ্ছে...
                         </>
                       ) : (
                         <>
-                          <RefreshCwIcon size={15} /> 🔄 আপডেট ও প্রিন্ট
+                          <RefreshCw size={15} /> 🔄 আপডেট ও প্রিন্ট
                         </>
                       )
                     ) : (
                       isSaving ? (
                         <>
-                          <RefreshCwIcon size={15} className="animate-spin" /> সংরক্ষণ হচ্ছে...
+                          <RefreshCw size={15} className="animate-spin" /> সংরক্ষণ হচ্ছে...
                         </>
                       ) : (
                         <>
@@ -1523,11 +1531,12 @@ export const DailyConsolidatedEntryPage: React.FC<DailyConsolidatedEntryPageProp
                     <SearchIcon className="w-3.5 h-3.5 absolute left-2 top-2.5 text-slate-400" />
                   </div>
 
-                  {(liveSearchQuery || liveTypeFilter !== 'all' || liveDueFilter !== 'all' || liveMonthFilter !== 'all' || liveYearFilter !== 'all') && (
+                  {(liveSearchQuery || liveDateFilter || liveTypeFilter !== 'all' || liveDueFilter !== 'all' || liveMonthFilter !== 'all' || liveYearFilter !== 'all') && (
                     <button
                       type="button"
                       onClick={() => {
                         setLiveSearchQuery('');
+                        setLiveDateFilter('');
                         setLiveTypeFilter('all');
                         setLiveDueFilter('all');
                         setLiveMonthFilter('all');

@@ -4871,14 +4871,10 @@ const IndoorInvoicePage: React.FC<{
             }
         });
 
-        const totalRevenue = incomeItems.length > 0
-            ? incomeItems.reduce((s, it) => s + (it.payable_amount || 0), 0)
-            : (items.length === 0 ? Number(inv.total_bill || 0) : 0);
         // Deduct PC Amount: Sum of special_commission and commission_paid
         const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-        // Deduct Special Discounts and PC from the Hospital's Gain
-        const rawNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount;
-        const clinicNet = inv.status === 'Returned' ? -Math.abs(rawNet) : Math.max(0, rawNet);
+        // Direct Deduction Logic: Paid Amount - Doctor/Surgeon/Assistant/Anesthetist/Medicine/Staff Expenses - PC = Clinic Net
+        const clinicNet = calculateInvoiceClinicNet(inv);
 
         return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
     };

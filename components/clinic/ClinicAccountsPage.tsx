@@ -933,55 +933,63 @@ const ClinicAccountsPage: React.FC<any> = ({
         return words.some(w => lower.includes(w.toLowerCase()));
     };
 
-    // --- Core logic to categorize an invoice (Mapping Category Breakdown) ---
+    // --- Core logic to categorize an invoice (Direct Deduction Logic — No ratio/percentage) ---
+    const isItemClinicFund = React.useCallback((it: any): boolean => {
+        if (!it) return false;
+        const typeLower = (it.service_type || '').trim().toLowerCase();
+        const providerLower = (it.service_provider || '').trim().toLowerCase();
+
+        const doctorServiceTypes = [
+            "doctor round fee", "doctor prescription fee", "obstetrician/ midwife",
+            "surgeon", "anaesthetist", "assistant_1", "assistant_2", "discharge writing fee"
+        ];
+
+        // Doctor services (surgeon, anesthetist, doctor fees, staff cost, medicine, etc.) are external expenses / non-clinic funds
+        const isNonClinic = doctorServiceTypes.some(d => typeLower.includes(d)) ||
+                            typeLower.includes('surgeon') || typeLower.includes('anaesthetist') ||
+                            typeLower.includes('obstetrician') || typeLower.includes('midwife') ||
+                            typeLower.includes('assistant_1') || typeLower.includes('assistant_2') ||
+                            typeLower.includes('doctor') || typeLower.includes('staff') || typeLower.includes('stuff') ||
+                            typeLower.includes('staff cost') || typeLower.includes('stuff_cost') || typeLower.includes('স্টাফ') ||
+                            typeLower.includes('cost') || typeLower.includes('salary') ||
+                            typeLower.includes('medicine') || typeLower.includes('discharge') ||
+                            providerLower.startsWith('dr') || providerLower.includes('doctor');
+
+        if (isNonClinic) return false;
+        if (it.isClinicFund === true) return true;
+        if (it.isClinicFund === false) return false;
+        return true;
+    }, []);
+
     const categorizeInvoiceData = React.useCallback((inv: any) => {
         if (!inv || inv.status === 'Cancelled' || inv.status === 'Returned' || inv.status === 'Deleted') {
-            return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0 };
+            return { admFee: 0, oxygen: 0, conservative: 0, nvd: 0, dc: 0, lscs_ot: 0, gb_ot: 0, others_ot: 0, dressing: 0, others: 0, pcAmount: 0, clinicNet: 0, doctorNonFundFees: 0 };
         }
 
         const items = Array.isArray(inv.items) ? inv.items : [];
-        const isDoc = (it: any) => {
-            const t = (it?.service_type || '').toLowerCase();
-            const p = (it?.service_provider || '').toLowerCase();
-            return [
-                'surgeon', 'anaesthetist', 'obstetrician', 'midwife', 
-                'doctor round fee', 'doctor prescription fee', 'discharge writing fee',
-                'assistant_1', 'assistant_2', 'staff', 'medicine'
-            ].some(d => t.includes(d)) || p.startsWith('dr') || p.includes('doctor');
-        };
+        const paidAmount = Number(inv.paid_amount || 0);
+        const pcAmount = Number(inv.special_commission || 0) + Number(inv.commission_paid || 0);
 
-        const incomeItems = items.filter((it: any) => {
-            if (!it) return false;
-            // Explicit user toggle has absolute priority:
-            if (it.isClinicFund === true) return true;
-            if (it.isClinicFund === false) return false;
-            // Fallback for legacy items where isClinicFund is undefined:
-            return !isDoc(it);
-        });
-
-        const totalRevenue = incomeItems.length > 0
-            ? incomeItems.reduce((s, it) => s + (it.payable_amount || 0), 0)
-            : (items.length === 0 ? Number(inv.total_bill || 0) : 0);
-        
-        // FIX: Subtract unpaid due_bill and due collections from clinicNet to prevent counting unpaid due or double-counting when Due Collection is added later
-        const allDues = (dueCollections || []).filter((dc: any) => dc && (dc.invoice_id === inv.invoice_id || dc.invoice_id === inv.daily_id)).reduce((s: any, dc: any) => s + (Number(dc.amount_collected) || 0), 0);
-        const pcAmount = (inv.special_commission || 0) + (inv.commission_paid || 0);
-        const currentDue = Math.max(0, Number(inv.due_bill ?? inv.due_amount ?? inv.dueAmount) || 0);
-        const rawClinicNet = totalRevenue - (inv.special_discount_amount || 0) - pcAmount - currentDue - allDues;
-        const clinicNet = inv.status === 'Returned' ? -Math.abs(rawClinicNet) : Math.max(0, rawClinicNet);
-
-        // Ratio to distribute deductions (commission + discount + dues) proportionally across categories
-        const ratio = totalRevenue > 0 ? clinicNet / totalRevenue : 0;
-
+        let doctorNonFundFees = 0;
         let admFee = 0, oxygen = 0, dressing = 0, conservative = 0, nvd = 0, dc = 0, lscs_ot = 0, gb_ot = 0, others_ot = 0, others = 0;
 
-        incomeItems.forEach((it: any) => {
+        items.forEach((it: any) => {
+            if (!it) return;
+            const amt = Number(
+                it.payable_amount ?? 
+                ((Number(it.service_charge || 0) * Number(it.quantity || 0)) - Number(it.discount || 0))
+            );
+
+            if (!isItemClinicFund(it)) {
+                doctorNonFundFees += amt;
+                return;
+            }
+
             const typeLower = (it.service_type || '').toLowerCase();
-            const amt = it.payable_amount * ratio;
             const subCat = (inv.subCategory || '').toUpperCase();
             const mainCat = inv.serviceCategory;
 
-            // Rule 1: Key Item Keywords (Admission, O2, Dressing)
+            // Rule 1: Key Item Keywords (Admission, O2, Dressing) - Direct amount without any ratio
             if (matchesKeyword(typeLower, ['admission fee', 'ভর্তি ফি'])) {
                 admFee += amt;
             } else if (matchesKeyword(typeLower, ['oxygen', 'o2', 'nebulizer', 'nebulization'])) {
@@ -1011,8 +1019,15 @@ const ClinicAccountsPage: React.FC<any> = ({
             }
         });
 
-        return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet };
-    }, [dueCollections]);
+        // Direct Deduction Logic (সরাসরি বিয়োগ পদ্ধতি — কোনো শতকরা বা অনুপাত clinicRatio থাকবে না):
+        // রোগীর দেওয়া টাকা (Paid Amount) − ডাক্তার/সার্জন/ওটি অ্যাসিস্ট্যান্ট/অজ্ঞান ডাক্তার/মেডিসিন/স্টাফ খরচ − পিসি (PC) = হাসপাতালে অবশিষ্ট জমা (Clinic Net)
+        const rawClinicNet = paidAmount - doctorNonFundFees - pcAmount;
+        const clinicNet = inv.status === 'Returned'
+            ? -Math.abs(Math.round(rawClinicNet * 100) / 100)
+            : Math.max(0, Math.round(rawClinicNet * 100) / 100);
+
+        return { admFee, oxygen, conservative, nvd, dc, lscs_ot, gb_ot, others_ot, dressing, others, pcAmount, clinicNet, doctorNonFundFees };
+    }, [isItemClinicFund]);
 
     const summaryData = useMemo(() => {
         const safeInvoices = Array.isArray(invoices) ? invoices : [];
@@ -1479,7 +1494,8 @@ const ClinicAccountsPage: React.FC<any> = ({
             const safeInvoices = Array.isArray(invoices) ? invoices : [];
             safeInvoices.forEach((inv: any) => {
                 if (!inv) return;
-                const dateToUse = inv.admission_date || inv.invoice_date;
+                const rawDate = inv.admission_date || inv.invoice_date;
+                const dateToUse = normalizeDate(rawDate || '');
                 if (!dateToUse || typeof dateToUse !== 'string') return;
 
                 const isMatch = type === 'day' ? dateToUse === period 
@@ -2864,12 +2880,30 @@ const ClinicAccountsPage: React.FC<any> = ({
                                             <span>Due Balance:</span>
                                             <span className="font-mono font-black">৳{Number(previewInvoice.due_bill || 0).toFixed(2)}</span>
                                         </div>
-                                        {((Number(previewInvoice.special_commission) || 0) + (Number(previewInvoice.commission_paid) || 0)) > 0 && (
-                                            <div className="flex justify-between text-amber-700 font-bold border-t border-dashed border-slate-300 pt-1">
-                                                <span>PC (Commission):</span>
-                                                <span className="font-mono font-black">৳{Number((Number(previewInvoice.special_commission) || 0) + (Number(previewInvoice.commission_paid) || 0)).toFixed(2)}</span>
-                                            </div>
-                                        )}
+                                        {(() => {
+                                            const catPreview = categorizeInvoiceData(previewInvoice);
+                                            const pcPreview = (Number(previewInvoice.special_commission) || 0) + (Number(previewInvoice.commission_paid) || 0);
+                                            return (
+                                                <>
+                                                    {catPreview.doctorNonFundFees > 0 && (
+                                                        <div className="flex justify-between text-amber-800 font-bold border-t border-dashed border-slate-300 pt-1">
+                                                            <span>ডাক্তার/সার্জন/মেডিসিন/স্টাফ খরচ:</span>
+                                                            <span className="font-mono font-black">-৳{Number(catPreview.doctorNonFundFees).toFixed(2)}</span>
+                                                        </div>
+                                                    )}
+                                                    {pcPreview > 0 && (
+                                                        <div className="flex justify-between text-rose-700 font-bold pt-0.5">
+                                                            <span>PC (Commission):</span>
+                                                            <span className="font-mono font-black">-৳{Number(pcPreview).toFixed(2)}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex justify-between text-sky-900 font-black border-t-2 border-sky-400 pt-1.5 text-sm bg-sky-100/70 px-2 py-1 rounded">
+                                                        <span>Clinic Net (হাসপাতালের জমা):</span>
+                                                        <span className="font-mono">৳{Number(catPreview.clinicNet).toLocaleString()}</span>
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 

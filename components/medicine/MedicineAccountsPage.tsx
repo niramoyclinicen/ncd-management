@@ -57,6 +57,28 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
             return inv?.invoiceDate || inv?.invoice_date || inv?.admission_date || inv?.date || inv?.createdDate || '';
         };
 
+        const getPurchaseInvDate = (inv: any): string => {
+            if (!inv) return '';
+            if (inv.expenseYear !== undefined && inv.expenseYear !== null && inv.expenseMonth !== undefined && inv.expenseMonth !== null) {
+                const y = Number(inv.expenseYear);
+                const m = Number(inv.expenseMonth);
+                if (!isNaN(y) && !isNaN(m) && y > 1900 && m >= 0 && m <= 11) {
+                    if (typeof inv.expenseDate === 'string' && inv.expenseDate.trim()) {
+                        const parts = inv.expenseDate.trim().split('-');
+                        if (parts.length >= 2 && Number(parts[0]) === y && Number(parts[1]) - 1 === m) {
+                            return inv.expenseDate.trim();
+                        }
+                    }
+                    const d = Number(inv.expenseDay) || 1;
+                    const maxD = new Date(y, m + 1, 0).getDate();
+                    const safeD = Math.min(Math.max(1, d), maxD);
+                    return `${y}-${String(m + 1).padStart(2, '0')}-${String(safeD).padStart(2, '0')}`;
+                }
+            }
+            if (typeof inv.expenseDate === 'string' && inv.expenseDate.trim()) return inv.expenseDate.trim();
+            return getInvDate(inv);
+        };
+
         const getSafeInvAmount = (inv: any) => {
             if (!inv) return 0;
             const net = Number(inv.netPayable ?? inv.net_payable);
@@ -83,7 +105,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         // Exclude 'Initial' status from current expenses (Opening stock fix)
         const currentInvoices = safePurchases.filter(inv => {
             if (!inv || inv.status === 'Initial' || inv.status === 'Cancelled' || inv.status === 'Deleted') return false;
-            return isSelectedMonth(getInvDate(inv));
+            return isSelectedMonth(getPurchaseInvDate(inv));
         });
 
         const currentOutdoorSales = safeSales.filter(inv => {
@@ -112,7 +134,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         // Cumulative Stats (Previous Months)
         const prevPurchaseTotal = safePurchases.filter(inv => {
             if (!inv || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return false;
-            return isBeforeSelectedMonth(getInvDate(inv));
+            return isBeforeSelectedMonth(getPurchaseInvDate(inv));
         }).reduce((sum, inv) => sum + getSafeInvAmount(inv), 0);
 
         const prevOutdoorTotal = safeSales.filter(inv => {
@@ -140,7 +162,7 @@ const MedicineAccountsPage: React.FC<MedicineAccountsPageProps> = ({
         const monthlyData: Record<string, { buy: number, sell: number }> = {};
         safePurchases.forEach(inv => {
             if (!inv || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return;
-            const norm = normalizeDateStr(getInvDate(inv));
+            const norm = normalizeDateStr(getPurchaseInvDate(inv));
             if (!norm) return;
             const [y, m] = norm.split('-').map(Number);
             if (y === selectedYear && m >= 1 && m <= 12) {

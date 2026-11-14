@@ -282,6 +282,8 @@ export interface PurchaseInvoice {
   id?: string;
   invoiceId: string; 
   invoiceDate: string; 
+  entryDate?: string;
+  expenseDay?: number;
   expenseMonth?: number; 
   expenseYear?: number;
   expenseDate?: string;

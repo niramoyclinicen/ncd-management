@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Medicine, Employee, PurchaseInvoice, InvoiceItem, Doctor, SalesInvoice, SalesItem, DrugMonograph, IndoorInvoice } from './DiagnosticData';
 import { BackIcon, MapPinIcon, PhoneIcon, MedicineIcon, FileTextIcon, Pill, SearchIcon, Activity, SaveIcon, TrashIcon, PlusIcon, TrendingDownIcon, RefreshIcon, AlertCircle, EyeIcon, PrinterIcon, XIcon, EditIcon } from './Icons';
-import { CheckCircle2, Trash2, Loader2 } from 'lucide-react';
+import { CheckCircle2, Trash2, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import SearchableSelect from './SearchableSelect';
 import MobileNumberInput from './MobileNumberInput';
 import { dbService } from '../dbService';
@@ -184,6 +184,16 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     message: string;
   } | null>(null);
 
+  // Dedicated blocking progress & completion confirmation overlay for purchase invoice save/update
+  const [purchaseProgressState, setPurchaseProgressState] = useState<{
+    status: 'saving' | 'success' | 'error';
+    isEdit: boolean;
+    title: string;
+    step: string;
+    message: string;
+    savedInvoice?: PurchaseInvoice | null;
+  } | null>(null);
+
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
   const [isOpeningStock, setIsOpeningStock] = useState(false);
   const [viewingPurchaseInvoice, setViewingPurchaseInvoice] = useState<PurchaseInvoice | null>(null);
@@ -218,8 +228,30 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   });
 
   // Purchase Form State
-  const [purchaseFormData, setPurchaseFormData] = useState<PurchaseInvoice>({
-      invoiceId: '', invoiceDate: new Date().toISOString().split('T')[0], source: '', items: [], totalAmount: 0, discount: 0, netPayable: 0, paidAmount: 0, dueAmount: 0, billCreatedBy: 'Admin', billPaidBy: '', receivedBy: '', status: 'Saved', createdDate: ''
+  const [purchaseFormData, setPurchaseFormData] = useState<PurchaseInvoice>(() => {
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      return {
+          invoiceId: '',
+          invoiceDate: todayStr,
+          entryDate: todayStr,
+          expenseDay: now.getDate(),
+          expenseMonth: now.getMonth(),
+          expenseYear: now.getFullYear(),
+          expenseDate: todayStr,
+          source: '',
+          items: [],
+          totalAmount: 0,
+          discount: 0,
+          netPayable: 0,
+          paidAmount: 0,
+          dueAmount: 0,
+          billCreatedBy: 'Admin',
+          billPaidBy: '',
+          receivedBy: '',
+          status: 'Saved',
+          createdDate: ''
+      };
   });
   const [currentPurchaseItem, setCurrentPurchaseItem] = useState<Partial<InvoiceItem>>({ tradeName: '', genericName: '', formulation: 'Tab', strength: '', unitPriceBuy: 0, unitPriceSell: 0, qtyBuying: 0, lineTotalBuy: 0, expiryDate: '' });
   
@@ -231,11 +263,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Purchase Search & Filter State
+  // Purchase Search, Filter & Sort State
   const [buySearchSupplier, setBuySearchSupplier] = useState('');
   const [buySearchDate, setBuySearchDate] = useState('');
+  const [buySearchDay, setBuySearchDay] = useState<string>('all');
   const [buySearchMonth, setBuySearchMonth] = useState<string>('all');
   const [buySearchYear, setBuySearchYear] = useState<string>(new Date().getFullYear().toString());
+  const [buySortField, setBuySortField] = useState<'none' | 'grossBill' | 'discount' | 'netBill' | 'paidAmount' | 'dueAmount'>('none');
+  const [buySortDir, setBuySortDir] = useState<'desc' | 'asc'>('desc');
   const [buySubTab, setBuySubTab] = useState<'invoices' | 'items'>('invoices');
 
   // Store Expiry & Search Filter State
@@ -265,12 +300,57 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     return isNaN(n) ? 0 : n;
   };
 
-  // Helper for calculating last day of month
+  // Helper for calculating days in month and last day of month
+  const getDaysInMonthCount = (year: number, monthZeroIndexed: number) => {
+    return new Date(year, monthZeroIndexed + 1, 0).getDate();
+  };
+
   const getLastDayOfMonth = (year: number, monthZeroIndexed: number) => {
     const d = new Date(year, monthZeroIndexed + 1, 0);
     const mm = String(monthZeroIndexed + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     return `${year}-${mm}-${dd}`;
+  };
+
+  const getEffectivePurchaseExpenseDate = (inv: any): string => {
+    if (!inv) return '';
+    if (inv.expenseYear !== undefined && inv.expenseYear !== null && inv.expenseMonth !== undefined && inv.expenseMonth !== null) {
+      const y = Number(inv.expenseYear);
+      const m = Number(inv.expenseMonth);
+      if (!isNaN(y) && !isNaN(m) && y > 1900 && m >= 0 && m <= 11) {
+        if (typeof inv.expenseDate === 'string' && inv.expenseDate.trim()) {
+          const parts = inv.expenseDate.trim().split('-');
+          if (parts.length >= 2 && Number(parts[0]) === y && Number(parts[1]) - 1 === m) {
+            return inv.expenseDate.trim();
+          }
+        }
+        const rawD = Number(inv.expenseDay) || (inv.invoiceDate && String(inv.invoiceDate).includes('-') ? Number(String(inv.invoiceDate).split('-')[2]) : 1) || 1;
+        const safeD = Math.min(Math.max(1, rawD), getDaysInMonthCount(y, m));
+        return `${y}-${String(m + 1).padStart(2, '0')}-${String(safeD).padStart(2, '0')}`;
+      }
+    }
+    if (typeof inv.expenseDate === 'string' && inv.expenseDate.trim()) return inv.expenseDate.trim();
+    return inv.invoiceDate || inv.invoice_date || inv.date || (inv.createdDate ? String(inv.createdDate).split('T')[0] : '') || '';
+  };
+
+  const getPurchaseEntryDate = (inv: any): string => {
+    if (!inv) return '';
+    if (typeof inv.entryDate === 'string' && inv.entryDate.trim()) return inv.entryDate.trim();
+    if (typeof inv.createdDate === 'string' && inv.createdDate.trim()) {
+      const dPart = inv.createdDate.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dPart)) return dPart;
+    }
+    return inv.invoiceDate || inv.invoice_date || inv.date || '';
+  };
+
+  const getPurchaseItemsSummary = (inv: PurchaseInvoice) => {
+    const items = Array.isArray(inv.items) ? inv.items.filter(Boolean) : [];
+    const count = items.length;
+    if (count === 0) return { count: 0, shortText: 'কোনো আইটেম নেই', fullText: 'কোনো আইটেম নেই' };
+    const names = items.map(it => `${it.tradeName || 'Unnamed'}${it.qtyBuying ? ` (${it.qtyBuying})` : ''}`);
+    const shortNames = items.slice(0, 2).map(it => it.tradeName || 'Unnamed').join(', ');
+    const shortText = count > 2 ? `${shortNames} +${count - 2}টি` : shortNames;
+    return { count, shortText, fullText: names.join(', ') };
   };
 
   // Detect whether an invoice is an aggregated lump-sum entry
@@ -341,13 +421,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const openEditLumpSumPurchase = (inv: PurchaseInvoice) => {
-    const [yStr, mStr] = (inv.invoiceDate || '').split('-');
-    const y = Number(yStr) || selectedYear;
-    const m = (Number(mStr) || (selectedMonth + 1)) - 1;
+    const effDate = getEffectivePurchaseExpenseDate(inv) || inv.invoiceDate || '';
+    const [yStr, mStr] = effDate.split('-');
+    const y = (inv as any).expenseYear !== undefined ? Number((inv as any).expenseYear) : (Number(yStr) || selectedYear);
+    const m = (inv as any).expenseMonth !== undefined ? Number((inv as any).expenseMonth) : ((Number(mStr) || (selectedMonth + 1)) - 1);
     setLumpSumPurchaseForm({
       year: y,
       month: m,
-      date: inv.invoiceDate || getLastDayOfMonth(y, m),
+      date: effDate || getLastDayOfMonth(y, m),
       supplier: inv.source || '',
       totalAmount: String(inv.netPayable || inv.totalAmount || ''),
       paidAmount: String(inv.paidAmount ?? ''),
@@ -358,18 +439,19 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     setShowLumpSumPurchaseModal(true);
   };
 
-  const handleSaveLumpSumPurchase = async () => {
+  const executeSaveLumpSumPurchase = async () => {
     const amount = parseBengaliOrFormattedNumber(lumpSumPurchaseForm.totalAmount);
-    if (!amount || amount <= 0) {
-      alert("অনুগ্রহ করে ক্রয়ের মোট টাকার পরিমাণ সঠিকভাবে লিখুন!");
-      return;
-    }
     const paid = parseBengaliOrFormattedNumber(lumpSumPurchaseForm.paidAmount);
     const due = Math.max(0, amount - paid);
     const mZero = Number(lumpSumPurchaseForm.month);
     const yNum = Number(lumpSumPurchaseForm.year);
     const mName = monthOptions[mZero]?.name || `Month ${mZero + 1}`;
     const invDate = lumpSumPurchaseForm.date || getLastDayOfMonth(yNum, mZero);
+    const invDateParts = invDate.split('-');
+    const expDay = invDateParts.length >= 3 ? (parseInt(invDateParts[2], 10) || 1) : 1;
+    const isEdit = !!lumpSumPurchaseForm.editingInvoiceId;
+    const existingOld = isEdit ? safeInvoices.find(x => x && x.invoiceId === lumpSumPurchaseForm.editingInvoiceId) : null;
+    const todayStr = new Date().toISOString().split('T')[0];
     const invoiceId = lumpSumPurchaseForm.editingInvoiceId || `PUR-LUMP-${yNum}-${String(mZero + 1).padStart(2, '0')}-${Date.now().toString().slice(-4)}`;
     const supplierName = (lumpSumPurchaseForm.supplier || '').trim() || `এককালীন ওষুধ ক্রয় (${mName} ${yNum})`;
     const note = (lumpSumPurchaseForm.notes || '').trim();
@@ -377,6 +459,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     const newInv: PurchaseInvoice = {
       invoiceId,
       invoiceDate: invDate,
+      entryDate: (existingOld as any)?.entryDate || todayStr,
+      expenseDay: expDay,
+      expenseMonth: mZero,
+      expenseYear: yNum,
+      expenseDate: invDate,
       source: supplierName,
       items: [{
         id: `ITEM-LUMP-${Date.now()}`,
@@ -399,10 +486,17 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       billPaidBy: '',
       receivedBy: '',
       status: 'Posted',
-      createdDate: new Date().toISOString()
+      createdDate: existingOld?.createdDate || new Date().toISOString()
     };
 
     setLoading(true);
+    setPurchaseProgressState({
+      status: 'saving',
+      isEdit,
+      title: isEdit ? 'ইনভয়েসটি আপডেট হচ্ছে...' : 'ইনভয়েসটি সেভ হচ্ছে...',
+      step: 'ডেটাবেজ ও কনসোলিডেটেড হিসাবে সংরক্ষণ করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...',
+      message: ''
+    });
     try {
       // Direct write ensures instant persistence in dedicated modular purchase_invoices table
       try {
@@ -423,6 +517,8 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       // Set filter to the saved invoice's year and month so the user sees it immediately
       setBuySearchYear(yNum.toString());
       setBuySearchMonth(mZero.toString());
+      setBuySearchDay('all');
+      setBuySearchDate('');
 
       if (performBlockingSync) {
         try {
@@ -432,14 +528,50 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
         }
       }
 
-      setSuccessMessage(`${mName} ${yNum} এর এককালীন ক্রয় সফলভাবে সংরক্ষিত হয়েছে!`);
+      setSuccessMessage(`${mName} ${yNum} এর এককালীন ক্রয় সফলভাবে ${isEdit ? 'আপডেট' : 'সংরক্ষিত'} হয়েছে!`);
       setShowLumpSumPurchaseModal(false);
+      setPurchaseProgressState({
+        status: 'success',
+        isEdit,
+        title: isEdit ? 'ইনভয়েসটি সফলভাবে আপডেট হয়েছে!' : 'ইনভয়েসটি সফলভাবে সেভ হয়েছে!',
+        step: '',
+        message: `${mName} ${yNum} (তারিখ: ${invDate}) এর এককালীন ক্রয় (${invoiceId}) সফলভাবে ${isEdit ? 'আপডেট' : 'সেভ'} হয়েছে এবং কনসোলিডেটেড পেজের "মোট ঔষধ ক্রয়" হিসাবে সমন্বিত হয়েছে।`,
+        savedInvoice: newInv
+      });
     } catch (e: any) {
       console.error("Lump purchase save error:", e);
-      alert("এককালীন ক্রয় সেভ করার সময় সমস্যা হয়েছে: " + (e?.message || e));
+      setPurchaseProgressState({
+        status: 'error',
+        isEdit,
+        title: 'সংরক্ষণ ব্যর্থ হয়েছে',
+        step: '',
+        message: "এককালীন ক্রয় সেভ করার সময় সমস্যা হয়েছে: " + (e?.message || e)
+      });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveLumpSumPurchase = async () => {
+    const amount = parseBengaliOrFormattedNumber(lumpSumPurchaseForm.totalAmount);
+    if (!amount || amount <= 0) {
+      alert("অনুগ্রহ করে ক্রয়ের মোট টাকার পরিমাণ সঠিকভাবে লিখুন!");
+      return;
+    }
+    const isEdit = !!lumpSumPurchaseForm.editingInvoiceId;
+    const mZero = Number(lumpSumPurchaseForm.month);
+    const yNum = Number(lumpSumPurchaseForm.year);
+    const mName = monthOptions[mZero]?.name || `Month ${mZero + 1}`;
+    const invDate = lumpSumPurchaseForm.date || getLastDayOfMonth(yNum, mZero);
+    setConfirmModal({
+      isOpen: true,
+      title: isEdit ? 'এককালীন ক্রয় আপডেট নিশ্চিতকরণ' : 'এককালীন ক্রয় সংরক্ষণ নিশ্চিতকরণ',
+      message: `আপনি কি নিশ্চিতভাবে ${mName} ${yNum} (তারিখ: ${invDate}) এর এককালীন ক্রয়টি ${isEdit ? 'আপডেট' : 'সেভ'} করতে চান?\n\n• মোট বিল: ৳${amount.toLocaleString()}`,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        executeSaveLumpSumPurchase();
+      }
+    });
   };
 
   const handleDeleteLumpSumPurchase = async (invoiceId: string, invoiceDate?: string) => {
@@ -642,36 +774,77 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const filteredPurchases = useMemo(() => {
     return safeInvoices.filter(inv => {
       if (!inv || inv.status === 'Cancelled' || inv.status === 'Deleted') return false;
-      const invDate = inv.invoiceDate || (inv as any).date || '';
+      const effExpDate = getEffectivePurchaseExpenseDate(inv);
+      const entryD = getPurchaseEntryDate(inv);
       const q = buySearchSupplier.trim().toLowerCase();
       const matchesSupplier = !q || 
         (inv.source || '').toLowerCase().includes(q) || 
         (inv.invoiceId || '').toLowerCase().includes(q) ||
+        (inv.billCreatedBy || '').toLowerCase().includes(q) ||
         (Array.isArray(inv.items) && inv.items.some(it => 
           (it.tradeName || '').toLowerCase().includes(q) || 
           (it.genericName || '').toLowerCase().includes(q)
         ));
       
-      const matchesDate = !buySearchDate || invDate === buySearchDate;
+      const matchesDate = !buySearchDate || effExpDate === buySearchDate || entryD === buySearchDate || (inv.invoiceDate || '') === buySearchDate;
       
+      let matchesDay = true;
       let matchesMonth = true;
       let matchesYear = true;
       
-      // Determine effective expense month and year (fallback to invoiceDate if not explicitly set)
+      const expParts = effExpDate.includes('-') ? effExpDate.split('-') : [];
+      const effD = (inv as any).expenseDay !== undefined && (inv as any).expenseDay !== null
+        ? Number((inv as any).expenseDay)
+        : (expParts.length >= 3 ? parseInt(expParts[2], 10) : null);
       const effM = (inv as any).expenseMonth !== undefined && (inv as any).expenseMonth !== null
         ? Number((inv as any).expenseMonth)
-        : (invDate && invDate.includes('-') ? parseInt(invDate.split('-')[1]) - 1 : null);
+        : (expParts.length >= 2 ? parseInt(expParts[1], 10) - 1 : null);
       const effY = (inv as any).expenseYear !== undefined && (inv as any).expenseYear !== null
         ? Number((inv as any).expenseYear)
-        : (invDate && invDate.includes('-') ? parseInt(invDate.split('-')[0]) : null);
+        : (expParts.length >= 1 ? parseInt(expParts[0], 10) : null);
 
-      if (effM !== null && effY !== null) {
-        matchesMonth = buySearchMonth === 'all' || effM === parseInt(buySearchMonth);
-        matchesYear = buySearchYear === 'all' || effY === parseInt(buySearchYear);
+      if (buySearchDay !== 'all') {
+        matchesDay = effD !== null && effD === parseInt(buySearchDay, 10);
       }
-      return matchesSupplier && matchesDate && matchesMonth && matchesYear;
+      if (buySearchMonth !== 'all') {
+        matchesMonth = effM !== null && effM === parseInt(buySearchMonth, 10);
+      }
+      if (buySearchYear !== 'all') {
+        matchesYear = effY !== null && effY === parseInt(buySearchYear, 10);
+      }
+      return matchesSupplier && matchesDate && matchesDay && matchesMonth && matchesYear;
     });
-  }, [safeInvoices, buySearchSupplier, buySearchDate, buySearchMonth, buySearchYear]);
+  }, [safeInvoices, buySearchSupplier, buySearchDate, buySearchDay, buySearchMonth, buySearchYear]);
+
+  const handleToggleBuySort = (field: 'grossBill' | 'discount' | 'netBill' | 'paidAmount' | 'dueAmount') => {
+    if (buySortField !== field) {
+      setBuySortField(field);
+      setBuySortDir('desc');
+    } else if (buySortDir === 'desc') {
+      setBuySortDir('asc');
+    } else {
+      setBuySortField('none');
+      setBuySortDir('desc');
+    }
+  };
+
+  const sortedFilteredPurchases = useMemo(() => {
+    if (buySortField === 'none') return filteredPurchases;
+    const getSortVal = (inv: PurchaseInvoice) => {
+      switch (buySortField) {
+        case 'grossBill': return Number(inv.totalAmount || inv.netPayable || 0);
+        case 'discount': return Number(inv.discount || 0);
+        case 'netBill': return Number(inv.netPayable || 0);
+        case 'paidAmount': return Number(inv.paidAmount || 0);
+        case 'dueAmount': return Number(inv.dueAmount || 0);
+        default: return 0;
+      }
+    };
+    return [...filteredPurchases].sort((a, b) => {
+      const diff = getSortVal(a) - getSortVal(b);
+      return buySortDir === 'asc' ? diff : -diff;
+    });
+  }, [filteredPurchases, buySortField, buySortDir]);
 
   const purchaseStats = useMemo(() => {
     let totalInvoices = 0;
@@ -729,7 +902,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           if (!it) return;
           list.push({
             invoiceId: inv.invoiceId,
-            invoiceDate: inv.invoiceDate,
+            invoiceDate: getEffectivePurchaseExpenseDate(inv) || inv.invoiceDate,
             source: inv.source,
             tradeName: it.tradeName || 'Unnamed',
             genericName: it.genericName,
@@ -980,22 +1153,35 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   // Open any invoice in full multi-line edit mode
   const executeOpenEditPurchaseInvoice = (inv: PurchaseInvoice) => {
     if (isLumpSumPurchase(inv)) {
+      setActiveTab('buy');
       openEditLumpSumPurchase(inv);
       return;
     }
-    const invDate = inv.invoiceDate || new Date().toISOString().split('T')[0];
-    const parts = invDate.split('-');
-    const defaultM = (parts.length >= 2) ? parseInt(parts[1]) - 1 : new Date().getMonth();
-    const defaultY = (parts.length >= 1) ? parseInt(parts[0]) : new Date().getFullYear();
+    const effExpDate = getEffectivePurchaseExpenseDate(inv) || new Date().toISOString().split('T')[0];
+    const entryD = getPurchaseEntryDate(inv) || effExpDate;
+    const parts = effExpDate.split('-');
+    const defaultY = (parts.length >= 1 && !isNaN(parseInt(parts[0], 10))) ? parseInt(parts[0], 10) : new Date().getFullYear();
+    const defaultM = (parts.length >= 2 && !isNaN(parseInt(parts[1], 10))) ? parseInt(parts[1], 10) - 1 : new Date().getMonth();
+    const defaultD = (parts.length >= 3 && !isNaN(parseInt(parts[2], 10))) ? parseInt(parts[2], 10) : new Date().getDate();
+
+    const expY = (inv as any).expenseYear !== undefined && (inv as any).expenseYear !== null ? Number((inv as any).expenseYear) : defaultY;
+    const expM = (inv as any).expenseMonth !== undefined && (inv as any).expenseMonth !== null ? Number((inv as any).expenseMonth) : defaultM;
+    const rawExpD = (inv as any).expenseDay !== undefined && (inv as any).expenseDay !== null ? Number((inv as any).expenseDay) : defaultD;
+    const expD = Math.min(Math.max(1, rawExpD), getDaysInMonthCount(expY, expM));
+    const finalExpDate = `${expY}-${String(expM + 1).padStart(2, '0')}-${String(expD).padStart(2, '0')}`;
 
     setPurchaseFormData({
       ...inv,
       invoiceId: inv.invoiceId,
-      invoiceDate: invDate,
-      expenseMonth: (inv as any).expenseMonth !== undefined ? Number((inv as any).expenseMonth) : defaultM,
-      expenseYear: (inv as any).expenseYear !== undefined ? Number((inv as any).expenseYear) : defaultY,
+      invoiceDate: finalExpDate,
+      entryDate: entryD,
+      expenseDay: expD,
+      expenseMonth: expM,
+      expenseYear: expY,
+      expenseDate: finalExpDate,
       items: Array.isArray(inv.items) ? [...inv.items] : []
     });
+    setActiveTab('buy');
     setEditingPurchaseId(inv.invoiceId);
     setBuyViewMode('edit');
     setIsOpeningStock(inv.status === 'Initial');
@@ -1008,11 +1194,13 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   };
 
   const handleOpenEditPurchaseInvoice = (inv: PurchaseInvoice) => {
+    const effExpDate = getEffectivePurchaseExpenseDate(inv) || inv.invoiceDate;
+    const entryD = getPurchaseEntryDate(inv) || inv.invoiceDate;
     if (isLumpSumPurchase(inv)) {
       setConfirmModal({
         isOpen: true,
         title: '✏️ এককালীন ক্রয় এডিট নিশ্চিতকরণ',
-        message: `আপনি কি এককালীন মাসিক ক্রয় ইনভয়েস (${inv.invoiceId}) এডিট করতে চান?\n\n• মাস ও সন: ${inv.invoiceDate}\n• মোট বিল: ৳${(inv.netPayable || 0).toFixed(2)}\n• পরিশোধ: ৳${Number(inv.paidAmount || 0).toFixed(2)}\n• বকেয়া: ৳${Number(inv.dueAmount || 0).toFixed(2)}`,
+        message: `আপনি কি এককালীন মাসিক ক্রয় ইনভয়েস (${inv.invoiceId}) এডিট করতে চান?\n\n• খরচের তারিখ ও মাস: ${effExpDate}\n• মোট বিল: ৳${(inv.netPayable || 0).toFixed(2)}\n• পরিশোধ: ৳${Number(inv.paidAmount || 0).toFixed(2)}\n• বকেয়া: ৳${Number(inv.dueAmount || 0).toFixed(2)}`,
         onConfirm: () => {
           setConfirmModal(prev => ({ ...prev, isOpen: false }));
           openEditLumpSumPurchase(inv);
@@ -1023,7 +1211,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     setConfirmModal({
       isOpen: true,
       title: '✏️ ক্রয় ইনভয়েস সংশোধন / এডিট নিশ্চিতকরণ',
-      message: `আপনি কি এই ক্রয় ইনভয়েসটি (${inv.invoiceId}) এডিট ও চেক করতে চান?\n\n• সরবরাহকারী / কোম্পানি: ${inv.source}\n• তারিখ: ${inv.invoiceDate}\n• মোট আইটেম: ${Array.isArray(inv.items) ? inv.items.length : 0} টি\n• মোট বিল: ৳${(inv.netPayable || 0).toFixed(2)}\n• পরিশোধিত টাকা: ৳${Number(inv.paidAmount || 0).toFixed(2)}\n• বর্তমান বকেয়া: ৳${Number(inv.dueAmount || 0).toFixed(2)}\n\n💡 সম্মতি দিলে ইনভয়েসের সকল লাইন ফর্মে লোড হবে এবং পরিবর্তন করে আপডেট করতে পারবেন।`,
+      message: `আপনি কি আসলেই এই ক্রয় ইনভয়েসটি (${inv.invoiceId}) এডিট করতে চান?\n\n• কোম্পানি / সরবরাহকারী: ${inv.source}\n• এন্ট্রি ডেট: ${entryD}\n• খরচের তারিখ ও মাস: ${effExpDate}\n• মোট আইটেম: ${Array.isArray(inv.items) ? inv.items.length : 0} টি\n• নিট বিল: ৳${(inv.netPayable || 0).toFixed(2)} | পরিশোধ: ৳${Number(inv.paidAmount || 0).toFixed(2)} | বকেয়া: ৳${Number(inv.dueAmount || 0).toFixed(2)}\n\n💡 সম্মতি দিলে ইনভয়েসটি ফর্মে লোড হবে এবং দিন, মাস, বছর ও আইটেম পরিবর্তন করে আপডেট করতে পারবেন।`,
       onConfirm: () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         executeOpenEditPurchaseInvoice(inv);
@@ -1058,25 +1246,42 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
       }
       
       const isEdit = buyViewMode === 'edit';
+      const now = new Date();
+      const expY = purchaseFormData.expenseYear !== undefined ? Number(purchaseFormData.expenseYear) : now.getFullYear();
+      const expM = purchaseFormData.expenseMonth !== undefined ? Number(purchaseFormData.expenseMonth) : now.getMonth();
+      const rawDay = purchaseFormData.expenseDay !== undefined ? Number(purchaseFormData.expenseDay) : now.getDate();
+      const expD = Math.min(Math.max(1, rawDay), getDaysInMonthCount(expY, expM));
+      const expDateStr = `${expY}-${String(expM + 1).padStart(2, '0')}-${String(expD).padStart(2, '0')}`;
+      const expMonthName = monthOptions.find(m => m.value === expM)?.name || '';
+      const entryDateStr = purchaseFormData.entryDate || now.toISOString().split('T')[0];
+
       setConfirmModal({
           isOpen: true,
-          title: isEdit ? 'ক্রয় ইনভয়েস সংশোধন নিশ্চিতকরণ' : 'ক্রয় ইনভয়েস সংরক্ষণ নিশ্চিতকরণ',
-          message: `আপনি কি নিশ্চিতভাবে এই ক্রয় ইনভয়েসটি (${purchaseFormData.invoiceId}) ${isEdit ? 'আপডেট' : 'সেভ'} করতে চান?\n\n• সরবরাহকারী (Supplier): ${purchaseFormData.source}\n• মোট প্রদেয় বিল: ৳${(purchaseFormData.netPayable || 0).toFixed(2)}\n• পরিশোধিত টাকা: ৳${(purchaseFormData.paidAmount || 0).toFixed(2)}\n• বর্তমান বকেয়া: ৳${(purchaseFormData.dueAmount || 0).toFixed(2)}\n\n💡 এটি সংরক্ষণ করলে তালিকাভুক্ত ঔষধগুলোর স্টক স্বয়ংক্রিয়ভাবে সমন্বিত হবে এবং সাপ্লায়ার বকেয়া হিসেবে নির্ভুলভাবে যোগ হবে।`,
+          title: isEdit ? 'ক্রয় ইনভয়েস আপডেট নিশ্চিতকরণ' : 'ক্রয় ইনভয়েস সংরক্ষণ নিশ্চিতকরণ',
+          message: `আপনি কি আসলেই এই ক্রয় ইনভয়েসটি (${purchaseFormData.invoiceId}) ${isEdit ? 'আপডেট' : 'সেভ'} করতে চান?\n\n• কোম্পানি (Supplier): ${purchaseFormData.source}\n• এন্ট্রি ডেট: ${entryDateStr}\n• খরচের তারিখ ও মাস: ${expD} ${expMonthName}, ${expY} (${expDateStr})\n• মোট আইটেম: ${purchaseFormData.items.length} টি\n• নিট বিল: ৳${(purchaseFormData.netPayable || 0).toFixed(2)} | পরিশোধ: ৳${(purchaseFormData.paidAmount || 0).toFixed(2)} | বকেয়া: ৳${(purchaseFormData.dueAmount || 0).toFixed(2)}\n\n💡 এটি ${isEdit ? 'আপডেট' : 'সেভ'} করলে খরচটি "${expMonthName} ${expY}" মাসে বসবে এবং কনসোলিডেটেড পেজের "মোট ঔষধ ক্রয়" হিসাবে চলে যাবে।`,
           onConfirm: executeSavePurchase
       });
   };
 
   const executeSavePurchase = async () => {
+      const isEdit = buyViewMode === 'edit';
       setConfirmModal(prev => ({ ...prev, isOpen: false }));
       setLoading(true);
+      setPurchaseProgressState({
+          status: 'saving',
+          isEdit,
+          title: isEdit ? 'ইনভয়েসটি আপডেট হচ্ছে...' : 'ইনভয়েসটি সেভ হচ্ছে...',
+          step: 'ইনভয়েসের হিসাব, তারিখ ও ঔষধের স্টক সমন্বয় করা হচ্ছে...',
+          message: ''
+      });
       try {
           const finalStatus = isOpeningStock ? 'Initial' : 'Posted';
           
           const newMedsArr = [...safeMedicines];
           // If editing, reverse the previous invoice items quantities first
-          if(buyViewMode === 'edit' && editingPurchaseId) {
+          if (isEdit && editingPurchaseId) {
               const oldInv = safeInvoices.find(x => x && (x.invoiceId === editingPurchaseId || x.id === editingPurchaseId));
-              if(oldInv && Array.isArray(oldInv.items)) {
+              if (oldInv && Array.isArray(oldInv.items)) {
                   oldInv.items.forEach(oldItem => {
                       if (!oldItem) return;
                       const mIdx = newMedsArr.findIndex(m => m && m.id === oldItem.id);
@@ -1145,22 +1350,25 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           const due = Math.max(0, net - paid);
 
           const invId = String(purchaseFormData.invoiceId || editingPurchaseId || `PUR-${Date.now()}`).trim();
-          const defaultDate = (buySearchYear !== 'all' && buySearchMonth !== 'all')
-              ? `${buySearchYear}-${String(parseInt(buySearchMonth) + 1).padStart(2, '0')}-01`
-              : new Date().toISOString().split('T')[0];
-          const invDate = purchaseFormData.invoiceDate || defaultDate;
-          const [invY, invM] = invDate.split('-');
-          const defaultExpM = invM ? parseInt(invM) - 1 : new Date().getMonth();
-          const defaultExpY = invY ? parseInt(invY) : new Date().getFullYear();
-          const expM = purchaseFormData.expenseMonth !== undefined ? Number(purchaseFormData.expenseMonth) : defaultExpM;
-          const expY = purchaseFormData.expenseYear !== undefined ? Number(purchaseFormData.expenseYear) : defaultExpY;
-          const expDate = `${expY}-${String(expM + 1).padStart(2, '0')}-01`;
+          const now = new Date();
+          const todayStr = now.toISOString().split('T')[0];
+          const entryDateStr = purchaseFormData.entryDate || (purchaseFormData.createdDate ? String(purchaseFormData.createdDate).split('T')[0] : '') || todayStr;
+          const fallbackDate = purchaseFormData.invoiceDate || entryDateStr;
+          const [fbY, fbM, fbD] = fallbackDate.split('-');
+          const expY = purchaseFormData.expenseYear !== undefined ? Number(purchaseFormData.expenseYear) : (fbY ? parseInt(fbY, 10) : now.getFullYear());
+          const expM = purchaseFormData.expenseMonth !== undefined ? Number(purchaseFormData.expenseMonth) : (fbM ? parseInt(fbM, 10) - 1 : now.getMonth());
+          const rawDay = purchaseFormData.expenseDay !== undefined ? Number(purchaseFormData.expenseDay) : (fbD ? parseInt(fbD, 10) : now.getDate());
+          const safeExpDay = Math.min(Math.max(1, rawDay), getDaysInMonthCount(expY, expM));
+          const expDate = `${expY}-${String(expM + 1).padStart(2, '0')}-${String(safeExpDay).padStart(2, '0')}`;
+          const expMonthName = monthOptions.find(m => m.value === expM)?.name || '';
 
           const savedInvoice: PurchaseInvoice = {
               ...purchaseFormData,
               id: invId,
               invoiceId: invId,
-              invoiceDate: invDate,
+              invoiceDate: expDate,
+              entryDate: entryDateStr,
+              expenseDay: safeExpDay,
               expenseMonth: expM,
               expenseYear: expY,
               expenseDate: expDate,
@@ -1174,6 +1382,11 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               createdDate: purchaseFormData.createdDate || new Date().toISOString()
           };
 
+          setPurchaseProgressState(prev => prev ? {
+              ...prev,
+              step: 'ক্লাউড ডেটাবেজ ও কনসোলিডেটেড হিসাবে ইনভয়েসটি সংরক্ষণ করা হচ্ছে...'
+          } : null);
+
           // 1. Direct database persistence (writes directly to modular purchase_invoices table)
           try {
               await dbService.savePurchaseInvoiceDirectly(savedInvoice);
@@ -1182,8 +1395,14 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           }
 
           let newInvoicesArr = [...safeInvoices];
-          if (buyViewMode === 'edit') {
-              newInvoicesArr = newInvoicesArr.map(inv => (inv && (inv.invoiceId === editingPurchaseId || inv.id === editingPurchaseId)) ? savedInvoice : inv);
+          if (isEdit) {
+              const targetKey = editingPurchaseId || invId;
+              const matched = newInvoicesArr.some(inv => inv && (inv.invoiceId === targetKey || inv.id === targetKey));
+              if (matched) {
+                  newInvoicesArr = newInvoicesArr.map(inv => (inv && (inv.invoiceId === targetKey || inv.id === targetKey)) ? savedInvoice : inv);
+              } else {
+                  newInvoicesArr = [savedInvoice, ...newInvoicesArr];
+              }
           } else {
               newInvoicesArr = [ savedInvoice, ...newInvoicesArr.filter(x => x && x.invoiceId !== invId && x.id !== invId) ];
           }
@@ -1191,6 +1410,8 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           // 2. Automatically align month/year filters so that the user immediately sees the saved voucher in the list
           setBuySearchYear(String(expY));
           setBuySearchMonth(String(expM));
+          setBuySearchDay('all');
+          setBuySearchDate('');
 
           // 3. Update global application state & trigger blocking cloud sync
           if (performBlockingSync) {
@@ -1198,14 +1419,27 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           }
           safeSetMedicines(newMedsArr);
           safeSetInvoices(newInvoicesArr);
-          setSuccessMessage(buyViewMode === 'edit' ? "ক্রয় ইনভয়েস সফলভাবে আপডেট হয়েছে!" : "ক্রয় ইনভয়েস সফলভাবে সেভ হয়েছে!");
+          setSuccessMessage(isEdit ? "ক্রয় ইনভয়েস সফলভাবে আপডেট হয়েছে!" : "ক্রয় ইনভয়েস সফলভাবে সেভ হয়েছে!");
           setBuyViewMode('list');
           setEditingPurchaseId(null);
           setIsOpeningStock(false);
-          setViewingPurchaseInvoice(savedInvoice);
-      } catch (err) {
+          setPurchaseProgressState({
+              status: 'success',
+              isEdit,
+              title: isEdit ? 'ইনভয়েসটি সফলভাবে আপডেট হয়েছে!' : 'ইনভয়েসটি সফলভাবে সেভ হয়েছে!',
+              step: '',
+              message: `ইনভয়েস (${invId}) — ${savedInvoice.source}\nএন্ট্রি ডেট: ${entryDateStr}\nখরচের তারিখ ও মাস: ${safeExpDay} ${expMonthName}, ${expY} (${expDate})\n\nখরচটি নির্ভুলভাবে "${expMonthName} ${expY}" মাসে সংরক্ষিত হয়েছে এবং কনসোলিডেটেড পেজের "মোট ঔষধ ক্রয়" হিসাবে যুক্ত হয়েছে।`,
+              savedInvoice
+          });
+      } catch (err: any) {
           console.error("Save error:", err);
-          alert("ডাটা সেভ করার সময় একটি ত্রুটি হয়েছে।");
+          setPurchaseProgressState({
+              status: 'error',
+              isEdit,
+              title: isEdit ? 'ইনভয়েস আপডেট ব্যর্থ হয়েছে' : 'ইনভয়েস সেভ ব্যর্থ হয়েছে',
+              step: '',
+              message: "ডাটা সেভ করার সময় একটি ত্রুটি হয়েছে: " + (err?.message || String(err))
+          });
       } finally {
           setLoading(false);
       }
@@ -2019,8 +2253,10 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
   const handlePrintHishab = () => {
     const monthName = monthOptions[selectedMonth]?.name || '';
     const filteredPurchases = safeInvoices.filter(inv => {
-        if (!inv || !inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return false;
-        const [y, m] = inv.invoiceDate.split('-').map(Number);
+        if (!inv || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return false;
+        const effDate = getEffectivePurchaseExpenseDate(inv);
+        if (!effDate || !effDate.includes('-')) return false;
+        const [y, m] = effDate.split('-').map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
     });
     const filteredSales = safeSalesInvoices.filter(inv => {
@@ -2181,6 +2417,227 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
     setTimeout(() => { win.print(); win.close(); }, 750);
   };
 
+  const renderSortIcon = (field: 'grossBill' | 'discount' | 'netBill' | 'paidAmount' | 'dueAmount') => {
+    if (buySortField !== field) return <ArrowUpDown className="w-3 h-3 inline ml-1 opacity-45" />;
+    return buySortDir === 'desc'
+      ? <ArrowDown className="w-3 h-3 inline ml-1 text-blue-700" />
+      : <ArrowUp className="w-3 h-3 inline ml-1 text-blue-700" />;
+  };
+
+  const renderPurchaseInvoicesTable = (invoicesList: PurchaseInvoice[], maxHeightClass = '') => (
+    <div className={`overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm ${maxHeightClass}`}>
+      <table className="w-full text-left border-collapse text-xs">
+        <thead className="bg-[#e8edf4] text-slate-800 border-b border-slate-300 sticky top-0 z-10">
+          <tr>
+            <th className="p-2 text-center font-bold text-[11px] uppercase border-r border-slate-300 w-10 text-slate-800">
+              সিরিয়াল
+            </th>
+            <th className="p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-slate-800 whitespace-nowrap">
+              ইনভয়েস আইডি
+            </th>
+            <th className="p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-slate-800 whitespace-nowrap">
+              এন্ট্রি ডেট
+            </th>
+            <th className="p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-amber-800 whitespace-nowrap bg-amber-50/70">
+              খরচের দিন / তারিখ / মাস
+            </th>
+            <th className="p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-slate-800">
+              কোম্পানির নাম
+            </th>
+            <th className="p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-slate-800">
+              আইটেম (সংক্ষেপে)
+            </th>
+            <th className="p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-slate-800 whitespace-nowrap">
+              এন্ট্রিকারী
+            </th>
+            <th
+              onClick={() => handleToggleBuySort('grossBill')}
+              title="ক্লিক করে গ্রস বিল অনুযায়ী সর্ট করুন"
+              className={`p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-right cursor-pointer select-none whitespace-nowrap transition-colors hover:bg-blue-100 ${buySortField === 'grossBill' ? 'bg-blue-100 text-blue-900' : 'text-slate-800'}`}
+            >
+              গ্রস বিল{renderSortIcon('grossBill')}
+            </th>
+            <th
+              onClick={() => handleToggleBuySort('discount')}
+              title="ক্লিক করে ছাড় অনুযায়ী সর্ট করুন"
+              className={`p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-right cursor-pointer select-none whitespace-nowrap transition-colors hover:bg-rose-100 ${buySortField === 'discount' ? 'bg-rose-100 text-rose-800' : 'text-rose-600'}`}
+            >
+              ছাড়{renderSortIcon('discount')}
+            </th>
+            <th
+              onClick={() => handleToggleBuySort('netBill')}
+              title="ক্লিক করে নিট বিল অনুযায়ী সর্ট করুন"
+              className={`p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-right cursor-pointer select-none whitespace-nowrap transition-colors hover:bg-blue-100 ${buySortField === 'netBill' ? 'bg-blue-100 text-blue-900' : 'text-slate-800'}`}
+            >
+              নিট বিল{renderSortIcon('netBill')}
+            </th>
+            <th
+              onClick={() => handleToggleBuySort('paidAmount')}
+              title="ক্লিক করে টাকা পরিশোধ অনুযায়ী সর্ট করুন"
+              className={`p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-right cursor-pointer select-none whitespace-nowrap transition-colors hover:bg-emerald-100 ${buySortField === 'paidAmount' ? 'bg-emerald-200 text-emerald-950' : 'text-slate-800 bg-[#f0fdf4]'}`}
+            >
+              টাকা পরিশোধ{renderSortIcon('paidAmount')}
+            </th>
+            <th
+              onClick={() => handleToggleBuySort('dueAmount')}
+              title="ক্লিক করে বাকি টাকা অনুযায়ী সর্ট করুন"
+              className={`p-2 font-bold text-[11px] uppercase border-r border-slate-300 text-right cursor-pointer select-none whitespace-nowrap transition-colors hover:bg-rose-100 ${buySortField === 'dueAmount' ? 'bg-rose-100 text-rose-900' : 'text-slate-800'}`}
+            >
+              বাকি আছে{renderSortIcon('dueAmount')}
+            </th>
+            <th className="p-2 font-bold text-[11px] uppercase text-center text-slate-800 whitespace-nowrap">
+              অ্যাকশন
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoicesList.map((inv, idx) => {
+            const grossBill = Number(inv.totalAmount || inv.netPayable || 0);
+            const discount = Number(inv.discount || 0);
+            const netBill = Number(inv.netPayable || 0);
+            const cashPaid = Number(inv.paidAmount || 0);
+            const dueAmt = Number(inv.dueAmount || 0);
+            const itemsSummary = getPurchaseItemsSummary(inv);
+            const operatorName = inv.billCreatedBy || inv.billPaidBy || 'Admin';
+            const entryDateVal = getPurchaseEntryDate(inv);
+            const expDateVal = getEffectivePurchaseExpenseDate(inv);
+            const expParts = expDateVal.includes('-') ? expDateVal.split('-') : [];
+            const expY = (inv as any).expenseYear !== undefined ? Number((inv as any).expenseYear) : (expParts[0] ? Number(expParts[0]) : null);
+            const expM = (inv as any).expenseMonth !== undefined ? Number((inv as any).expenseMonth) : (expParts[1] ? Number(expParts[1]) - 1 : null);
+            const expD = (inv as any).expenseDay !== undefined ? Number((inv as any).expenseDay) : (expParts[2] ? Number(expParts[2]) : null);
+            const expMonthName = expM !== null ? (monthOptions.find(m => m.value === expM)?.name || '') : '';
+
+            return (
+              <tr
+                key={inv.invoiceId}
+                onDoubleClick={() => handleOpenEditPurchaseInvoice(inv)}
+                title="ডাবল ক্লিক করে ইনভয়েসটি এডিট ও আপডেট করুন"
+                className="border-b border-slate-300 hover:bg-slate-50 transition-colors bg-white cursor-pointer"
+              >
+                <td className="p-2 text-center font-bold text-slate-700 border-r border-slate-300 text-xs">
+                  {idx + 1}
+                </td>
+                <td className="p-2 border-r border-slate-300 text-xs font-mono font-bold text-blue-700 whitespace-nowrap">
+                  <div>{inv.invoiceId}</div>
+                  {isLumpSumPurchase(inv) && (
+                    <span className="inline-block bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded text-[9px] font-sans font-bold mt-0.5">
+                      এককালীন
+                    </span>
+                  )}
+                  {inv.status === 'Initial' && (
+                    <span className="inline-block bg-slate-100 text-slate-600 border border-slate-300 px-1.5 py-0.2 rounded text-[9px] font-sans font-bold mt-0.5">
+                      Opening
+                    </span>
+                  )}
+                </td>
+                <td className="p-2 border-r border-slate-300 text-xs whitespace-nowrap">
+                  <div className="font-bold text-slate-800 font-mono">{entryDateVal || '-'}</div>
+                  {inv.createdDate && (
+                    <span className="text-[10px] text-slate-500 font-normal block">
+                      {new Date(inv.createdDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </td>
+                <td className="p-2 border-r border-slate-300 text-xs bg-amber-50/40 whitespace-nowrap">
+                  <div className="font-black text-amber-900 font-mono">{expDateVal || '-'}</div>
+                  {expMonthName && expY && (
+                    <span className="text-[10px] text-amber-700 font-bold block">
+                      {expD ? `${expD} ` : ''}{expMonthName}, {expY}
+                    </span>
+                  )}
+                </td>
+                <td className="p-2 border-r border-slate-300 text-xs">
+                  <span className="text-slate-900 font-bold">{inv.source}</span>
+                </td>
+                <td className="p-2 border-r border-slate-300 text-xs max-w-[190px]" title={itemsSummary.fullText}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="bg-sky-100 text-sky-800 border border-sky-300 px-1.5 py-0.5 rounded font-black text-[10px] shrink-0">
+                      {itemsSummary.count} টি
+                    </span>
+                    <span className="text-slate-700 font-medium truncate">
+                      {itemsSummary.shortText}
+                    </span>
+                  </div>
+                </td>
+                <td className="p-2 border-r border-slate-300 text-slate-700 font-semibold text-xs whitespace-nowrap">
+                  {operatorName}
+                </td>
+                <td className="p-2 text-right font-bold text-slate-800 border-r border-slate-300 text-xs whitespace-nowrap">
+                  ৳{grossBill.toFixed(0)}
+                </td>
+                <td className="p-2 text-right font-bold text-rose-600 border-r border-slate-300 text-xs whitespace-nowrap">
+                  {discount > 0 ? `-৳${discount.toFixed(0)}` : '৳০'}
+                </td>
+                <td className="p-2 text-right font-bold text-slate-900 border-r border-slate-300 text-xs whitespace-nowrap">
+                  ৳{netBill.toFixed(0)}
+                </td>
+                <td className="p-2 text-right font-bold text-emerald-800 bg-[#f0fdf4] border-r border-slate-300 text-xs whitespace-nowrap">
+                  ৳{cashPaid.toFixed(0)}
+                </td>
+                <td className={`p-2 text-right font-bold border-r border-slate-300 text-xs whitespace-nowrap ${dueAmt > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                  ৳{dueAmt.toFixed(0)}
+                </td>
+                <td className="p-2 text-center whitespace-nowrap">
+                  <div className="flex items-center justify-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingPurchaseInvoice(inv);
+                      }}
+                      className="p-1.5 rounded border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                      title="ভাউচার দেখুন"
+                    >
+                      <EyeIcon className="w-3.5 h-3.5 text-sky-600" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditPurchaseInvoice(inv);
+                      }}
+                      className="p-1.5 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                      title="ইনভয়েস এডিট করুন"
+                    >
+                      <EditIcon className="w-3.5 h-3.5 text-amber-600" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePrintPurchase(inv);
+                      }}
+                      className="p-1.5 rounded border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                      title="প্রিন্ট করুন"
+                    >
+                      <PrinterIcon className="w-3.5 h-3.5 text-blue-600" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReturnPurchase(inv);
+                      }}
+                      className="p-1.5 rounded border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
+                      title="ফেরত / বাতিল করুন"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {invoicesList.length === 0 && (
+        <div className="p-10 text-center text-slate-500 font-bold text-sm bg-white border-b border-slate-300">
+          কোনো ক্রয় ইনভয়েস পাওয়া যায়নি।
+        </div>
+      )}
+    </div>
+  );
+
   const renderBuyTab = () => {
     if (buyViewMode === 'list') {
       const selectedMonthLabel = buySearchMonth === 'all' 
@@ -2202,17 +2659,26 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               <button 
                 onClick={() => {
                   const newId = `PUR-${Date.now()}`;
-                  const defaultDate = buySearchDate || ((buySearchYear !== 'all' && buySearchMonth !== 'all')
-                    ? `${buySearchYear}-${String(parseInt(buySearchMonth) + 1).padStart(2, '0')}-01`
-                    : new Date().toISOString().split('T')[0]);
-                  const parts = defaultDate.split('-');
-                  const dY = parts.length >= 1 ? parseInt(parts[0]) : new Date().getFullYear();
-                  const dM = parts.length >= 2 ? parseInt(parts[1]) - 1 : new Date().getMonth();
+                  const now = new Date();
+                  const todayStr = now.toISOString().split('T')[0];
+                  const targetY = buySearchYear !== 'all' ? parseInt(buySearchYear, 10) : now.getFullYear();
+                  const targetM = buySearchMonth !== 'all' ? parseInt(buySearchMonth, 10) : now.getMonth();
+                  const targetD = buySearchDay !== 'all'
+                    ? Math.min(parseInt(buySearchDay, 10), getDaysInMonthCount(targetY, targetM))
+                    : Math.min(now.getDate(), getDaysInMonthCount(targetY, targetM));
+                  const defaultExpDate = buySearchDate || `${targetY}-${String(targetM + 1).padStart(2, '0')}-${String(targetD).padStart(2, '0')}`;
+                  const parts = defaultExpDate.split('-');
+                  const dY = parts.length >= 1 ? parseInt(parts[0], 10) : targetY;
+                  const dM = parts.length >= 2 ? parseInt(parts[1], 10) - 1 : targetM;
+                  const dDay = parts.length >= 3 ? parseInt(parts[2], 10) : targetD;
                   setPurchaseFormData({
                     invoiceId: newId,
-                    invoiceDate: defaultDate,
-                    expenseMonth: buySearchMonth !== 'all' ? parseInt(buySearchMonth) : dM,
-                    expenseYear: buySearchYear !== 'all' ? parseInt(buySearchYear) : dY,
+                    invoiceDate: defaultExpDate,
+                    entryDate: todayStr,
+                    expenseDay: dDay,
+                    expenseMonth: dM,
+                    expenseYear: dY,
+                    expenseDate: defaultExpDate,
                     source: '',
                     items: [],
                     totalAmount: 0,
@@ -2249,10 +2715,10 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
               <button
                 onClick={() => {
-                  const targetDate = buySearchDate || (filteredPurchases.length > 0 ? filteredPurchases[0].invoiceDate : new Date().toISOString().split('T')[0]);
+                  const targetDate = buySearchDate || (sortedFilteredPurchases.length > 0 ? getEffectivePurchaseExpenseDate(sortedFilteredPurchases[0]) : new Date().toISOString().split('T')[0]);
                   const invoicesForDate = buySearchDate 
-                    ? filteredPurchases.filter(p => p.invoiceDate === buySearchDate)
-                    : filteredPurchases;
+                    ? sortedFilteredPurchases.filter(p => getEffectivePurchaseExpenseDate(p) === buySearchDate)
+                    : sortedFilteredPurchases;
                   handlePrintPurchaseMonthlyReport(
                     invoicesForDate, 
                     `তারিখ ভিত্তিক ক্রয় রিপোর্ট (তারিখ: ${targetDate})${buySearchSupplier ? ` (${buySearchSupplier})` : ''}`
@@ -2268,7 +2734,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               <button
                 onClick={() => {
                   const mLabel = buySearchMonth === 'all' ? 'সকল মাস' : (monthOptions.find(m => m.value.toString() === buySearchMonth)?.name || '');
-                  handlePrintPurchaseMonthlyReport(filteredPurchases, `${mLabel}, ${buySearchYear}${buySearchSupplier ? ` (${buySearchSupplier})` : ''}`);
+                  handlePrintPurchaseMonthlyReport(sortedFilteredPurchases, `${mLabel}, ${buySearchYear}${buySearchSupplier ? ` (${buySearchSupplier})` : ''}`);
                 }}
                 className="bg-slate-700 hover:bg-slate-600 text-sky-300 hover:text-white px-4 py-2.5 rounded-xl font-bold shadow-md transition-all active:scale-95 flex items-center gap-2 text-xs md:text-sm border border-slate-600 cursor-pointer"
                 title="ফিল্টারকৃত মাসের ক্রয় তালিকা প্রিন্ট করুন"
@@ -2280,10 +2746,10 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           </div>
 
           {/* Filter Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 bg-slate-900/70 p-4 rounded-2xl border border-slate-700 shadow-lg">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 bg-slate-900/70 p-4 rounded-2xl border border-slate-700 shadow-lg">
             <div className="md:col-span-2">
               <label className="block text-[10px] font-black text-slate-400 mb-1 uppercase tracking-wider">
-                সাপ্লায়ার / ইনভয়েস / ওষুধের নাম দিয়ে খুঁজুন
+                কোম্পানি / ইনভয়েস / ওষুধের নাম দিয়ে খুঁজুন
               </label>
               <input
                 type="text"
@@ -2292,6 +2758,23 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 placeholder="যেমন: Square, PUR-123, Napa..."
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold placeholder-slate-500 focus:border-blue-500 outline-none"
               />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 mb-1 uppercase tracking-wider">
+                দিন (Day)
+              </label>
+              <select
+                value={buySearchDay}
+                onChange={e => setBuySearchDay(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold focus:border-blue-500 outline-none"
+              >
+                <option value="all">সকল দিন</option>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                  <option key={d} value={String(d)}>
+                    {String(d).padStart(2, '0')} তারিখ
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 mb-1 uppercase tracking-wider">
@@ -2331,7 +2814,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white text-sm font-bold focus:border-blue-500 outline-none"
               >
                 <option value="all">সকল বছর (All Years)</option>
-                {[2023, 2024, 2025, 2026, 2027, 2028].map(y => (
+                {[2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
                   <option key={y} value={y.toString()}>
                     {y}
                   </option>
@@ -2344,19 +2827,21 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
           <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-700 shadow-2xl space-y-3">
             <div className="flex flex-wrap justify-between items-center pb-3 border-b border-slate-800">
               <span className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                📊 ক্রয়ের হিসাব সামারি: <span className="text-blue-400">{selectedMonthLabel}, {selectedYearLabel}</span>
+                📊 ক্রয়ের হিসাব সামারি: <span className="text-blue-400">{buySearchDay !== 'all' ? `${buySearchDay} ` : ''}{selectedMonthLabel}, {selectedYearLabel}</span>
               </span>
-              {(buySearchSupplier || buySearchDate || buySearchMonth !== 'all' || buySearchYear !== 'all') && (
+              {(buySearchSupplier || buySearchDate || buySearchDay !== 'all' || buySearchMonth !== 'all' || buySearchYear !== 'all' || buySortField !== 'none') && (
                 <button
                   onClick={() => {
                     setBuySearchSupplier('');
                     setBuySearchDate('');
+                    setBuySearchDay('all');
                     setBuySearchMonth('all');
                     setBuySearchYear(new Date().getFullYear().toString());
+                    setBuySortField('none');
                   }}
-                  className="text-xs font-bold text-rose-400 hover:text-rose-300 underline"
+                  className="text-xs font-bold text-rose-400 hover:text-rose-300 underline cursor-pointer"
                 >
-                  ফিল্টার রিসেট করুন
+                  ফিল্টার ও সর্টিং রিসেট করুন
                 </button>
               )}
             </div>
@@ -2386,159 +2871,31 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
             </div>
           </div>
 
-          {/* Invoices List Table styled exactly like user screenshot */}
-          <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-[#e8edf4] text-slate-800 border-b border-slate-300">
-                <tr>
-                  <th className="p-2.5 text-center font-bold text-xs uppercase border-r border-slate-300 w-12 text-slate-800">
-                    ক্রমিক
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
-                    তারিখ / মাস-বছর
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
-                    এন্ট্রি টাইপ ও শিফট
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
-                    অপারেটর
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-center text-slate-800">
-                    রোগী / আইটেম
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
-                    গ্রস বিল
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-rose-600">
-                    ছাড়
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
-                    নিট বিল
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800 bg-[#f0fdf4]">
-                    ক্যাশ আদায়
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
-                    বাকি (DUE)
-                  </th>
-                  <th className="p-2.5 font-bold text-xs uppercase text-center text-slate-800">
-                    অ্যাকশন
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPurchases.map((inv, idx) => {
-                  const grossBill = Number(inv.totalAmount || inv.netPayable || 0);
-                  const discount = Number(inv.discount || 0);
-                  const netBill = Number(inv.netPayable || 0);
-                  const cashPaid = Number(inv.paidAmount || 0);
-                  const dueAmt = Number(inv.dueAmount || 0);
-                  const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
-                  const operatorName = inv.billCreatedBy || inv.billPaidBy || 'Admin';
-
-                  return (
-                    <tr
-                      key={inv.invoiceId}
-                      onDoubleClick={() => handleOpenEditPurchaseInvoice(inv)}
-                      title="ডাবল ক্লিক করে ইনভয়েসটি এডিট ও আপডেট করুন"
-                      className="border-b border-slate-300 hover:bg-slate-50 transition-colors bg-white cursor-pointer"
-                    >
-                      <td className="p-2.5 text-center font-bold text-slate-700 border-r border-slate-300 text-xs">
-                        {idx + 1}
-                      </td>
-                      <td className="p-2.5 border-r border-slate-300 text-xs">
-                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                          <span>{inv.invoiceDate}</span>
-                          <span className="text-[10px] text-slate-500 font-normal">
-                            ({inv.createdDate ? new Date(inv.createdDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '08:20 AM'})
-                          </span>
-                        </div>
-                        {((inv as any).expenseMonth !== undefined && (inv as any).expenseYear !== undefined) && (
-                          <span className="text-[10px] text-amber-700 font-medium block">
-                            খরচের মাস: {monthOptions.find(m => m.value === (inv as any).expenseMonth)?.name} {(inv as any).expenseYear}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2.5 border-r border-slate-300 text-xs">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="bg-sky-50 text-sky-700 border border-sky-300 px-2 py-0.5 rounded text-[11px] font-semibold">
-                            {isLumpSumPurchase(inv) ? 'এককালীন মাসিক ক্রয়' : 'দৈনিক ক্রয় (PURCHASE)'}
-                          </span>
-                          <span className="text-slate-800 font-bold text-xs">{inv.source}</span>
-                        </div>
-                      </td>
-                      <td className="p-2.5 border-r border-slate-300 text-slate-700 font-medium text-xs">
-                        {operatorName}
-                      </td>
-                      <td className="p-2.5 text-center border-r border-slate-300 font-bold text-slate-800 text-xs">
-                        {itemCount}
-                      </td>
-                      <td className="p-2.5 text-right font-bold text-slate-800 border-r border-slate-300 text-xs">
-                        ৳{grossBill.toFixed(0)}
-                      </td>
-                      <td className="p-2.5 text-right font-bold text-rose-600 border-r border-slate-300 text-xs">
-                        {discount > 0 ? `-৳${discount.toFixed(0)}` : '-৳০'}
-                      </td>
-                      <td className="p-2.5 text-right font-bold text-slate-900 border-r border-slate-300 text-xs">
-                        ৳{netBill.toFixed(0)}
-                      </td>
-                      <td className="p-2.5 text-right font-bold text-emerald-800 bg-[#f0fdf4] border-r border-slate-300 text-xs">
-                        ৳{cashPaid.toFixed(0)}
-                      </td>
-                      <td className={`p-2.5 text-right font-bold border-r border-slate-300 text-xs ${dueAmt > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-                        ৳{dueAmt.toFixed(0)}
-                      </td>
-                      <td className="p-2.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditPurchaseInvoice(inv);
-                            }}
-                            className="p-1.5 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
-                            title="ইনভয়েস এডিট করুন"
-                          >
-                            <EditIcon className="w-3.5 h-3.5 text-amber-600" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePrintPurchase(inv);
-                            }}
-                            className="p-1.5 rounded border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
-                            title="প্রিন্ট করুন"
-                          >
-                            <PrinterIcon className="w-3.5 h-3.5 text-blue-600" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleReturnPurchase(inv);
-                            }}
-                            className="p-1.5 rounded border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
-                            title="ফেরত / বাতিল করুন"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {filteredPurchases.length === 0 && (
-              <div className="p-12 text-center text-slate-500 font-bold text-sm bg-white border-b border-slate-300">
-                কোনো ক্রয় ইনভয়েস পাওয়া যায়নি।
-              </div>
-            )}
-          </div>
+          {/* Invoices List Table */}
+          {renderPurchaseInvoicesTable(sortedFilteredPurchases)}
         </div>
       );
     }
+    const formExpY = purchaseFormData.expenseYear !== undefined ? Number(purchaseFormData.expenseYear) : new Date().getFullYear();
+    const formExpM = purchaseFormData.expenseMonth !== undefined ? Number(purchaseFormData.expenseMonth) : new Date().getMonth();
+    const formDaysInMonth = getDaysInMonthCount(formExpY, formExpM);
+    const formExpD = Math.min(Math.max(1, Number(purchaseFormData.expenseDay || (purchaseFormData.invoiceDate ? parseInt(purchaseFormData.invoiceDate.split('-')[2], 10) : new Date().getDate()))), formDaysInMonth);
+    const formExpMonthName = monthOptions.find(m => m.value === formExpM)?.name || '';
+    const formExpDatePreview = `${formExpY}-${String(formExpM + 1).padStart(2, '0')}-${String(formExpD).padStart(2, '0')}`;
+
+    const updateExpenseParts = (newD: number, newM: number, newY: number) => {
+      const clampedD = Math.min(Math.max(1, newD), getDaysInMonthCount(newY, newM));
+      const newExpDate = `${newY}-${String(newM + 1).padStart(2, '0')}-${String(clampedD).padStart(2, '0')}`;
+      setPurchaseFormData(prev => ({
+        ...prev,
+        expenseDay: clampedD,
+        expenseMonth: newM,
+        expenseYear: newY,
+        expenseDate: newExpDate,
+        invoiceDate: newExpDate
+      }));
+    };
+
     return (
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl animate-fade-in">
             <div className="flex flex-wrap justify-between items-center mb-6 border-b border-slate-700 pb-3 gap-3">
@@ -2570,7 +2927,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="p-1 bg-amber-500 text-slate-950 rounded font-black text-[10px]">EDIT</span>
                   <span>
-                    আপনি ইনভয়েস <b className="font-mono text-white underline">{purchaseFormData.invoiceId}</b> এডিট করছেন। যেকোনো ঔষধের পরিমাণ, মূল্য বা মেয়াদ পরিবর্তন করতে পারবেন। পরিবর্তন শেষে নিচের <b>"আপডেট ক্রয় ইনভয়েস"</b> বাটনে চাপুন।
+                    আপনি ইনভয়েস <b className="font-mono text-white underline">{purchaseFormData.invoiceId}</b> এডিট করছেন। খরচের দিন/মাস/বছর বা যেকোনো ঔষধ পরিবর্তন করে নিচের <b>"আপডেট ক্রয় ইনভয়েস"</b> বাটনে চাপুন।
                   </span>
                 </div>
                 <button
@@ -2583,8 +2940,8 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5 items-end">
-                <div>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-5 items-start">
+                <div className="md:col-span-3">
                   <label className="block text-xs font-bold text-slate-300 mb-1.5 whitespace-nowrap">
                     ইনভয়েস আইডি (Invoice ID)
                   </label>
@@ -2596,52 +2953,57 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                       className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-sky-400 font-mono font-bold text-xs" 
                       title="একক ইনভয়েস ভাউচার নং"
                     />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newId = `PUR-${Date.now()}`;
-                        setPurchaseFormData(prev => ({ ...prev, invoiceId: newId }));
-                      }}
-                      className="bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold px-2.5 py-2.5 rounded-lg shadow whitespace-nowrap shrink-0 flex items-center gap-1 border border-sky-400 active:scale-95 cursor-pointer"
-                      title="নতুন ইনভয়েস নম্বর তৈরি করুন"
-                    >
-                      🔄 গেট ইনভয়েস (নতুন আইডি)
-                    </button>
+                    {buyViewMode === 'add' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newId = `PUR-${Date.now()}`;
+                          setPurchaseFormData(prev => ({ ...prev, invoiceId: newId }));
+                        }}
+                        className="bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold px-2.5 py-2.5 rounded-lg shadow whitespace-nowrap shrink-0 flex items-center gap-1 border border-sky-400 active:scale-95 cursor-pointer"
+                        title="নতুন ইনভয়েস নম্বর তৈরি করুন"
+                      >
+                        🔄 গেট
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5 whitespace-nowrap">
-                    ইনভয়েস তারিখ (ক্রয়ের তারিখ)
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-emerald-300 mb-1.5 whitespace-nowrap">
+                    এন্ট্রি ডেট (Entry Date)
                   </label>
                   <input 
                     type="date" 
-                    value={purchaseFormData.invoiceDate} 
+                    value={purchaseFormData.entryDate || new Date().toISOString().split('T')[0]} 
                     onChange={e => {
                       const val = e.target.value;
-                      const parts = val.split('-');
-                      const dM = parts.length >= 2 ? parseInt(parts[1]) - 1 : purchaseFormData.expenseMonth;
-                      const dY = parts.length >= 1 ? parseInt(parts[0]) : purchaseFormData.expenseYear;
-                      setPurchaseFormData(prev => ({
-                        ...prev, 
-                        invoiceDate: val,
-                        expenseMonth: prev.expenseMonth !== undefined ? prev.expenseMonth : dM,
-                        expenseYear: prev.expenseYear !== undefined ? prev.expenseYear : dY
-                      }));
+                      setPurchaseFormData(prev => ({ ...prev, entryDate: val }));
                     }} 
-                    className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white font-bold text-xs" 
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white font-bold text-xs focus:border-emerald-500 outline-none" 
+                    title="যে তারিখে সফটওয়্যারে এন্ট্রি দেওয়া হচ্ছে"
                   />
                 </div>
 
-                <div>
+                <div className="md:col-span-4">
                   <label className="block text-xs font-bold text-amber-400 mb-1.5 whitespace-nowrap">
-                    খরচের মাস ও সন (হিসাবের মাস)
+                    খরচের দিন, মাস ও বছর (যে মাসের/তারিখের জন্য খরচ)
                   </label>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1.5">
                     <select
-                      value={purchaseFormData.expenseMonth !== undefined ? purchaseFormData.expenseMonth : (purchaseFormData.invoiceDate ? parseInt(purchaseFormData.invoiceDate.split('-')[1]) - 1 : new Date().getMonth())}
-                      onChange={e => setPurchaseFormData(prev => ({ ...prev, expenseMonth: parseInt(e.target.value) }))}
-                      className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white font-bold text-xs"
+                      value={formExpD}
+                      onChange={e => updateExpenseParts(parseInt(e.target.value, 10), formExpM, formExpY)}
+                      className="w-full bg-slate-900 border border-amber-500/60 rounded-lg p-2.5 text-amber-300 font-black text-xs focus:border-amber-400 outline-none"
+                      title="খরচের দিন (Day)"
+                    >
+                      {Array.from({ length: formDaysInMonth }, (_, i) => i + 1).map(d => (
+                        <option key={d} value={d}>{String(d).padStart(2, '0')} তারিখ</option>
+                      ))}
+                    </select>
+                    <select
+                      value={formExpM}
+                      onChange={e => updateExpenseParts(formExpD, parseInt(e.target.value, 10), formExpY)}
+                      className="w-full bg-slate-900 border border-amber-500/60 rounded-lg p-2.5 text-white font-bold text-xs focus:border-amber-400 outline-none"
                       title="কোন মাসের খরচে এটি হিসাবভুক্ত হবে"
                     >
                       {monthOptions.map(m => (
@@ -2649,21 +3011,27 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                       ))}
                     </select>
                     <select
-                      value={purchaseFormData.expenseYear !== undefined ? purchaseFormData.expenseYear : (purchaseFormData.invoiceDate ? parseInt(purchaseFormData.invoiceDate.split('-')[0]) : new Date().getFullYear())}
-                      onChange={e => setPurchaseFormData(prev => ({ ...prev, expenseYear: parseInt(e.target.value) }))}
-                      className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white font-bold text-xs"
+                      value={formExpY}
+                      onChange={e => updateExpenseParts(formExpD, formExpM, parseInt(e.target.value, 10))}
+                      className="w-full bg-slate-900 border border-amber-500/60 rounded-lg p-2.5 text-white font-bold text-xs focus:border-amber-400 outline-none"
                       title="খরচের বছর"
                     >
-                      {[2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                      {[2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
                         <option key={y} value={y}>{y}</option>
                       ))}
                     </select>
                   </div>
+                  <div className="mt-1 text-[10px] font-bold text-amber-300/90 flex items-center gap-1">
+                    <span>📌 কনসোলিডেটেড হিসাবভুক্ত হবে:</span>
+                    <span className="text-white font-mono bg-amber-900/50 px-1.5 py-0.5 rounded border border-amber-600/40">
+                      {formExpD} {formExpMonthName}, {formExpY} ({formExpDatePreview})
+                    </span>
+                  </div>
                 </div>
 
-                <div className="relative">
+                <div className="md:col-span-3 relative">
                   <label className="block text-xs font-bold text-slate-300 mb-1.5 whitespace-nowrap">
-                    সরবরাহকারী বা সাপ্লায়ার
+                    কোম্পানি / সরবরাহকারী (Supplier)
                   </label>
                   <input 
                     type="text" 
@@ -2672,7 +3040,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                     onFocus={() => handleSupplierChange(purchaseFormData.source)} 
                     onBlur={()=>setTimeout(()=>setShowSupplierSuggestions(false), 200)} 
                     className={`w-full bg-slate-900 border rounded-lg p-2.5 text-white font-bold text-xs ${errors.source ? 'border-red-500' : 'border-slate-600'}`} 
-                    placeholder="Search Supplier..." 
+                    placeholder="কোম্পানির নাম লিখুন..." 
                     autoComplete="off"
                   />
                   {showSupplierSuggestions && supplierSuggestions.length > 0 && (
@@ -2905,162 +3273,90 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
             {/* Recent Saved Invoices List directly under the purchase entry form */}
             {safeInvoices.length > 0 && (
               <div className="mt-12 pt-8 border-t border-slate-700 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/60 p-3 rounded-xl border border-slate-700/80">
+                  <h3 className="text-base font-black text-white flex items-center gap-2 whitespace-nowrap">
                     <FileTextIcon className="w-4 h-4 text-sky-400" />
                     সংরক্ষিত ক্রয় ইনভয়েসসমূহ (Saved Invoices)
+                    <span className="bg-blue-600/30 text-sky-300 border border-sky-500/40 px-2 py-0.5 rounded-md text-xs font-mono">
+                      {sortedFilteredPurchases.length} টি
+                    </span>
                   </h3>
-                  <button
-                    onClick={() => { setBuyViewMode('list'); setEditingPurchaseId(null); }}
-                    className="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-bold text-white rounded-lg transition-all self-start sm:self-auto shrink-0 border border-slate-600 cursor-pointer shadow"
-                  >
-                    সকল ইনভয়েস তালিকা দেখুন →
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2 flex-1 justify-end">
+                    <input
+                      type="text"
+                      value={buySearchSupplier}
+                      onChange={e => setBuySearchSupplier(e.target.value)}
+                      placeholder="কোম্পানি / ID / ওষুধ খুঁজুন..."
+                      className="bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-1.5 text-white text-xs font-bold placeholder-slate-400 focus:border-sky-400 outline-none w-44"
+                      title="কোম্পানির নাম, ইনভয়েস আইডি বা ঔষধের নাম দিয়ে সার্চ করুন"
+                    />
+                    <select
+                      value={buySearchDay}
+                      onChange={e => setBuySearchDay(e.target.value)}
+                      className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-xs font-bold focus:border-sky-400 outline-none"
+                      title="দিন (Day) দিয়ে ফিল্টার করুন"
+                    >
+                      <option value="all">সকল দিন</option>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                        <option key={d} value={String(d)}>{String(d).padStart(2, '0')} তারিখ</option>
+                      ))}
+                    </select>
+                    <input
+                      type="date"
+                      value={buySearchDate}
+                      onChange={e => setBuySearchDate(e.target.value)}
+                      className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-xs font-bold focus:border-sky-400 outline-none"
+                      title="নির্দিষ্ট তারিখ দিয়ে খুঁজুন"
+                    />
+                    <select
+                      value={buySearchMonth}
+                      onChange={e => setBuySearchMonth(e.target.value)}
+                      className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-xs font-bold focus:border-sky-400 outline-none"
+                      title="মাস নির্বাচন করুন"
+                    >
+                      <option value="all">সকল মাস</option>
+                      {monthOptions.map(m => (
+                        <option key={m.value} value={m.value.toString()}>{m.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={buySearchYear}
+                      onChange={e => setBuySearchYear(e.target.value)}
+                      className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-xs font-bold focus:border-sky-400 outline-none"
+                      title="বছর নির্বাচন করুন"
+                    >
+                      <option value="all">সকল বছর</option>
+                      {[2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                        <option key={y} value={y.toString()}>{y}</option>
+                      ))}
+                    </select>
+                    {(buySearchSupplier || buySearchDate || buySearchDay !== 'all' || buySearchMonth !== 'all' || buySearchYear !== 'all' || buySortField !== 'none') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBuySearchSupplier('');
+                          setBuySearchDate('');
+                          setBuySearchDay('all');
+                          setBuySearchMonth('all');
+                          setBuySearchYear('all');
+                          setBuySortField('none');
+                        }}
+                        className="px-2.5 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-xs font-bold rounded-lg border border-rose-700/60 cursor-pointer"
+                        title="সব ফিল্টার ও সর্টিং রিসেট করুন"
+                      >
+                        রিসেট
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setBuyViewMode('list'); setEditingPurchaseId(null); }}
+                      className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-bold text-white rounded-lg transition-all shrink-0 border border-slate-600 cursor-pointer shadow whitespace-nowrap"
+                    >
+                      সকল ইনভয়েস তালিকা দেখুন →
+                    </button>
+                  </div>
                 </div>
-                <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm max-h-96">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead className="bg-[#e8edf4] text-slate-800 border-b border-slate-300 sticky top-0 z-10">
-                      <tr>
-                        <th className="p-2.5 text-center font-bold text-xs uppercase border-r border-slate-300 w-12 text-slate-800">
-                          ক্রমিক
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
-                          তারিখ / মাস-বছর
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
-                          এন্ট্রি টাইপ ও শিফট
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-slate-800">
-                          অপারেটর
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-center text-slate-800">
-                          রোগী / আইটেম
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
-                          গ্রস বিল
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-rose-600">
-                          ছাড়
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
-                          নিট বিল
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800 bg-[#f0fdf4]">
-                          ক্যাশ আদায়
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase border-r border-slate-300 text-right text-slate-800">
-                          বাকি (DUE)
-                        </th>
-                        <th className="p-2.5 font-bold text-xs uppercase text-center text-slate-800">
-                          অ্যাকশন
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {safeInvoices.slice(0, 10).map((inv, idx) => {
-                        const grossBill = Number(inv.totalAmount || inv.netPayable || 0);
-                        const discount = Number(inv.discount || 0);
-                        const netBill = Number(inv.netPayable || 0);
-                        const cashPaid = Number(inv.paidAmount || 0);
-                        const dueAmt = Number(inv.dueAmount || 0);
-                        const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
-                        const operatorName = inv.billCreatedBy || inv.billPaidBy || 'Admin';
-
-                        return (
-                          <tr
-                            key={inv.invoiceId}
-                            onDoubleClick={() => handleOpenEditPurchaseInvoice(inv)}
-                            title="ডাবল ক্লিক করে ইনভয়েসটি এডিট ও আপডেট করুন"
-                            className="border-b border-slate-300 hover:bg-slate-50 transition-colors bg-white cursor-pointer"
-                          >
-                            <td className="p-2.5 text-center font-bold text-slate-700 border-r border-slate-300 text-xs">
-                              {idx + 1}
-                            </td>
-                            <td className="p-2.5 border-r border-slate-300 text-xs">
-                              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                                <span>{inv.invoiceDate}</span>
-                                <span className="text-[10px] text-slate-500 font-normal">
-                                  ({inv.createdDate ? new Date(inv.createdDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '08:20 AM'})
-                                </span>
-                              </div>
-                              {((inv as any).expenseMonth !== undefined && (inv as any).expenseYear !== undefined) && (
-                                <span className="text-[10px] text-amber-700 font-medium block">
-                                  খরচের মাস: {monthOptions.find(m => m.value === (inv as any).expenseMonth)?.name} {(inv as any).expenseYear}
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2.5 border-r border-slate-300 text-xs">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="bg-sky-50 text-sky-700 border border-sky-300 px-2 py-0.5 rounded text-[11px] font-semibold">
-                                  {isLumpSumPurchase(inv) ? 'এককালীন মাসিক ক্রয়' : 'দৈনিক ক্রয় (PURCHASE)'}
-                                </span>
-                                <span className="text-slate-800 font-bold text-xs">{inv.source}</span>
-                              </div>
-                            </td>
-                            <td className="p-2.5 border-r border-slate-300 text-slate-700 font-medium text-xs">
-                              {operatorName}
-                            </td>
-                            <td className="p-2.5 text-center border-r border-slate-300 font-bold text-slate-800 text-xs">
-                              {itemCount}
-                            </td>
-                            <td className="p-2.5 text-right font-bold text-slate-800 border-r border-slate-300 text-xs">
-                              ৳{grossBill.toFixed(0)}
-                            </td>
-                            <td className="p-2.5 text-right font-bold text-rose-600 border-r border-slate-300 text-xs">
-                              {discount > 0 ? `-৳${discount.toFixed(0)}` : '-৳০'}
-                            </td>
-                            <td className="p-2.5 text-right font-bold text-slate-900 border-r border-slate-300 text-xs">
-                              ৳{netBill.toFixed(0)}
-                            </td>
-                            <td className="p-2.5 text-right font-bold text-emerald-800 bg-[#f0fdf4] border-r border-slate-300 text-xs">
-                              ৳{cashPaid.toFixed(0)}
-                            </td>
-                            <td className={`p-2.5 text-right font-bold border-r border-slate-300 text-xs ${dueAmt > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-                              ৳{dueAmt.toFixed(0)}
-                            </td>
-                            <td className="p-2.5 text-center whitespace-nowrap">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenEditPurchaseInvoice(inv);
-                                  }}
-                                  className="p-1.5 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
-                                  title="ইনভয়েস এডিট করুন"
-                                >
-                                  <EditIcon className="w-3.5 h-3.5 text-amber-600" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handlePrintPurchase(inv);
-                                  }}
-                                  className="p-1.5 rounded border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
-                                  title="প্রিন্ট করুন"
-                                >
-                                  <PrinterIcon className="w-3.5 h-3.5 text-blue-600" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleReturnPurchase(inv);
-                                  }}
-                                  className="p-1.5 rounded border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all inline-flex items-center justify-center shadow-xs cursor-pointer"
-                                  title="ফেরত / বাতিল করুন"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                {renderPurchaseInvoicesTable(sortedFilteredPurchases, 'max-h-[460px]')}
               </div>
             )}
         </div>
@@ -3627,8 +3923,9 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
 
   const renderHishabTab = () => {
     const filteredPurchases = safeInvoices.filter(inv => {
-        if (!inv || !inv.invoiceDate || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return false;
-        const parts = (inv.invoiceDate || '').split('-');
+        if (!inv || inv.status === 'Cancelled' || inv.status === 'Initial' || inv.status === 'Deleted') return false;
+        const effDate = getEffectivePurchaseExpenseDate(inv);
+        const parts = (effDate || '').split('-');
         if (parts.length < 2) return false;
         const [y, m] = parts.map(Number);
         return (m - 1) === selectedMonth && y === selectedYear;
@@ -4187,11 +4484,7 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 onClick={() => {
                   const invToEdit = viewingPurchaseInvoice;
                   setViewingPurchaseInvoice(null);
-                  setPurchaseFormData(invToEdit);
-                  setBuyViewMode('edit');
-                  setEditingPurchaseId(invToEdit.invoiceId);
-                  setIsOpeningStock(invToEdit.status === 'Initial');
-                  setActiveTab('buy');
+                  handleOpenEditPurchaseInvoice(invToEdit);
                 }}
                 className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-white rounded-xl font-bold text-xs transition-all border border-slate-700 flex items-center gap-1.5"
               >
@@ -4575,6 +4868,85 @@ const MedicinePage: React.FC<MedicinePageProps> = ({
                 {loading ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-Screen Blocking Loading / Progress & Completion Confirmation Overlay for Purchase Invoice Save/Update */}
+      {purchaseProgressState && (
+        <div className={`fixed inset-0 bg-black/90 z-[10002] flex items-center justify-center p-4 backdrop-blur-md ${purchaseProgressState.status === 'saving' ? 'select-none cursor-wait' : ''}`}>
+          <div className="bg-slate-900 border-2 border-slate-700 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl shadow-black/80 flex flex-col items-center text-center space-y-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {purchaseProgressState.status === 'saving' ? (
+              <>
+                <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${purchaseProgressState.isEdit ? 'from-amber-500 via-yellow-400 to-amber-500' : 'from-blue-500 via-sky-400 to-emerald-500'} animate-pulse`}></div>
+                <div className="relative w-24 h-24 flex items-center justify-center">
+                  <div className={`absolute inset-0 rounded-full border-4 ${purchaseProgressState.isEdit ? 'border-amber-500/20 border-t-amber-500' : 'border-blue-500/20 border-t-blue-500'} animate-spin`}></div>
+                  <Loader2 className={`w-10 h-10 ${purchaseProgressState.isEdit ? 'text-amber-400' : 'text-sky-400'} animate-spin`} />
+                </div>
+                <div className="space-y-3">
+                  <h3 className="text-2xl font-black text-white tracking-tight">{purchaseProgressState.title}</h3>
+                  <p className="text-sm font-semibold text-slate-300">
+                    {purchaseProgressState.step}
+                  </p>
+                  <div className="bg-amber-950/60 text-amber-300 text-xs font-bold px-4 py-2.5 rounded-xl border border-amber-800/60 mt-2 flex items-center justify-center gap-2">
+                    <span>⏳</span>
+                    <span>প্রক্রিয়া শেষ না হওয়া পর্যন্ত অনুগ্রহ করে অপেক্ষা করুন।</span>
+                  </div>
+                </div>
+              </>
+            ) : purchaseProgressState.status === 'success' ? (
+              <>
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500"></div>
+                <div className="w-24 h-24 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center animate-in zoom-in duration-300 shadow-xl shadow-emerald-950/50">
+                  <CheckCircle2 className="w-12 h-12 text-emerald-400" />
+                </div>
+                <div className="space-y-2 w-full">
+                  <h3 className="text-2xl font-black text-emerald-400">{purchaseProgressState.title}</h3>
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-xs font-semibold text-slate-200 whitespace-pre-line text-left leading-relaxed">
+                    {purchaseProgressState.message}
+                  </div>
+                </div>
+                <div className="flex gap-3 w-full">
+                  {purchaseProgressState.savedInvoice && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const inv = purchaseProgressState.savedInvoice!;
+                        setPurchaseProgressState(null);
+                        setViewingPurchaseInvoice(inv);
+                      }}
+                      className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer"
+                    >
+                      ভাউচার দেখুন / প্রিন্ট
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPurchaseProgressState(null)}
+                    className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/40 active:scale-95 cursor-pointer"
+                  >
+                    ✓ ঠিক আছে (OK)
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-24 h-24 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center">
+                  <AlertCircle className="w-12 h-12 text-rose-400" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black text-rose-400">{purchaseProgressState.title}</h3>
+                  <p className="text-sm text-slate-300">{purchaseProgressState.message}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseProgressState(null)}
+                  className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 border border-slate-700 cursor-pointer"
+                >
+                  বন্ধ করুন
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

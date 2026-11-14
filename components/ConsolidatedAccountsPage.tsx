@@ -1599,6 +1599,28 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             return inv.invoiceDate || inv.invoice_date || inv.date || inv.createdDate || inv.created_date || '';
         };
 
+        const getPurchaseInvDate = (inv: any): string => {
+            if (!inv) return '';
+            if (inv.expenseYear !== undefined && inv.expenseYear !== null && inv.expenseMonth !== undefined && inv.expenseMonth !== null) {
+                const y = Number(inv.expenseYear);
+                const m = Number(inv.expenseMonth);
+                if (!isNaN(y) && !isNaN(m) && y > 1900 && m >= 0 && m <= 11) {
+                    if (typeof inv.expenseDate === 'string' && inv.expenseDate.trim()) {
+                        const parts = inv.expenseDate.trim().split('-');
+                        if (parts.length >= 2 && Number(parts[0]) === y && Number(parts[1]) - 1 === m) {
+                            return inv.expenseDate.trim();
+                        }
+                    }
+                    const d = Number(inv.expenseDay) || 1;
+                    const maxD = new Date(y, m + 1, 0).getDate();
+                    const safeD = Math.min(Math.max(1, d), maxD);
+                    return `${y}-${String(m + 1).padStart(2, '0')}-${String(safeD).padStart(2, '0')}`;
+                }
+            }
+            if (typeof inv.expenseDate === 'string' && inv.expenseDate.trim()) return inv.expenseDate.trim();
+            return getInvDate(inv);
+        };
+
         const getInvNet = (inv: any) => {
             if (!inv) return 0;
             const net = Number(inv.netPayable ?? inv.net_payable);
@@ -1679,7 +1701,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
             const prevMedSales = prevMedSalesOutdoor + prevMedSalesIndoor;
 
             const safePurchaseInvoices = Array.isArray(purchaseInvoices) ? purchaseInvoices : [];
-            const prevMedPurch = safePurchaseInvoices.filter(inv => inv && isBeforeSelectedMonth(getInvDate(inv)) && inv.status !== 'Initial' && inv.status !== 'Cancelled' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
+            const prevMedPurch = safePurchaseInvoices.filter(inv => inv && isBeforeSelectedMonth(getPurchaseInvDate(inv)) && inv.status !== 'Initial' && inv.status !== 'Cancelled' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
             const prevCompany = companyCollections.filter(c => c && isBeforeSelectedMonth(c.date)).reduce((s, c) => s + c.amount, 0);
             let prevExp = 0;
             allFlatExpenses.forEach(it => {
@@ -1734,7 +1756,7 @@ const ConsolidatedAccountsPage: React.FC<ConsolidatedAccountsPageProps> = ({
         const medSalesCurrent = medSalesOutdoor + medSalesIndoor;
 
         const safePurchaseInvoices = Array.isArray(purchaseInvoices) ? purchaseInvoices : [];
-        const medPurchCurrent = safePurchaseInvoices.filter(inv => inv && isSelectedMonth(getInvDate(inv)) && inv.status !== 'Initial' && inv.status !== 'Cancelled' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
+        const medPurchCurrent = safePurchaseInvoices.filter(inv => inv && isSelectedMonth(getPurchaseInvDate(inv)) && inv.status !== 'Initial' && inv.status !== 'Cancelled' && inv.status !== 'Deleted').reduce((s, i) => s + getInvNet(i), 0);
         const companyCurrent = companyCollections.filter(c => c && isSelectedMonth(c.date)).reduce((s, c) => s + (Number(c.amount) || 0), 0);
 
         const totalDiag = diagCurrent + diagDue;

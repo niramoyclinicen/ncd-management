@@ -3767,6 +3767,24 @@ const IndoorInvoicePage: React.FC<{
             const special = name === 'special_discount_amount' ? val as number : formData.special_discount_amount || 0;
             const totals = calculateTotals(formData.items, 0, paid, special);
             setFormData(prev => ({ ...prev, [name]: val, ...totals }));
+        } else if (name === 'serviceCategory') {
+            const safeSubCategories = Array.isArray(subCategories) ? subCategories : [];
+            const nextSubOpts = value === 'Operation'
+                ? ['LSCS_OT', 'GB_OT', 'Others_OT']
+                : value === 'NVD and D&C'
+                ? ['NVD', 'D&C']
+                : safeSubCategories.filter(s => s && s.mainCategory === value).map(s => s.name);
+            setFormData(prev => {
+                const currentSub = (prev.subCategory || '').trim();
+                const isStillValid = currentSub && nextSubOpts.some(n => String(n).toLowerCase() === currentSub.toLowerCase());
+                return {
+                    ...prev,
+                    serviceCategory: value,
+                    service_category: value,
+                    subCategory: isStillValid ? currentSub : '',
+                    sub_category: isStillValid ? currentSub : ''
+                } as IndoorInvoice;
+            });
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
@@ -4179,13 +4197,17 @@ const IndoorInvoicePage: React.FC<{
             const safeInvoices = Array.isArray(indoorInvoices) ? indoorInvoices : [];
             // Check if date has changed for an existing invoice
             const pcAmountToSave = applyPC ? (Number(formData.special_commission) || 0) : 0;
-            const finalInvoice = { 
-                ...formData,
+            const oldInvoice = selectedInvoiceId ? safeInvoices.find(inv => inv && (inv.daily_id === selectedInvoiceId || (inv as any).id === selectedInvoiceId)) : null;
+            const isDateChanged = !!(selectedInvoiceId && formData.invoice_date !== oldInvoice?.invoice_date);
+            const { data: _dropNestedData, ...cleanFormRest } = formData as any;
+            const finalInvoice: any = { 
+                ...cleanFormRest,
+                _dbId: isDateChanged ? undefined : (cleanFormRest._dbId || (oldInvoice as any)?._dbId),
+                service_category: formData.serviceCategory || '',
+                sub_category: formData.subCategory || '',
                 special_commission: pcAmountToSave,
                 commission_paid: 0 // clear duplicate legacy commission_paid so there is no double-counting
             };
-            const oldInvoice = selectedInvoiceId ? safeInvoices.find(inv => inv && (inv.daily_id === selectedInvoiceId || (inv as any).id === selectedInvoiceId)) : null;
-            const isDateChanged = selectedInvoiceId && formData.invoice_date !== oldInvoice?.invoice_date;
 
             if (isDateChanged) {
                 const dateToUse = normalizeDate(formData.invoice_date) || formData.invoice_date;
@@ -4200,6 +4222,8 @@ const IndoorInvoicePage: React.FC<{
                 const maxSeq = existingSeqNumbers.length > 0 ? Math.max(...existingSeqNumbers) : safeInvoices.filter(i => i && normalizeDate(i.invoice_date || i.admission_date) === dateToUse).length;
                 const newId = `CLIN-${dateToUse}-${String(maxSeq + 1).padStart(3, '0')}`;
                 finalInvoice.daily_id = newId;
+                finalInvoice.invoice_id = newId;
+                finalInvoice.id = newId;
             }
 
             const now = new Date().toISOString();
@@ -4227,7 +4251,7 @@ const IndoorInvoicePage: React.FC<{
                         const matchId = String(inv.daily_id || (inv as any).invoice_id || (inv as any).id || '').trim();
                         return matchId !== selectedInvoiceId && matchId !== finalInvoice.daily_id;
                     });
-                    const newInvoice = { ...finalInvoice, created_at: now, last_modified: now, edit_history: [] };
+                    const newInvoice = { ...finalInvoice, created_at: now, last_modified: now, updated_at: now, edit_history: [] };
                     newInvoicesArr.push(newInvoice);
                 } else {
                     const idx = newInvoicesArr.findIndex(inv => {
@@ -4242,13 +4266,13 @@ const IndoorInvoicePage: React.FC<{
                         const { edit_history: oldHistory, ...invoiceSnapshot } = newInvoicesArr[idx];
                         const historyEntry = { ...invoiceSnapshot, snapshot_date: now, modified_by: finalInvoice.bill_created_by || 'System' };
                         const updatedHistory = [...(Array.isArray(oldHistory) ? oldHistory : []), historyEntry].slice(-5);
-                        newInvoicesArr[idx] = { ...finalInvoice, last_modified: now, edit_history: updatedHistory };
+                        newInvoicesArr[idx] = { ...finalInvoice, last_modified: now, updated_at: now, edit_history: updatedHistory };
                     } else {
-                        newInvoicesArr.push({ ...finalInvoice, created_at: now, last_modified: now, edit_history: [] });
+                        newInvoicesArr.push({ ...finalInvoice, created_at: now, last_modified: now, updated_at: now, edit_history: [] });
                     }
                 }
             } else {
-                const newInvoice = { ...finalInvoice, created_at: now, last_modified: now, edit_history: [] };
+                const newInvoice = { ...finalInvoice, created_at: now, last_modified: now, updated_at: now, edit_history: [] };
                 newInvoicesArr.push(newInvoice);
             }
 
@@ -4259,6 +4283,11 @@ const IndoorInvoicePage: React.FC<{
                 setActionState({ isLoading: false, text: '', subText: '' });
                 setLoading(false);
                 return;
+            }
+
+            // If invoice_date changed and generated a new daily_id, delete the previous row from Supabase so it cannot reappear on refresh
+            if (isDateChanged && oldInvoice) {
+                await dbService.deleteIndoorInvoiceDirectly(oldInvoice).catch(err => console.warn("Old invoice cleanup notice:", err));
             }
 
             // 2. If an admission record is associated, save it directly as well
@@ -4283,9 +4312,13 @@ const IndoorInvoicePage: React.FC<{
                 localStorage.setItem('ncd_offline_cache_v1', JSON.stringify(cached));
             } catch (e) {}
 
-            // 4. Also trigger global state sync
+            // 4. Also await global state sync so cloud & local cache are fully committed before UI confirms update
             if (performBlockingSync) {
-                performBlockingSync({ indoorInvoices: newInvoicesArr, admissions: newAdmissions }).catch(err => console.warn("Global sync notice:", err));
+                try {
+                    await performBlockingSync({ indoorInvoices: newInvoicesArr, admissions: newAdmissions });
+                } catch (err) {
+                    console.warn("Global sync notice:", err);
+                }
             }
 
             setIndoorInvoices(newInvoicesArr);
@@ -4729,9 +4762,20 @@ const IndoorInvoicePage: React.FC<{
             return { ...it, isClinicFund: fund };
         });
         
+        const { data: _dropNestedData, ...invRest } = inv as any;
+        const resolvedSubCat = inv.subCategory || (inv as any).sub_category || '';
+        const rawMainCat = inv.serviceCategory || (inv as any).service_category || '';
+        const resolvedMainCat = rawMainCat && rawMainCat !== 'Hospital Service'
+            ? rawMainCat
+            : (['LSCS_OT', 'GB_OT', 'OTHERS_OT'].includes(resolvedSubCat.toUpperCase())
+                ? 'Operation'
+                : ['NVD', 'D&C'].includes(resolvedSubCat.toUpperCase())
+                ? 'NVD and D&C'
+                : (rawMainCat || 'Conservative treatment'));
+
         const cleanedInv: IndoorInvoice = {
             ...emptyIndoorInvoice,
-            ...inv,
+            ...invRest,
             daily_id: invDailyId,
             patient_id: inv.patient_id || '',
             patient_name: inv.patient_name || patient?.pt_name || '',
@@ -4746,8 +4790,8 @@ const IndoorInvoicePage: React.FC<{
             referrar_id: inv.referrar_id || '',
             referrar_name: inv.referrar_name || '',
             indication: inv.indication || 'Indoor Service',
-            serviceCategory: inv.serviceCategory || 'Hospital Service',
-            subCategory: inv.subCategory || '',
+            serviceCategory: resolvedMainCat,
+            subCategory: resolvedSubCat,
             ot_details: inv.ot_details || '',
             items: loadedItems,
             edit_history: Array.isArray(inv.edit_history) ? inv.edit_history : [],
@@ -4763,6 +4807,8 @@ const IndoorInvoicePage: React.FC<{
             payment_method: inv.payment_method || 'Cash',
             status: inv.status || 'Posted'
         };
+        (cleanedInv as any).service_category = resolvedMainCat;
+        (cleanedInv as any).sub_category = resolvedSubCat;
 
         setFormData(cleanedInv);
         setSelectedInvoiceId(invDailyId);
@@ -5200,8 +5246,8 @@ const IndoorInvoicePage: React.FC<{
                                                 theme="dark" 
                                                 label="Sub_Category *" 
                                                 options={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).filter(s => s && s.id && s.name).map(s => ({id: s.id, name: s.name}))} 
-                                                value={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).find(s => s && s.name === formData.subCategory)?.id || ''} 
-                                                onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name}))} 
+                                                value={(Array.isArray(filteredSubCategories) ? filteredSubCategories : []).find(s => s && s.name.toLowerCase() === (formData.subCategory || '').toLowerCase())?.id || formData.subCategory || ''} 
+                                                onChange={(_id, name) => setFormData(prev => ({...prev, subCategory: name, sub_category: name} as IndoorInvoice))} 
                                                 onAddNew={() => setShowSubCategoryManager(true)}
                                                 required={true}
                                                 inputHeightClass="h-10 bg-slate-950 border-slate-700/80 rounded-xl text-xs"

@@ -773,25 +773,34 @@ export const dbService = {
       }).filter(r => r.collection_id || r.invoice_id);
 
       // 9. Indoor Invoices
-      state.indoorInvoices = (indoorInvoicesRes || []).map((r: any) => {
+      const mappedIndoor = (indoorInvoicesRes || []).map((r: any) => {
         const raw = r.data && typeof r.data === 'object' ? r.data : {};
+        const { data: _nestedData, ...restR } = r;
         let items = r.items ?? raw.items;
         if (typeof items === 'string') {
           try { items = JSON.parse(items); } catch { items = []; }
         }
         const invId = String(r.daily_id || r.invoice_id || r.id || raw.daily_id || '').trim();
+        const dbRowId = r.id !== undefined && r.id !== null ? String(r.id).trim() : (raw._dbId || '');
         const invDate = normalizeDate(r.admission_date || r.invoice_date || r.date || raw.admission_date || '');
         const paid = Number(r.paid_amount ?? raw.paid_amount ?? 0);
         const bill = Number(r.total_bill ?? raw.total_bill ?? 0);
+        const resolvedServiceCategory = raw.serviceCategory || r.service_category || raw.service_category || '';
+        const resolvedSubCategory = raw.subCategory || r.sub_category || raw.sub_category || '';
         return {
           ...raw,
-          ...r,
+          ...restR,
+          _dbId: dbRowId || invId,
           id: invId,
           daily_id: invId,
           invoice_id: invId,
           admission_date: invDate,
           invoice_date: invDate,
           date: invDate,
+          serviceCategory: resolvedServiceCategory,
+          service_category: resolvedServiceCategory,
+          subCategory: resolvedSubCategory,
+          sub_category: resolvedSubCategory,
           items: Array.isArray(items) ? items : [],
           total_bill: bill,
           paid_amount: paid,
@@ -799,6 +808,21 @@ export const dbService = {
           status: r.status || raw.status || 'Posted'
         };
       }).filter(r => r.daily_id);
+
+      const indoorMap = new Map<string, any>();
+      mappedIndoor.forEach((inv: any) => {
+        const existing = indoorMap.get(inv.daily_id);
+        if (!existing) {
+          indoorMap.set(inv.daily_id, inv);
+        } else {
+          const existingTs = new Date(existing.updated_at || existing.last_modified || 0).getTime() || 0;
+          const nextTs = new Date(inv.updated_at || inv.last_modified || 0).getTime() || 0;
+          if (nextTs >= existingTs) {
+            indoorMap.set(inv.daily_id, inv);
+          }
+        }
+      });
+      state.indoorInvoices = Array.from(indoorMap.values());
 
       // 10. Admissions & Discharges
       state.admissions = (admissionsRes || []).map((a: any) => ({
@@ -1396,17 +1420,30 @@ export const dbService = {
     try {
       const now = new Date().toISOString();
       const rows = invoices.map(inv => {
-        const id = String(inv.daily_id || inv.invoice_id || inv.id || `INDOOR-${Date.now()}`).trim();
+        const dailyId = String(inv.daily_id || inv.invoice_id || inv.id || `INDOOR-${Date.now()}`).trim();
+        const id = String(inv._dbId || dailyId).trim();
         const invDate = normalizeDate(inv.admission_date || inv.invoice_date || inv.date || now);
         const bill = Number(inv.total_bill ?? inv.totalBill ?? 0);
         const paid = Number(inv.paid_amount ?? inv.paidAmount ?? 0);
         const due = Number(inv.due_amount ?? inv.dueAmount ?? inv.due_bill ?? inv.dueBill ?? Math.max(0, bill - paid));
         const net = Number(inv.net_payable ?? inv.netPayable ?? bill);
         const disc = Number(inv.total_discount ?? inv.totalDiscount ?? 0);
+        const resolvedServiceCategory = inv.serviceCategory || inv.service_category || '';
+        const resolvedSubCategory = inv.subCategory || inv.sub_category || '';
+        const { data: _dropData, _dbId: _dropDbId, ...cleanInvRest } = inv;
+        const cleanInvData = {
+          ...cleanInvRest,
+          daily_id: dailyId,
+          invoice_id: dailyId,
+          serviceCategory: resolvedServiceCategory,
+          service_category: resolvedServiceCategory,
+          subCategory: resolvedSubCategory,
+          sub_category: resolvedSubCategory
+        };
         return {
           id: id,
-          daily_id: id,
-          invoice_id: id,
+          daily_id: dailyId,
+          invoice_id: dailyId,
           admission_id: String(inv.admission_id || ''),
           patient_id: String(inv.patient_id || ''),
           patient_name: inv.patient_name || '',
@@ -1418,8 +1455,8 @@ export const dbService = {
           discharge_date: inv.discharge_date || '',
           invoice_date: invDate,
           indication: inv.indication || '',
-          service_category: inv.service_category || '',
-          sub_category: inv.subCategory || inv.sub_category || '',
+          service_category: resolvedServiceCategory,
+          sub_category: resolvedSubCategory,
           ot_details: inv.ot_details || '',
           items: Array.isArray(inv.items) ? inv.items : [],
           total_bill: bill,
@@ -1433,10 +1470,14 @@ export const dbService = {
           bill_created_by: inv.bill_created_by || inv.billCreatedBy || 'Admin',
           status: inv.status || 'Posted',
           updated_at: now,
-          data: inv
+          data: cleanInvData
         };
       });
-      return await upsertTableSafe(supabase, 'indoor_invoices', rows);
+      const res = await upsertTableSafe(supabase, 'indoor_invoices', rows);
+      if (!res.success) {
+        console.error("[dbService] syncIndoorInvoices upsert failed:", res.error);
+      }
+      return !!res.success;
     } catch (e) {
       console.error("[dbService] syncIndoorInvoices exception:", e);
       return false;
@@ -1943,16 +1984,34 @@ export const dbService = {
     if (!inv) return { success: false, error: 'No invoice data' };
     if (!supabase) return { success: false, error: 'সুপাবেজ ক্লাউড ডাটাবেজ কানেক্টেড নেই।' };
     const ok = await dbService.syncIndoorInvoicesToModularTable([inv]);
-    return ok ? { success: true } : { success: false, error: 'indoor_invoices টেবিলে সেভ ব্যর্থ হয়েছে।' };
+    if (ok) {
+      const dailyId = String(inv.daily_id || inv.invoice_id || '').trim();
+      const rowId = String(inv._dbId || dailyId || inv.id || '').trim();
+      if (dailyId && rowId) {
+        try {
+          await supabase.from('indoor_invoices').delete().eq('daily_id', dailyId).neq('id', rowId);
+        } catch (e) {
+          console.warn("[dbService] cleanup duplicate indoor_invoice notice:", e);
+        }
+      }
+      return { success: true };
+    }
+    return { success: false, error: 'indoor_invoices টেবিলে সেভ ব্যর্থ হয়েছে।' };
   },
 
   deleteIndoorInvoiceDirectly: async (inv: any): Promise<{ success: boolean; error?: string }> => {
     if (!inv) return { success: true };
     const targetId = String(inv.daily_id || inv.invoice_id || inv.id || '').trim();
-    if (!targetId || !supabase) return { success: true };
+    const dbRowId = inv._dbId ? String(inv._dbId).trim() : '';
+    if ((!targetId && !dbRowId) || !supabase) return { success: true };
     try {
-      await supabase.from('indoor_invoices').delete().eq('id', targetId);
-      await supabase.from('indoor_invoices').delete().eq('daily_id', targetId);
+      if (dbRowId) {
+        await supabase.from('indoor_invoices').delete().eq('id', dbRowId);
+      }
+      if (targetId) {
+        await supabase.from('indoor_invoices').delete().eq('id', targetId);
+        await supabase.from('indoor_invoices').delete().eq('daily_id', targetId);
+      }
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message };

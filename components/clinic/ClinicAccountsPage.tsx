@@ -656,6 +656,14 @@ const ClinicAccountsPage: React.FC<any> = ({
     const [selectedDate, setSelectedDate] = useState(todayStr);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [cardTodayDate, setCardTodayDate] = useState(todayStr);
+    const [cardMonth, setCardMonth] = useState(new Date().getMonth());
+    const [cardMonthYear, setCardMonthYear] = useState(new Date().getFullYear());
+    const [cardYear, setCardYear] = useState(new Date().getFullYear());
+    const cardYearOptions = useMemo(() => {
+        const curY = new Date().getFullYear();
+        return Array.from(new Set([2024, 2025, 2026, 2027, curY])).sort((a, b) => a - b);
+    }, []);
     const [viewMode, setViewMode] = useState<'detailed' | 'summary' | 'collection' | 'daily_summary' | 'monthly_expense'>('detailed');
     const handleDateChange = (newDate: string) => {
         setSelectedDate(newDate);
@@ -986,8 +994,8 @@ const ClinicAccountsPage: React.FC<any> = ({
             }
 
             const typeLower = (it.service_type || '').toLowerCase();
-            const subCat = (inv.subCategory || '').toUpperCase();
-            const mainCat = inv.serviceCategory;
+            const subCat = (inv.subCategory || inv.sub_category || '').toUpperCase();
+            const mainCat = inv.serviceCategory || inv.service_category || '';
 
             // Rule 1: Key Item Keywords (Admission, O2, Dressing) - Direct amount without any ratio
             if (matchesKeyword(typeLower, ['admission fee', 'ভর্তি ফি'])) {
@@ -1483,9 +1491,9 @@ const ClinicAccountsPage: React.FC<any> = ({
     // Top overview cards stats for Today, Month, Year Hospital Cash & Total Due
     const stats = useMemo(() => {
         const now = new Date();
-        const todayString = now.toISOString().split('T')[0];
-        const currentMonthString = todayString.substring(0, 7);
-        const currentYearString = now.getFullYear().toString();
+        const todayString = cardTodayDate || now.toISOString().split('T')[0];
+        const currentMonthString = `${cardMonthYear}-${String(cardMonth + 1).padStart(2, '0')}`;
+        const currentYearString = String(cardYear);
 
         const calculateStatsForPeriod = (period: string, type: 'day' | 'month' | 'year') => {
             let totalBill = 0;
@@ -1533,7 +1541,7 @@ const ClinicAccountsPage: React.FC<any> = ({
         const totalDue = safeInvoices.filter((i: any) => i && i.status !== 'Returned' && i.status !== 'Cancelled' && i.status !== 'Deleted').reduce((s: number, i: any) => s + (i.due_bill || 0), 0);
 
         return { today, month, year, totalDue };
-    }, [invoices, categorizeInvoiceData]);
+    }, [invoices, categorizeInvoiceData, cardTodayDate, cardMonth, cardMonthYear, cardYear]);
 
     const handlePrintCollectionReport = () => {
         const win = window.open('', '_blank');
@@ -2014,9 +2022,18 @@ const ClinicAccountsPage: React.FC<any> = ({
                     {/* Today Hospital Cash */}
                     <div className="bg-[#faf9f6] p-4 rounded-2xl border border-stone-200/90 shadow-md shadow-slate-950/20 relative overflow-hidden transition-all hover:shadow-lg text-slate-800">
                         <div className="absolute top-0 left-0 right-0 h-1.5 bg-emerald-500"></div>
-                        <div className="text-center pt-1 pb-2 border-b border-stone-200/80">
-                            <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider">Today Hospital Cash</h4>
-                            <div className="text-[10px] font-bold text-emerald-600 mt-0.5">টুডে হসপিটাল ক্যাশ</div>
+                        <div className="flex items-start justify-between gap-2 pt-1 pb-2 border-b border-stone-200/80">
+                            <div className="text-left min-w-0">
+                                <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider truncate">Today Hospital Cash</h4>
+                                <div className="text-[10px] font-bold text-emerald-600 mt-0.5">টুডে হসপিটাল ক্যাশ</div>
+                            </div>
+                            <input
+                                type="date"
+                                value={cardTodayDate}
+                                onChange={(e) => setCardTodayDate(e.target.value || todayStr)}
+                                title="তারিখ পরিবর্তন করে ওই দিনের হিসাব দেখুন"
+                                className="bg-white border border-stone-300 rounded-lg px-1.5 py-0.5 text-[10px] text-slate-700 font-bold focus:outline-none focus:border-emerald-500 cursor-pointer shrink-0 h-6"
+                            />
                         </div>
                         <div className="grid grid-cols-2 gap-2 mt-3 bg-white p-2.5 rounded-xl border border-stone-200/90 shadow-inner">
                             <div className="text-center border-r border-stone-200 pr-2">
@@ -2033,9 +2050,29 @@ const ClinicAccountsPage: React.FC<any> = ({
                     {/* Monthly Hospital Cash */}
                     <div className="bg-[#faf9f6] p-4 rounded-2xl border border-stone-200/90 shadow-md shadow-slate-950/20 relative overflow-hidden transition-all hover:shadow-lg text-slate-800">
                         <div className="absolute top-0 left-0 right-0 h-1.5 bg-blue-500"></div>
-                        <div className="text-center pt-1 pb-2 border-b border-stone-200/80">
-                            <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider">Monthly Hospital Cash</h4>
-                            <div className="text-[10px] font-bold text-blue-600 mt-0.5">মান্থলি হসপিটাল ক্যাশ</div>
+                        <div className="flex items-start justify-between gap-1.5 pt-1 pb-2 border-b border-stone-200/80">
+                            <div className="text-left min-w-0">
+                                <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider truncate">Monthly Hospital Cash</h4>
+                                <div className="text-[10px] font-bold text-blue-600 mt-0.5">মান্থলি হসপিটাল ক্যাশ</div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                                <select
+                                    value={cardMonth}
+                                    onChange={(e) => setCardMonth(parseInt(e.target.value, 10))}
+                                    title="মাস নির্বাচন করুন"
+                                    className="bg-white border border-stone-300 rounded-lg px-1 py-0.5 text-[10px] text-slate-700 font-bold focus:outline-none focus:border-blue-500 cursor-pointer h-6"
+                                >
+                                    {monthOptions.map(m => <option key={m.value} value={m.value}>{m.name.substring(0, 3)}</option>)}
+                                </select>
+                                <select
+                                    value={cardMonthYear}
+                                    onChange={(e) => setCardMonthYear(parseInt(e.target.value, 10))}
+                                    title="বছর নির্বাচন করুন"
+                                    className="bg-white border border-stone-300 rounded-lg px-1 py-0.5 text-[10px] text-slate-700 font-bold focus:outline-none focus:border-blue-500 cursor-pointer h-6"
+                                >
+                                    {cardYearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                            </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 mt-3 bg-white p-2.5 rounded-xl border border-stone-200/90 shadow-inner">
                             <div className="text-center border-r border-stone-200 pr-2">
@@ -2052,9 +2089,19 @@ const ClinicAccountsPage: React.FC<any> = ({
                     {/* Yearly Hospital Cash */}
                     <div className="bg-[#faf9f6] p-4 rounded-2xl border border-stone-200/90 shadow-md shadow-slate-950/20 relative overflow-hidden transition-all hover:shadow-lg text-slate-800">
                         <div className="absolute top-0 left-0 right-0 h-1.5 bg-purple-500"></div>
-                        <div className="text-center pt-1 pb-2 border-b border-stone-200/80">
-                            <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider">Yearly Hospital Cash</h4>
-                            <div className="text-[10px] font-bold text-purple-600 mt-0.5">ইয়ারলি হসপিটাল ক্যাশ</div>
+                        <div className="flex items-start justify-between gap-2 pt-1 pb-2 border-b border-stone-200/80">
+                            <div className="text-left min-w-0">
+                                <h4 className="text-slate-900 text-xs font-black uppercase tracking-wider truncate">Yearly Hospital Cash</h4>
+                                <div className="text-[10px] font-bold text-purple-600 mt-0.5">ইয়ারলি হসপিটাল ক্যাশ</div>
+                            </div>
+                            <select
+                                value={cardYear}
+                                onChange={(e) => setCardYear(parseInt(e.target.value, 10))}
+                                title="বছর নির্বাচন করুন"
+                                className="bg-white border border-stone-300 rounded-lg px-1.5 py-0.5 text-[10px] text-slate-700 font-bold focus:outline-none focus:border-purple-500 cursor-pointer shrink-0 h-6"
+                            >
+                                {cardYearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
                         </div>
                         <div className="grid grid-cols-2 gap-2 mt-3 bg-white p-2.5 rounded-xl border border-stone-200/90 shadow-inner">
                             <div className="text-center border-r border-stone-200 pr-2">
@@ -2205,7 +2252,7 @@ const ClinicAccountsPage: React.FC<any> = ({
                         <div className="bg-slate-800 p-4 sm:p-8 rounded-3xl border border-slate-700 shadow-2xl flex flex-col gap-6 w-full">
                             <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-700 pb-4 no-print">
                                 <div className="flex flex-wrap items-center gap-4">
-                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Patient Collection Report</h3>
+                                    <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-tight">Patient Collection Report</h3>
                                     <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-700">
                                         <button onClick={() => setIsTodayFilter(true)} className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase transition-all cursor-pointer ${isTodayFilter && selectedDate === new Date().toISOString().split('T')[0] ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Today's Collection</button>
                                         <button onClick={() => setIsTodayFilter(false)} className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase transition-all cursor-pointer ${!isTodayFilter ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Monthly View</button>
@@ -2281,12 +2328,6 @@ const ClinicAccountsPage: React.FC<any> = ({
                                         {hideCancelledInCollection ? '👁️ বাতিল/ডিলিট লুকানো' : '👁️ বাতিল/ডিলিট দৃশ্যমান'}
                                     </button>
                                 </div>
-                                <button 
-                                    onClick={handlePrintCollectionReport}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
-                                >
-                                    <PrinterIcon size={14}/> Print
-                                </button>
                             </div>
 
                             {/* Active Filter Indicators */}
@@ -2322,8 +2363,17 @@ const ClinicAccountsPage: React.FC<any> = ({
                                     <thead className="bg-slate-900 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700 sticky top-0 z-20 shadow-md">
                                         {/* Top Column Summary Row */}
                                         <tr className="bg-slate-950/95 border-b border-slate-800 text-slate-300">
-                                            <th colSpan={15} className="p-2 text-right uppercase tracking-wider text-[10px] font-black text-slate-400 border-r border-slate-800/60">
-                                                কলাম সামারি (Top Summary) :
+                                            <th colSpan={15} className="p-2 uppercase tracking-wider text-[10px] font-black text-slate-400 border-r border-slate-800/60">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handlePrintCollectionReport}
+                                                        className="no-print bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
+                                                    >
+                                                        <PrinterIcon size={13}/> Print
+                                                    </button>
+                                                    <span>কলাম সামারি (Top Summary) :</span>
+                                                </div>
                                             </th>
                                             <th className="p-2 text-right bg-emerald-950/40 text-emerald-400 font-black font-mono text-xs border-r border-slate-800/60 whitespace-nowrap" title="মোট কালেকশন">
                                                 <span className="text-[8px] block text-emerald-500/80 font-sans">TOTAL PAID</span>
@@ -2428,19 +2478,20 @@ const ClinicAccountsPage: React.FC<any> = ({
                                                 <td className="border border-slate-300 p-2.5 font-mono text-slate-900 font-bold whitespace-nowrap">{inv.admission_date || inv.invoice_date}</td>
                                                 <td className="border border-slate-300 p-2.5 font-black text-slate-900 uppercase whitespace-nowrap">{inv.patient_name}</td>
                                                 <td className="border border-slate-300 p-2.5 whitespace-nowrap max-w-[160px] truncate" title="সার্ভিসের ওপর ক্লিক করলে শুধু এই সার্ভিসের ডাটা ফিল্টার হবে, আবার ক্লিক করলে আগের মত হবে">
-                                                    {inv.subCategory ? (
+                                                    {(inv.subCategory || inv.sub_category) ? (
                                                         <span 
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                setInvoiceSearch(prev => prev.toLowerCase() === String(inv.subCategory).toLowerCase() ? '' : String(inv.subCategory));
+                                                                const subLabel = String(inv.subCategory || inv.sub_category);
+                                                                setInvoiceSearch(prev => prev.toLowerCase() === subLabel.toLowerCase() ? '' : subLabel);
                                                             }}
                                                             className={`px-2 py-0.5 rounded border text-[10px] font-black uppercase transition-all cursor-pointer ${
-                                                                invoiceSearch.toLowerCase() === String(inv.subCategory).toLowerCase()
+                                                                invoiceSearch.toLowerCase() === String(inv.subCategory || inv.sub_category).toLowerCase()
                                                                     ? 'bg-amber-300 border-amber-600 text-amber-950 shadow-sm'
                                                                     : 'bg-sky-100 border-sky-300 text-sky-800 hover:bg-sky-200'
                                                             }`}
                                                         >
-                                                            {inv.subCategory}
+                                                            {inv.subCategory || inv.sub_category}
                                                         </span>
                                                     ) : (
                                                         <span className="text-slate-400">-</span>

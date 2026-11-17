@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Activity, LayoutDashboard, Stethoscope, Building2, Pill, Calculator, TrendingUp, Settings, LogOut, Menu, X, FileText } from 'lucide-react';
+import { Activity, LayoutDashboard, Stethoscope, Building2, Pill, Calculator, TrendingUp, Settings, LogOut, Menu, X, FileText, ChevronUp, ChevronDown } from 'lucide-react';
 import { ViewState, UserRole, DepartmentPasswords } from './types';
 import Dashboard from './components/Dashboard';
 import DiagnosticPage from './components/DiagnosticPage';
@@ -35,6 +35,55 @@ const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLo
   const handleNavigate = (path: string) => {
     navigate(path);
     setIsQuickNavOpen(false);
+  };
+
+  const handlePageScroll = (direction: 'up' | 'down') => {
+    const viewport = document.getElementById('main-content-viewport');
+    const candidates: HTMLElement[] = [];
+
+    const collectScrollables = (root: HTMLElement) => {
+      const style = window.getComputedStyle(root);
+      const isScrollableY = (style.overflowY === 'auto' || style.overflowY === 'scroll') && root.scrollHeight > root.clientHeight + 24;
+      if (isScrollableY && root.clientWidth >= 250 && root.clientHeight >= 180 && root.getClientRects().length > 0 && root.tagName !== 'UL') {
+        candidates.push(root);
+      }
+      Array.from(root.children).forEach((child) => {
+        if (child instanceof HTMLElement) collectScrollables(child);
+      });
+    };
+
+    if (viewport) collectScrollables(viewport);
+
+    const primaryScroller = candidates[0] || viewport;
+    const nestedScrollers = candidates.slice(1);
+
+    if (direction === 'up') {
+      if (primaryScroller && primaryScroller.scrollTop > 10) {
+        primaryScroller.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        const scrolledNested = nestedScrollers.find(el => el.scrollTop > 10);
+        if (scrolledNested) {
+          scrolledNested.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (primaryScroller) {
+          primaryScroller.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    } else {
+      if (primaryScroller && primaryScroller.scrollTop + primaryScroller.clientHeight < primaryScroller.scrollHeight - 10) {
+        primaryScroller.scrollTo({ top: primaryScroller.scrollHeight, behavior: 'smooth' });
+      } else {
+        const nextNested = nestedScrollers.find(el => el.scrollTop + el.clientHeight < el.scrollHeight - 10);
+        if (nextNested) {
+          nextNested.scrollTo({ top: nextNested.scrollHeight, behavior: 'smooth' });
+        } else if (primaryScroller) {
+          primaryScroller.scrollTo({ top: primaryScroller.scrollHeight, behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+        }
+      }
+    }
   };
 
   return (
@@ -133,6 +182,30 @@ const SidebarLayout = ({ children, onLogout }: { children: React.ReactNode, onLo
           <Menu size={26} className="drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] text-sky-400 hover:text-sky-300 transition-colors" />
           <span className="text-xs font-bold uppercase tracking-wider hidden group-hover:inline-block bg-slate-900/95 text-white px-3 py-1.5 rounded-xl border border-sky-500/40 shadow-xl backdrop-blur-md">Switch Module</span>
         </button>
+      )}
+
+      {/* Global Slim Right-Side Up / Down Scroll Buttons */}
+      {location.pathname !== '/' && (
+        <div className="fixed right-3.5 top-1/2 -translate-y-1/2 z-[99996] flex flex-col items-center gap-1.5 print:hidden">
+          <button
+            type="button"
+            onClick={() => handlePageScroll('up')}
+            className="w-7 h-9 flex items-center justify-center rounded-full bg-slate-900/90 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-400/70 shadow-[0_4px_14px_rgba(0,0,0,0.45)] backdrop-blur-md transition-all active:scale-90 cursor-pointer"
+            title="উপরে যান (Top)"
+            aria-label="Scroll to Top"
+          >
+            <ChevronUp size={16} strokeWidth={2.75} />
+          </button>
+          <button
+            type="button"
+            onClick={() => handlePageScroll('down')}
+            className="w-7 h-9 flex items-center justify-center rounded-full bg-slate-900/90 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-400/70 shadow-[0_4px_14px_rgba(0,0,0,0.45)] backdrop-blur-md transition-all active:scale-90 cursor-pointer"
+            title="নিচে যান (Bottom)"
+            aria-label="Scroll to Bottom"
+          >
+            <ChevronDown size={16} strokeWidth={2.75} />
+          </button>
+        </div>
       )}
 
       {/* Full-bleed Content View */}

@@ -38,6 +38,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [hasNavigated, setHasNavigated] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -105,6 +106,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setIsTyping(false);
+        setHasNavigated(false);
         // Revert search term to selected value on blur if not custom
         if (selectedOption) {
           setSearchTerm(selectedOption.name);
@@ -123,6 +125,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     onChange(option.id, option.name);
     setSearchTerm(option.name);
     setIsTyping(false);
+    setHasNavigated(false);
     setIsOpen(false);
   };
 
@@ -130,6 +133,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     const newVal = e.target.value;
     setSearchTerm(newVal);
     setIsTyping(true);
+    setHasNavigated(false);
     setIsOpen(true);
     if (onSearchChange) onSearchChange(newVal);
     if (allowCustom) {
@@ -141,6 +145,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     e.stopPropagation();
     setSearchTerm('');
     setIsTyping(false);
+    setHasNavigated(false);
     onChange('', '');
     setIsOpen(true);
   };
@@ -151,6 +156,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       if (!isOpen) {
         setIsOpen(true);
       } else {
+        setHasNavigated(true);
         setHighlightedIndex(prev => (prev < filteredOptions.length - 1 ? prev + 1 : 0));
       }
     } else if (e.key === 'ArrowUp') {
@@ -158,19 +164,32 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       if (!isOpen) {
         setIsOpen(true);
       } else {
+        setHasNavigated(true);
         setHighlightedIndex(prev => (prev > 0 ? prev - 1 : filteredOptions.length - 1));
       }
     } else if (e.key === 'Enter') {
-      if (isOpen && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+      if (onEnter && !hasNavigated && (isTyping || !value)) {
+        e.preventDefault();
+        onEnter(searchTerm);
+        setIsOpen(false);
+        setIsTyping(false);
+        setHasNavigated(false);
+      } else if (isOpen && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
         e.preventDefault();
         handleSelect(filteredOptions[highlightedIndex]);
       } else if (onEnter) {
+        e.preventDefault();
         onEnter(searchTerm);
         setIsOpen(false);
+        setIsTyping(false);
+        setHasNavigated(false);
+      } else if (isOpen) {
+        e.preventDefault();
       }
     } else if (e.key === 'Escape') {
       setIsOpen(false);
       setIsTyping(false);
+      setHasNavigated(false);
     }
   };
 

@@ -936,12 +936,70 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 bg-white text-slate-900">
                                     {filteredPatients.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={9} className="px-4 py-12 text-center text-slate-400 font-medium bg-slate-900/90">
-                                                <p className="text-sm font-semibold text-slate-300">কোনো রোগী পাওয়া যায়নি!</p>
-                                                <p className="text-xs text-slate-500 mt-1">বামপাশের ফর্মে নতুন তথ্য পূরণ করে "সেভ ও ইনভয়েসে নিন" বাটনে ক্লিক করুন।</p>
-                                            </td>
-                                        </tr>
+                                        !selectedPatientId && Boolean(
+                                            (formData.pt_name || '').trim() ||
+                                            (formData.mobile || '').replace(/\D/g, '') ||
+                                            (formData.address || '').trim() ||
+                                            (formData.thana || '').trim() ||
+                                            (formData.co_name || '').trim() ||
+                                            (formData.ageY || '').trim()
+                                        ) ? (
+                                            <>
+                                                <tr className="divide-x divide-emerald-200 bg-emerald-50/90 border-b border-emerald-200 border-l-4 border-l-emerald-600">
+                                                    <td className="px-2 py-2 text-center">
+                                                        <span className="px-1.5 py-0.5 bg-emerald-600 text-white rounded text-[9px] font-black">নতুন</span>
+                                                    </td>
+                                                    <td className="px-2 py-1.5 text-center whitespace-nowrap">
+                                                        <button
+                                                            type="submit"
+                                                            form="patient-form"
+                                                            disabled={isSaving}
+                                                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-black uppercase shadow-sm active:scale-95 transition-all cursor-pointer"
+                                                            title="নতুন রোগী সেভ করে ইনভয়েসে নিন"
+                                                        >
+                                                            সেভ ও নিন
+                                                        </button>
+                                                    </td>
+                                                    <td className="px-2.5 py-2 font-mono text-blue-700 font-bold whitespace-nowrap">
+                                                        {formData.pt_id || 'Generating...'}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-slate-900 font-bold whitespace-nowrap">
+                                                        {formData.pt_name || '—'}
+                                                    </td>
+                                                    <td className="px-2.5 py-2 text-slate-800 font-medium whitespace-nowrap">
+                                                        {formData.gender ? `${formData.gender}${formData.ageY ? ', ' : ''}` : ''}
+                                                        <span className="text-amber-700 font-bold">{formData.ageY ? `${formData.ageY}Y` : ''}</span>
+                                                        {!formData.gender && !formData.ageY ? '—' : ''}
+                                                    </td>
+                                                    <td className="px-2.5 py-2 text-slate-800 font-medium whitespace-nowrap text-xs">
+                                                        {formData.co_name ? `${formData.co_pref || 'S/O'} ${formData.co_name}` : '—'}
+                                                    </td>
+                                                    <td className="px-2.5 py-2 text-emerald-800 font-mono font-bold whitespace-nowrap">
+                                                        {formData.mobile || '—'}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[140px]" title={formData.address}>
+                                                        {formData.address || '—'}
+                                                    </td>
+                                                    <td className="px-2.5 py-2 text-slate-800 font-medium whitespace-nowrap text-xs">
+                                                        {formData.thana || ''}
+                                                        {formData.district ? `${formData.thana ? ', ' : ''}${formData.district}` : (!formData.thana ? '—' : '')}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td colSpan={9} className="px-4 py-6 text-center bg-slate-50 text-slate-700">
+                                                        <p className="text-xs font-bold text-emerald-800">পূর্বের তালিকায় কোনো মিল পাওয়া যায়নি — বামে টাইপ করা নতুন রোগীর তথ্য রিয়েল-টাইমে উপরে দেখা যাচ্ছে।</p>
+                                                        <p className="text-[11px] text-slate-600 mt-1">সম্পূর্ণ তথ্য পূরণ করে "সেভ ও ইনভয়েসে নিন" বা "সেভ ও নিন" বাটনে ক্লিক করুন।</p>
+                                                    </td>
+                                                </tr>
+                                            </>
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={9} className="px-4 py-12 text-center text-slate-700 font-medium bg-slate-50">
+                                                    <p className="text-sm font-semibold text-slate-800">কোনো রোগী পাওয়া যায়নি!</p>
+                                                    <p className="text-xs text-slate-600 mt-1">বামপাশের ফর্মে নতুন তথ্য পূরণ করে "সেভ ও ইনভয়েসে নিন" বাটনে ক্লিক করুন।</p>
+                                                </td>
+                                            </tr>
+                                        )
                                     ) : (
                                         filteredPatients.slice(0, 150).map((pat, pIdx) => {
                                             const isSelected = selectedPatientId === pat.pt_id;
@@ -967,7 +1025,7 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                                                     }`}
                                                     title="ক্লিক করলে বামে লোড হবে, ডাবল ক্লিক করলে ইনভয়েসে চলে যাবে"
                                                 >
-                                                    <td className="px-2.5 py-2 text-center text-[10px] text-slate-500 font-mono">
+                                                    <td className="px-2.5 py-2 text-center text-[10px] text-slate-600 font-mono font-semibold">
                                                         {pIdx + 1}
                                                     </td>
                                                     <td className="px-2 py-1.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -987,28 +1045,28 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                                                             সিলেক্ট
                                                         </button>
                                                     </td>
-                                                    <td className="px-2.5 py-2 font-mono text-cyan-300 font-bold whitespace-nowrap">
+                                                    <td className="px-2.5 py-2 font-mono text-blue-700 font-bold whitespace-nowrap">
                                                         {pat.pt_id}
                                                     </td>
-                                                    <td className="px-3 py-2 text-white font-bold whitespace-nowrap">
+                                                    <td className="px-3 py-2 text-slate-900 font-bold whitespace-nowrap">
                                                         {pat.pt_name}
                                                     </td>
-                                                    <td className="px-2.5 py-2 text-slate-200 whitespace-nowrap">
+                                                    <td className="px-2.5 py-2 text-slate-800 font-medium whitespace-nowrap">
                                                         {pat.gender ? `${pat.gender}, ` : ''}
-                                                        <span className="text-amber-300 font-bold">{pat.ageY ? `${pat.ageY}Y` : ''}</span>
+                                                        <span className="text-amber-700 font-bold">{pat.ageY ? `${pat.ageY}Y` : ''}</span>
                                                     </td>
-                                                    <td className="px-2.5 py-2 text-slate-300 whitespace-nowrap text-xs">
+                                                    <td className="px-2.5 py-2 text-slate-800 font-medium whitespace-nowrap text-xs">
                                                         {pat.co_name ? `${pat.co_pref || 'S/O'} ${pat.co_name}` : '—'}
                                                     </td>
-                                                    <td className="px-2.5 py-2 text-emerald-300 font-mono font-bold whitespace-nowrap">
+                                                    <td className="px-2.5 py-2 text-emerald-800 font-mono font-bold whitespace-nowrap">
                                                         {pat.mobile || '—'}
                                                     </td>
-                                                    <td className="px-3 py-2 text-slate-300 truncate max-w-[140px]" title={pat.address}>
+                                                    <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[140px]" title={pat.address}>
                                                         {pat.address || '—'}
                                                     </td>
-                                                    <td className="px-2.5 py-2 text-slate-300 whitespace-nowrap text-xs">
+                                                    <td className="px-2.5 py-2 text-slate-800 font-medium whitespace-nowrap text-xs">
                                                         {pat.thana || ''}
-                                                        {pat.district ? `, ${pat.district}` : ''}
+                                                        {pat.district ? `${pat.thana ? ', ' : ''}${pat.district}` : ''}
                                                     </td>
                                                 </tr>
                                             );
@@ -1019,14 +1077,14 @@ const PatientInfoPage: React.FC<PatientInfoPageProps> = ({
                         </div>
 
                         {/* Excel Status Bar Footer */}
-                        <div className="bg-slate-850 px-4 py-2 border-t border-slate-700 flex flex-wrap justify-between items-center text-[11px] text-slate-400 shrink-0 gap-2">
-                            <span>মোট রেকর্ড: <strong className="text-white">{filteredPatients.length}</strong></span>
+                        <div className="bg-slate-200 px-4 py-2 border-t border-slate-300 flex flex-wrap justify-between items-center text-[11px] text-slate-700 shrink-0 gap-2">
+                            <span>মোট রেকর্ড: <strong className="text-slate-900">{filteredPatients.length}</strong></span>
                             {selectedPatientId && (
-                                <span className="text-emerald-400 font-medium">
+                                <span className="text-emerald-800 font-bold">
                                     নির্বাচিত: <strong className="font-mono">{selectedPatientId}</strong>
                                 </span>
                             )}
-                            <span className="text-slate-400 font-medium">সিলেক্ট বাটন বা ডাবল-ক্লিক = সরাসরি ইনভয়েসে ট্রান্সফার</span>
+                            <span className="text-slate-600 font-medium">সিলেক্ট বাটন বা ডাবল-ক্লিক = সরাসরি ইনভয়েসে ট্রান্সফার</span>
                         </div>
                     </div>
                 </div>

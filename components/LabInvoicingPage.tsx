@@ -3461,7 +3461,7 @@ const LabInvoicingPage: React.FC<LabInvoicingPageProps> = ({
 
         {/* Embedded Excel-Grid Table */}
         <div className="bg-white border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto max-h-[560px]">
+          <div className="overflow-x-auto overflow-y-auto h-[calc(100vh-215px)] min-h-[480px]">
             <table className="w-full text-left border-collapse text-xs border border-slate-300 font-sans">
               <thead className="bg-[#dce6f1] text-slate-800 uppercase font-black tracking-wider border-b-2 border-slate-400 sticky top-0 z-10 select-none text-[11px]">
                 <tr className="divide-x divide-slate-300">
